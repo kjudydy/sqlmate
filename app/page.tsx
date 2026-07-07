@@ -460,10 +460,13 @@ export default function Home() {
           <div className="top-actions">
             <span className="pill">{scoreLabel(accuracy)} · 정답률 {accuracy}%</span>
             {cloudUser ? (
-              <button className="ghost-button" onClick={signOut}>
-                <LogOut size={17} />
-                로그아웃
-              </button>
+              <>
+                <span className="pill">{cloudUser.email ?? "로그인됨"}</span>
+                <button className="ghost-button" onClick={signOut}>
+                  <LogOut size={17} />
+                  로그아웃
+                </button>
+              </>
             ) : (
               <button className="primary-button" onClick={signInWithGoogle}>
                 <LogIn size={17} />
