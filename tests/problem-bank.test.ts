@@ -75,6 +75,20 @@ describe("SQLP problem bank", () => {
     expect(conceptArticles.length).toBeGreaterThanOrEqual(75);
   });
 
+  it("provides study-ready hints, explanations, and choice feedback", () => {
+    for (const question of objectiveQuestions) {
+      expect(question.hint).toContain("출제 포인트");
+      expect(question.hint).toContain("풀이 방향");
+      expect(question.explanation).toContain("정답 근거");
+      expect(question.explanation).toContain("시험 포인트");
+
+      for (const choice of question.choices) {
+        expect(question.whyWrong[choice.id]).toBeTruthy();
+        expect(question.whyWrong[choice.id].length).toBeGreaterThan(20);
+      }
+    }
+  });
+
   it("generates local extra questions after the first 100 without id collisions", () => {
     for (const subject of subjects) {
       const extra = createLocalExtraQuestion(subject.id, 0);

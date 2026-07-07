@@ -693,6 +693,11 @@ ul {
   margin: 0;
 }
 
+.hint-box p,
+.explain-box p {
+  white-space: pre-line;
+}
+
 .explain-box {
   border: 1px solid rgba(8, 117, 104, 0.2);
   background: rgba(237, 247, 245, 0.9);
@@ -708,6 +713,44 @@ ul {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.choice-explanations {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(8, 117, 104, 0.18);
+}
+
+.choice-explanations > strong {
+  font-size: 14px;
+}
+
+.choice-explanation {
+  border: 1px solid rgba(20, 27, 39, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+  padding: 10px 11px;
+  line-height: 1.55;
+}
+
+.choice-explanation.answer {
+  border-color: rgba(22, 130, 75, 0.24);
+  background: rgba(234, 248, 240, 0.78);
+}
+
+.choice-explanation b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+  font-size: 12px;
 }
 
 .split-panels,

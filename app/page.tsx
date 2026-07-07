@@ -877,6 +877,17 @@ export default function Home() {
                   <p className="small-muted">
                     선택 {currentAnswer.selectedChoiceId}: {currentQuestion.whyWrong[currentAnswer.selectedChoiceId]}
                   </p>
+                  <div className="choice-explanations">
+                    <strong>선택지별 해설</strong>
+                    {currentQuestion.choices.map((choice) => (
+                      <p
+                        key={`${currentQuestion.id}-why-${choice.id}`}
+                        className={choice.id === currentQuestion.answer ? "choice-explanation answer" : "choice-explanation"}
+                      >
+                        <b>{choice.id}</b> {currentQuestion.whyWrong[choice.id]}
+                      </p>
+                    ))}
+                  </div>
                 </div>
               )}
 

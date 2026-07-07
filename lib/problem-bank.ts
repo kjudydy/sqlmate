@@ -82,13 +82,102 @@ function makeChoices(choices: ChoiceTuple): Choice[] {
   return choices.map((text, index) => ({ id: choiceIds[index], text }));
 }
 
-function makeWhyWrong(draft: DraftQuestion, answerIndex: number): Record<ChoiceId, string> {
+function hasAny(text: string, patterns: string[]) {
+  return patterns.some((pattern) => text.includes(pattern));
+}
+
+function makeSolvingGuide(draft: DraftQuestion) {
+  const guides = [];
+
+  if (hasAny(draft.stem, ["부적절", "틀린", "아닌"])) {
+    guides.push("문제가 '부적절한 것'을 묻고 있으므로 옳은 설명을 고르는 것이 아니라 틀린 전제를 제거해야 합니다.");
+  }
+
+  if (hasAny(draft.stem, ["옳은 것만 모두", "보기"])) {
+    guides.push("ㄱ, ㄴ, ㄷ 보기는 한 번에 감으로 고르지 말고 각 문장을 O/X로 따로 판정한 뒤 조합을 맞춥니다.");
+  }
+
+  if (draft.table) {
+    guides.push("표가 있으면 조건 적용 전 행을 먼저 세고, WHERE/JOIN/GROUP BY 적용 후 남는 행을 다시 확인합니다.");
+  }
+
+  if (draft.code) {
+    guides.push("SQL 문항은 작성 순서가 아니라 논리 처리 순서와 NULL, 조인 조건 위치, 집계 기준을 따라 해석합니다.");
+  }
+
+  if (draft.topic.includes("실행계획") || draft.topic.includes("인덱스") || draft.topic.includes("Join") || draft.topic.includes("조인")) {
+    guides.push("튜닝 문항은 실행계획 이름만 보지 말고 조인 순서, 접근 경로, 반복 횟수, Predicate 위치를 함께 봅니다.");
+  }
+
+  if (guides.length === 0) {
+    guides.push("지문에서 업무 규칙, 조건, 예외 단어를 먼저 표시하고 선택지의 단정 표현을 확인합니다.");
+  }
+
+  return guides.join("\n");
+}
+
+function makeExamPoint(draft: DraftQuestion) {
+  if (draft.topic.includes("NULL") || draft.topic.includes("NOT IN")) {
+    return "NULL은 TRUE/FALSE가 아니라 UNKNOWN을 만들 수 있어 WHERE 결과에서 빠지는지 확인해야 합니다.";
+  }
+
+  if (draft.topic.includes("OUTER") || draft.topic.includes("관계 선택성")) {
+    return "기준 행 보존 여부가 핵심입니다. 조건이 ON에 있는지 WHERE에 있는지에 따라 결과 건수가 달라질 수 있습니다.";
+  }
+
+  if (draft.topic.includes("식별") || draft.topic.includes("정규") || draft.topic.includes("엔터티")) {
+    return "모델링 문제는 용어 암기보다 업무 규칙을 엔터티, 속성, 관계, 식별자로 분해하는 것이 핵심입니다.";
+  }
+
+  if (draft.topic.includes("ROLLUP") || draft.topic.includes("CUBE") || draft.topic.includes("GROUP") || draft.topic.includes("집계")) {
+    return "집계 문항은 행 조건과 그룹 조건을 나누고, 소계/총계가 어떤 조합으로 생기는지 확인해야 합니다.";
+  }
+
+  if (draft.topic.includes("실행계획") || draft.topic.includes("인덱스") || draft.topic.includes("힌트") || draft.topic.includes("Join") || draft.topic.includes("조인")) {
+    return "SQLP 튜닝 문항은 결과 보존이 먼저이고, 그 다음 인덱스 접근 조건과 조인 방식의 타당성을 판단합니다.";
+  }
+
+  return "기출형 문항은 한 단어 차이로 정답이 갈리는 경우가 많으니 '항상', '무조건', '자동으로' 같은 표현을 조심합니다.";
+}
+
+function makeStudyHint(draft: DraftQuestion) {
+  return [`출제 포인트: ${draft.topic}`, `힌트: ${draft.hint}`, `풀이 방향:\n${makeSolvingGuide(draft)}`].join("\n\n");
+}
+
+function makeDetailedExplanation(draft: DraftQuestion, answerText: string) {
+  return [
+    `정답 근거: ${draft.explanation}`,
+    `풀이 순서:\n${makeSolvingGuide(draft)}`,
+    `시험 포인트: ${makeExamPoint(draft)}`,
+    `정답 선택지 핵심: ${answerText}`
+  ].join("\n\n");
+}
+
+function makeWhyWrong(draft: DraftQuestion, choices: ChoiceTuple, answerIndex: number): Record<ChoiceId, string> {
+  const answerText = choices[answerIndex];
+  const asksWrongChoice = hasAny(draft.stem, ["부적절", "틀린", "아닌"]);
+  const asksCombo = hasAny(draft.stem, ["옳은 것만 모두", "보기"]);
+
   return choiceIds.reduce(
     (acc, id, index) => {
-      acc[id] =
-        index === answerIndex
-          ? `정답입니다. ${draft.explanation}`
-          : `오답입니다. 이 선택지는 "${draft.topic}"에서 지문 조건, SQL 처리 순서, 모델링 원칙, 실행계획 근거 중 하나를 놓친 판단입니다.`;
+      const choiceText = choices[index];
+
+      if (index === answerIndex) {
+        acc[id] = `정답 선택지입니다. ${draft.explanation}`;
+        return acc;
+      }
+
+      if (asksWrongChoice) {
+        acc[id] = `오답입니다. 이 선택지는 지문 기준으로 옳거나 더 적절한 설명이므로, '${draft.stem}' 문항에서는 정답이 아닙니다. 정답은 "${answerText}"처럼 잘못된 전제를 담은 선택지입니다.`;
+        return acc;
+      }
+
+      if (asksCombo) {
+        acc[id] = `오답입니다. 보기 조합 중 하나 이상의 O/X 판정이 어긋났습니다. ㄱ, ㄴ, ㄷ을 따로 판단하면 정답 조합은 "${answerText}"입니다.`;
+        return acc;
+      }
+
+      acc[id] = `오답입니다. "${choiceText}"는 ${draft.topic}의 핵심 조건을 충분히 만족하지 못합니다. 지문과 SQL/모델 조건을 적용하면 "${answerText}"가 더 정확합니다.`;
       return acc;
     },
     {} as Record<ChoiceId, string>
@@ -498,9 +587,9 @@ function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0
       table: draft.table,
       choices: makeChoices(rotated.choices),
       answer: choiceIds[rotated.answerIndex],
-      hint: draft.hint,
-      explanation: draft.explanation,
-      whyWrong: makeWhyWrong(draft, rotated.answerIndex)
+      hint: makeStudyHint(draft),
+      explanation: makeDetailedExplanation(draft, rotated.choices[rotated.answerIndex]),
+      whyWrong: makeWhyWrong(draft, rotated.choices, rotated.answerIndex)
     };
   });
 }
