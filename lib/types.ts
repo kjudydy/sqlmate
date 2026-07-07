@@ -104,10 +104,18 @@ export type PersonalNote = {
   updatedAt: string;
 };
 
+export type TodoItem = {
+  id: string;
+  text: string;
+  checked: boolean;
+  createdAt: string;
+};
+
 export type StudyStatePayload = {
   answers: Record<string, AnswerRecord>;
   labAnswers: Record<string, LabAnswerRecord>;
   todoChecks: Record<string, boolean>;
+  todoItems: Record<string, TodoItem[]>;
   attempts: AttemptRecord[];
   wrongNotes: Record<string, WrongNote>;
   conceptMarks: Record<string, ConceptMark>;

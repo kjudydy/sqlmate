@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   Database,
   Highlighter,
   Lightbulb,
@@ -27,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
 import { conceptArticles, createLocalExtraQuestion, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
+import type { FormEvent } from "react";
 import type {
   AnswerRecord,
   AttemptRecord,
@@ -36,6 +36,7 @@ import type {
   PersonalNote,
   StudyStatePayload,
   SubjectId,
+  TodoItem,
   WrongNote
 } from "@/lib/types";
 
@@ -45,6 +46,7 @@ const emptyState: StudyStatePayload = {
   answers: {},
   labAnswers: {},
   todoChecks: {},
+  todoItems: {},
   attempts: [],
   wrongNotes: {},
   conceptMarks: {},
@@ -65,13 +67,6 @@ const sqlpExamSchedule = [
     applyPeriod: "2026.07.20 ~ 07.24",
     ticketDate: "2026.08.07"
   }
-];
-
-const dailyTodos = [
-  "객관식 기출형 20문제",
-  "오답노트 10분 복습",
-  "실습 SQL 1문제",
-  "개념정리 1개 표시"
 ];
 
 function nowIso() {
@@ -189,6 +184,8 @@ export default function Home() {
   const [answers, setAnswers] = usePersistentState<Record<string, AnswerRecord>>("sqlmate.answers", emptyState.answers);
   const [labAnswers, setLabAnswers] = usePersistentState<StudyStatePayload["labAnswers"]>("sqlmate.labAnswers", emptyState.labAnswers);
   const [todoChecks, setTodoChecks] = usePersistentState<StudyStatePayload["todoChecks"]>("sqlmate.todoChecks", emptyState.todoChecks);
+  const [todoItems, setTodoItems] = usePersistentState<StudyStatePayload["todoItems"]>("sqlmate.todoItems", emptyState.todoItems);
+  const [newTodoText, setNewTodoText] = useState("");
   const [attempts, setAttempts] = usePersistentState<AttemptRecord[]>("sqlmate.attempts", emptyState.attempts);
   const [wrongNotes, setWrongNotes] = usePersistentState<Record<string, WrongNote>>("sqlmate.wrongNotes", emptyState.wrongNotes);
   const [conceptMarks, setConceptMarks] = usePersistentState<Record<string, ConceptMark>>("sqlmate.conceptMarks", emptyState.conceptMarks);
@@ -225,7 +222,8 @@ export default function Home() {
   const todayKey = toDateKey(today);
   const nextExam = sqlpExamSchedule.find((exam) => daysBetween(today, new Date(`${exam.examDate}T00:00:00`)) >= 0) ?? sqlpExamSchedule[sqlpExamSchedule.length - 1];
   const examDday = Math.max(0, daysBetween(today, new Date(`${nextExam.examDate}T00:00:00`)));
-  const completedTodos = dailyTodos.filter((todo) => todoChecks[`${todayKey}:${todo}`]).length;
+  const todaysTodos = todoItems[todayKey] ?? [];
+  const completedTodos = todaysTodos.filter((todo) => todo.checked).length;
   const labCompleted = Object.keys(labAnswers).length;
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
   const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, attempts, labAnswers), [attempts, labAnswers, todayKey]);
@@ -235,13 +233,14 @@ export default function Home() {
       answers,
       labAnswers,
       todoChecks,
+      todoItems,
       attempts,
       wrongNotes,
       conceptMarks,
       personalNotes,
       extraQuestions
     }),
-    [answers, labAnswers, todoChecks, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions]
+    [answers, labAnswers, todoChecks, todoItems, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions]
   );
 
   useEffect(() => {
@@ -318,6 +317,7 @@ export default function Home() {
           setAnswers(state.answers ?? {});
           setLabAnswers(state.labAnswers ?? {});
           setTodoChecks(state.todoChecks ?? {});
+          setTodoItems(state.todoItems ?? {});
           setAttempts(state.attempts ?? []);
           setWrongNotes(state.wrongNotes ?? {});
           setConceptMarks(state.conceptMarks ?? {});
@@ -331,7 +331,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setWrongNotes, supabase]);
+  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setTodoItems, setWrongNotes, supabase]);
 
   useEffect(() => {
     if (!supabase || !cloudUser || !cloudReady) return;
@@ -500,11 +500,34 @@ export default function Home() {
     setPersonalNotes((prev) => prev.filter((note) => note.id !== noteId));
   }
 
-  function toggleTodo(todo: string) {
-    const key = `${todayKey}:${todo}`;
-    setTodoChecks((prev) => ({
+  function addTodo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = newTodoText.trim();
+    if (!text) return;
+    const todo: TodoItem = {
+      id: crypto.randomUUID(),
+      text,
+      checked: false,
+      createdAt: nowIso()
+    };
+    setTodoItems((prev) => ({
       ...prev,
-      [key]: !prev[key]
+      [todayKey]: [...(prev[todayKey] ?? []), todo]
+    }));
+    setNewTodoText("");
+  }
+
+  function toggleTodo(todoId: string) {
+    setTodoItems((prev) => ({
+      ...prev,
+      [todayKey]: (prev[todayKey] ?? []).map((todo) => (todo.id === todoId ? { ...todo, checked: !todo.checked } : todo))
+    }));
+  }
+
+  function deleteTodo(todoId: string) {
+    setTodoItems((prev) => ({
+      ...prev,
+      [todayKey]: (prev[todayKey] ?? []).filter((todo) => todo.id !== todoId)
     }));
   }
 
@@ -522,8 +545,7 @@ export default function Home() {
     return (
       <main className="login-gate">
         <section className="auth-card">
-          <div className="brand-mark">SM</div>
-          <p className="eyebrow">SQLP Coach Mode</p>
+          <p className="eyebrow">SQLMate</p>
           <h1>SQLMate</h1>
           <p>학습 기록을 불러오는 중입니다.</p>
         </section>
@@ -535,8 +557,7 @@ export default function Home() {
     return (
       <main className="login-gate">
         <section className="auth-card">
-          <div className="brand-mark">SM</div>
-          <p className="eyebrow">SQLP Coach Mode</p>
+          <p className="eyebrow">Study planner</p>
           <h1>SQLMate</h1>
           <p>Google 계정으로 로그인하면 문제풀이, 오답노트, 개념 메모, 개인 노트가 본인 계정에 저장됩니다.</p>
           <button className="primary-button" onClick={signInWithGoogle}>
@@ -552,10 +573,9 @@ export default function Home() {
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">SM</div>
           <div>
             <strong>SQLMate</strong>
-            <span>SQLP 실전 학습</span>
+            <span>나만의 학습 기록</span>
           </div>
         </div>
 
@@ -583,7 +603,7 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">SQLP Coach Mode</p>
+            <p className="eyebrow">My study room</p>
             <h1>{sectionTitle(section)}</h1>
           </div>
           <div className="top-actions">
@@ -609,15 +629,15 @@ export default function Home() {
           <div className="dashboard-v2">
             <section className="exam-hero">
               <div>
-                <p className="eyebrow">SQLMate Prep Board</p>
-                <h2>SQLP 제55회까지 D-{examDday}</h2>
-                <p>{formatFullDate(today)} · 시험일 {nextExam.examDate} · 원서접수 {nextExam.applyPeriod}</p>
+                <p className="eyebrow">Next exam</p>
+                <h2>D-{examDday}</h2>
+                <p>{nextExam.round} · {nextExam.examDate}</p>
+                <span>{formatFullDate(today)} · 접수 {nextExam.applyPeriod}</span>
               </div>
               <div className="exam-hero-actions">
-                <span className="d-day-chip">{nextExam.round}</span>
                 <button className="primary-button" onClick={() => setSection("practice")}>
                   <Brain size={17} />
-                  기출형 풀기
+                  문제 풀기
                 </button>
               </div>
             </section>
@@ -666,26 +686,36 @@ export default function Home() {
               <div className="panel-heading">
                 <div>
                   <p className="eyebrow">Today</p>
-                  <h2>오늘 할 일</h2>
+                  <h2>내 할 일</h2>
                 </div>
-                <span className="pill">{completedTodos}/{dailyTodos.length}</span>
+                <span className="pill">{completedTodos}/{todaysTodos.length}</span>
               </div>
+              <form className="todo-form" onSubmit={addTodo}>
+                <input
+                  value={newTodoText}
+                  onChange={(event) => setNewTodoText(event.target.value)}
+                  placeholder="오늘 할 일을 적어주세요"
+                  aria-label="오늘 할 일 추가"
+                />
+                <button className="icon-only soft" type="submit" aria-label="할 일 추가">
+                  <Plus size={17} />
+                </button>
+              </form>
               <div className="todo-list">
-                {dailyTodos.map((todo) => {
-                  const checked = Boolean(todoChecks[`${todayKey}:${todo}`]);
+                {todaysTodos.length === 0 && <p className="empty compact">아직 적은 할 일이 없어요.</p>}
+                {todaysTodos.map((todo) => {
                   return (
-                    <button key={todo} className={checked ? "todo-item checked" : "todo-item"} onClick={() => toggleTodo(todo)}>
-                      <ClipboardCheck size={17} />
-                      <span>{todo}</span>
-                    </button>
+                    <div key={todo.id} className={todo.checked ? "todo-item checked" : "todo-item"}>
+                      <label>
+                        <input type="checkbox" checked={todo.checked} onChange={() => toggleTodo(todo.id)} />
+                        <span>{todo.text}</span>
+                      </label>
+                      <button className="icon-only tiny" onClick={() => deleteTodo(todo.id)} aria-label="할 일 삭제">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   );
                 })}
-              </div>
-              <div className="dashboard-kpis">
-                <StatCard label="정답률" value={`${accuracy}%`} detail={`${correct}개 정답 · ${completed - correct}개 오답`} />
-                <StatCard label="실습 통과" value={`${labPassed}개`} detail={`실습 시도 ${labCompleted}개`} />
-                <StatCard label="오답노트" value={`${wrongQuestionIds.length}개`} detail={`총 오답 시도 ${wrongCount}회`} />
-                <StatCard label="개념표시" value={`${highlightedCount}개`} detail={`개인 노트 ${personalNotes.length}개`} />
               </div>
             </section>
 
@@ -1098,7 +1128,7 @@ export default function Home() {
 function sectionTitle(section: Section) {
   switch (section) {
     case "dashboard":
-      return "SQLP 시험 준비";
+      return "학습 홈";
     case "practice":
       return "객관식 문제풀이";
     case "lab":
@@ -1106,20 +1136,10 @@ function sectionTitle(section: Section) {
     case "wrong":
       return "오답 복습";
     case "concepts":
-      return "SQLP 개념정리";
+      return "개념정리";
     case "notes":
       return "개인 노트";
   }
-}
-
-function StatCard({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <article className="stat-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <p>{detail}</p>
-    </article>
-  );
 }
 
 

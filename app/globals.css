@@ -1,14 +1,14 @@
 :root {
-  --bg: #f7f6f2;
-  --bg-wash: #eef8f6;
-  --surface: rgba(255, 255, 255, 0.74);
+  --bg: #fbf8fb;
+  --bg-wash: #f1fbf9;
+  --surface: rgba(255, 255, 255, 0.78);
   --surface-strong: #fffefa;
-  --surface-muted: #f2f4f1;
+  --surface-muted: #f8f2f7;
   --ink: #172033;
   --muted: #667085;
-  --line: rgba(31, 41, 55, 0.14);
-  --line-strong: rgba(31, 41, 55, 0.2);
-  --primary: #121826;
+  --line: rgba(71, 55, 73, 0.13);
+  --line-strong: rgba(71, 55, 73, 0.2);
+  --primary: #202235;
   --teal: #087568;
   --green: #16824b;
   --amber: #b96f00;
@@ -29,7 +29,7 @@ body {
 body {
   margin: 0;
   background:
-    linear-gradient(120deg, rgba(255, 243, 248, 0.72), rgba(240, 249, 248, 0.82) 46%, rgba(255, 251, 237, 0.7)),
+    linear-gradient(120deg, rgba(255, 246, 251, 0.92), rgba(240, 250, 255, 0.86) 48%, rgba(255, 251, 239, 0.78)),
     var(--bg);
   color: var(--ink);
   font-family: Inter, Arial, "Noto Sans KR", sans-serif;
@@ -51,7 +51,7 @@ ul {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 312px minmax(0, 1fr);
+  grid-template-columns: 288px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -110,8 +110,8 @@ ul {
 
 .brand {
   display: flex;
-  gap: 12px;
   align-items: center;
+  min-height: 42px;
 }
 
 .brand-mark {
@@ -229,7 +229,7 @@ ul {
 }
 
 .topbar h1 {
-  font-size: 32px;
+  font-size: 26px;
   line-height: 1.08;
 }
 
@@ -326,6 +326,12 @@ ul {
 
 .icon-only {
   width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
   padding: 0;
 }
 
@@ -994,7 +1000,7 @@ body {
 }
 
 .topbar h1 {
-  font-size: 30px;
+  font-size: 24px;
 }
 
 .panel-heading h2,
@@ -1169,7 +1175,7 @@ body {
   }
 
   .topbar h1 {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .panel-heading h2,
@@ -1187,8 +1193,12 @@ body {
 /* Exam-oriented dashboard and question materials */
 .dashboard-v2 {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.9fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.82fr);
+  grid-template-areas:
+    "hero todo"
+    "progress calendar";
+  align-items: start;
+  gap: 12px;
 }
 
 .exam-hero,
@@ -1203,31 +1213,47 @@ body {
 }
 
 .exam-hero {
-  grid-column: 1 / -1;
+  grid-area: hero;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 22px 24px;
+  gap: 14px;
+  min-height: 132px;
+  padding: 16px 18px;
   background:
-    linear-gradient(120deg, rgba(18, 24, 38, 0.94), rgba(8, 117, 104, 0.9)),
-    var(--primary);
-  color: white;
+    linear-gradient(135deg, rgba(255, 246, 251, 0.98), rgba(233, 250, 255, 0.96) 52%, rgba(255, 249, 231, 0.98)),
+    #fff7fb;
+  color: var(--ink);
 }
 
 .exam-hero .eyebrow {
-  color: #9ee8db;
+  color: #cf5f8f;
 }
 
 .exam-hero h2 {
-  margin: 4px 0 8px;
-  font-size: 38px;
+  margin: 2px 0 4px;
+  color: #202235;
+  font-size: 34px;
   line-height: 1.08;
 }
 
 .exam-hero p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: #4f5870;
+  font-weight: 760;
+}
+
+.exam-hero span {
+  display: block;
+  margin-top: 4px;
+  color: #7a6272;
+  font-size: 13px;
+}
+
+.exam-hero .primary-button {
+  background: #ff7aa8;
+  color: white;
+  box-shadow: 0 12px 24px rgba(255, 122, 168, 0.24);
 }
 
 .exam-hero-actions {
@@ -1256,7 +1282,15 @@ body {
 }
 
 .progress-panel {
-  grid-row: span 2;
+  grid-area: progress;
+}
+
+.todo-panel {
+  grid-area: todo;
+}
+
+.calendar-panel {
+  grid-area: calendar;
 }
 
 .dashboard-progress-list,
@@ -1266,25 +1300,92 @@ body {
   margin-top: 16px;
 }
 
+.todo-list {
+  max-height: 176px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
 .todo-item {
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.66);
+  background: rgba(255, 255, 255, 0.72);
   color: var(--ink);
-  padding: 10px 12px;
+  padding: 8px 10px;
   text-align: left;
 }
 
 .todo-item.checked {
-  border-color: rgba(22, 130, 75, 0.34);
-  background: #eaf8f0;
-  color: #12623b;
+  border-color: rgba(207, 95, 143, 0.26);
+  background: #fff0f6;
+  color: #8e3d64;
   text-decoration: line-through;
+}
+
+.todo-item label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+}
+
+.todo-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #ff7aa8;
+}
+
+.todo-item span {
+  overflow-wrap: anywhere;
+}
+
+.todo-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.todo-form input {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--ink);
+  padding: 8px 11px;
+}
+
+.todo-form input:focus {
+  border-color: #ff9bc0;
+  outline: 3px solid rgba(255, 155, 192, 0.18);
+}
+
+.icon-only.soft {
+  width: 38px;
+  min-height: 38px;
+  background: #fff0f6;
+  color: #c34f82;
+}
+
+.icon-only.tiny {
+  width: 30px;
+  min-height: 30px;
+  flex: 0 0 auto;
+  color: #9a6178;
+  background: transparent;
+}
+
+.empty.compact {
+  margin: 2px 0 0;
+  font-size: 13px;
 }
 
 .dashboard-kpis {
@@ -1308,7 +1409,7 @@ body {
 }
 
 .calendar-weekdays {
-  margin: 16px 0 8px;
+  margin: 12px 0 7px;
   color: var(--muted);
   font-size: 12px;
   text-align: center;
@@ -1320,33 +1421,33 @@ body {
   place-items: center;
   border: 1px solid rgba(31, 41, 55, 0.08);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.62);
   color: #475467;
   font-size: 12px;
 }
 
 .calendar-day[data-level="1"] {
-  background: #dff5ee;
-  color: #12623b;
+  background: #fde8f1;
+  color: #8e3d64;
 }
 
 .calendar-day[data-level="2"] {
-  background: #bcebdc;
-  color: #0c5c45;
+  background: #f9cfe1;
+  color: #7f3158;
 }
 
 .calendar-day[data-level="3"] {
-  background: #81d7c2;
-  color: #073f33;
+  background: #d8f4f0;
+  color: #0c5c55;
 }
 
 .calendar-day[data-level="4"] {
-  background: #087568;
-  color: white;
+  background: #86ded4;
+  color: #073f3a;
 }
 
 .calendar-day.today {
-  outline: 2px solid var(--primary);
+  outline: 2px solid #ff7aa8;
   outline-offset: 2px;
   font-weight: 900;
 }
@@ -1405,6 +1506,11 @@ body {
 @media (max-width: 1180px) {
   .dashboard-v2 {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "hero"
+      "todo"
+      "progress"
+      "calendar";
   }
 
   .progress-panel {
