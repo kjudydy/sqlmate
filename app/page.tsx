@@ -156,19 +156,37 @@ export default function Home() {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      const user = data.session?.user;
-      setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
-      setAuthChecked(true);
-    });
+    const authClient = supabase;
+    let ignore = false;
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    async function bootstrapAuth() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("code")) {
+          await authClient.auth.exchangeCodeForSession(window.location.href);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        const { data } = await authClient.auth.getSession();
+        if (ignore) return;
+
+        const user = data.session?.user;
+        setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
+      } finally {
+        if (!ignore) setAuthChecked(true);
+      }
+    }
+
+    bootstrapAuth();
+
+    const { data: listener } = authClient.auth.onAuthStateChange((_event, session) => {
       const user = session?.user;
       setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
       setAuthChecked(true);
     });
 
     return () => {
+      ignore = true;
       listener.subscription.unsubscribe();
     };
   }, [supabase]);
