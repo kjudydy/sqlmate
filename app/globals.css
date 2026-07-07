@@ -45,6 +45,40 @@ button {
   min-height: 100vh;
 }
 
+.login-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(246, 243, 237, 0.86), rgba(246, 243, 237, 0.86)),
+    url("data:image/svg+xml,%3Csvg width='1600' height='900' viewBox='0 0 1600 900' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='1600' height='900' fill='%23f6f3ed'/%3E%3Cg fill='none' stroke='%2322313b' stroke-opacity='.12'%3E%3Cpath d='M0 160h1600M0 320h1600M0 480h1600M0 640h1600M0 800h1600M180 0v900M360 0v900M540 0v900M720 0v900M900 0v900M1080 0v900M1260 0v900M1440 0v900'/%3E%3C/g%3E%3Cg fill='%230f766e' fill-opacity='.14'%3E%3Ccircle cx='1270' cy='180' r='180'/%3E%3Ccircle cx='280' cy='700' r='220'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+.auth-card {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: var(--shadow);
+  padding: 32px;
+}
+
+.auth-card h1 {
+  margin: 0;
+  font-size: 42px;
+}
+
+.auth-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
 .sidebar {
   background: #22313b;
   color: white;

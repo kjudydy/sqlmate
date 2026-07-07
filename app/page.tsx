@@ -105,6 +105,7 @@ export default function Home() {
   const [remotePlan, setRemotePlan] = useState<{ mode: string; plan: string[]; message: string } | null>(null);
   const [cloudUser, setCloudUser] = useState<{ id: string; email?: string } | null>(null);
   const [cloudReady, setCloudReady] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [cloudStatus, setCloudStatus] = useState("데모 저장");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -151,17 +152,20 @@ export default function Home() {
   useEffect(() => {
     if (!supabase) {
       setCloudStatus("로컬 데모 저장");
+      setAuthChecked(true);
       return;
     }
 
     supabase.auth.getSession().then(({ data }) => {
       const user = data.session?.user;
       setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
+      setAuthChecked(true);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user;
       setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
+      setAuthChecked(true);
     });
 
     return () => {
@@ -366,6 +370,36 @@ export default function Home() {
     { id: "concepts" as Section, label: "개념정리", icon: BookOpen },
     { id: "notes" as Section, label: "개인노트", icon: NotebookPen }
   ];
+
+  if (isSupabaseConfigured() && !authChecked) {
+    return (
+      <main className="login-gate">
+        <section className="auth-card">
+          <div className="brand-mark">SM</div>
+          <p className="eyebrow">SQLP Coach Mode</p>
+          <h1>SQLMate</h1>
+          <p>학습 기록을 불러오는 중입니다.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (isSupabaseConfigured() && authChecked && !cloudUser) {
+    return (
+      <main className="login-gate">
+        <section className="auth-card">
+          <div className="brand-mark">SM</div>
+          <p className="eyebrow">SQLP Coach Mode</p>
+          <h1>SQLMate</h1>
+          <p>Google 계정으로 로그인하면 문제풀이, 오답노트, 개념 메모, 개인 노트가 본인 계정에 저장됩니다.</p>
+          <button className="primary-button" onClick={signInWithGoogle}>
+            <LogIn size={18} />
+            Google로 시작하기
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
