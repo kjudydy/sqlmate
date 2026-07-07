@@ -4,9 +4,11 @@ import {
   BarChart3,
   BookOpen,
   Brain,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Database,
   Highlighter,
   Lightbulb,
@@ -41,12 +43,36 @@ type Section = "dashboard" | "practice" | "lab" | "wrong" | "concepts" | "notes"
 
 const emptyState: StudyStatePayload = {
   answers: {},
+  labAnswers: {},
+  todoChecks: {},
   attempts: [],
   wrongNotes: {},
   conceptMarks: {},
   personalNotes: [],
   extraQuestions: []
 };
+
+const sqlpExamSchedule = [
+  {
+    round: "제54회",
+    examDate: "2026-03-07",
+    applyPeriod: "2026.02.02 ~ 02.06",
+    ticketDate: "2026.02.20"
+  },
+  {
+    round: "제55회",
+    examDate: "2026-08-22",
+    applyPeriod: "2026.07.20 ~ 07.24",
+    ticketDate: "2026.08.07"
+  }
+];
+
+const dailyTodos = [
+  "객관식 기출형 20문제",
+  "오답노트 10분 복습",
+  "실습 SQL 1문제",
+  "개념정리 1개 표시"
+];
 
 function nowIso() {
   return new Date().toISOString();
@@ -61,16 +87,48 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatFullDate(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long"
+  }).format(date);
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function daysBetween(from: Date, to: Date) {
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  return Math.ceil((end - start) / 86400000);
+}
+
 function usePersistentState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(() => {
-    if (typeof window === "undefined") return initialValue;
-    const saved = window.localStorage.getItem(key);
-    return saved ? (JSON.parse(saved) as T) : initialValue;
-  });
+  const [value, setValue] = useState<T>(initialValue);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(key);
+      if (saved) {
+        setValue(JSON.parse(saved) as T);
+      }
+    } catch {
+      setValue(initialValue);
+    }
+    setHydrated(true);
+  }, [initialValue, key]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
+  }, [hydrated, key, value]);
 
   return [value, setValue] as const;
 }
@@ -86,6 +144,42 @@ function clampIndex(index: number, length: number) {
   return Math.max(0, Math.min(index, length - 1));
 }
 
+function buildStudyCalendar(today: Date, attempts: AttemptRecord[], labAnswers: StudyStatePayload["labAnswers"]) {
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const offset = first.getDay();
+  const totalCells = Math.ceil((offset + last.getDate()) / 7) * 7;
+  const counts = new Map<string, number>();
+
+  attempts.forEach((attempt) => {
+    const key = toDateKey(new Date(attempt.answeredAt));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  Object.values(labAnswers).forEach((answer) => {
+    const key = toDateKey(new Date(answer.answeredAt));
+    counts.set(key, (counts.get(key) ?? 0) + 3);
+  });
+
+  return Array.from({ length: totalCells }, (_, index) => {
+    const dayNumber = index - offset + 1;
+    if (dayNumber < 1 || dayNumber > last.getDate()) {
+      return { key: `blank-${index}`, day: "", count: 0, isToday: false };
+    }
+
+    const date = new Date(year, month, dayNumber);
+    const key = toDateKey(date);
+    return {
+      key,
+      day: String(dayNumber),
+      count: counts.get(key) ?? 0,
+      isToday: key === toDateKey(today)
+    };
+  });
+}
+
 export default function Home() {
   const [section, setSection] = useState<Section>("dashboard");
   const [activeSubject, setActiveSubject] = useState<SubjectId>("modeling");
@@ -93,6 +187,8 @@ export default function Home() {
   const [selectedChoice, setSelectedChoice] = useState<ChoiceId | null>(null);
   const [hintVisible, setHintVisible] = useState(false);
   const [answers, setAnswers] = usePersistentState<Record<string, AnswerRecord>>("sqlmate.answers", emptyState.answers);
+  const [labAnswers, setLabAnswers] = usePersistentState<StudyStatePayload["labAnswers"]>("sqlmate.labAnswers", emptyState.labAnswers);
+  const [todoChecks, setTodoChecks] = usePersistentState<StudyStatePayload["todoChecks"]>("sqlmate.todoChecks", emptyState.todoChecks);
   const [attempts, setAttempts] = usePersistentState<AttemptRecord[]>("sqlmate.attempts", emptyState.attempts);
   const [wrongNotes, setWrongNotes] = usePersistentState<Record<string, WrongNote>>("sqlmate.wrongNotes", emptyState.wrongNotes);
   const [conceptMarks, setConceptMarks] = usePersistentState<Record<string, ConceptMark>>("sqlmate.conceptMarks", emptyState.conceptMarks);
@@ -125,17 +221,27 @@ export default function Home() {
   const accuracy = completed ? Math.round((correct / completed) * 100) : 0;
   const wrongCount = attempts.filter((attempt) => !attempt.correct).length;
   const highlightedCount = Object.values(conceptMarks).filter((mark) => mark.highlighted).length;
+  const today = new Date();
+  const todayKey = toDateKey(today);
+  const nextExam = sqlpExamSchedule.find((exam) => daysBetween(today, new Date(`${exam.examDate}T00:00:00`)) >= 0) ?? sqlpExamSchedule[sqlpExamSchedule.length - 1];
+  const examDday = Math.max(0, daysBetween(today, new Date(`${nextExam.examDate}T00:00:00`)));
+  const completedTodos = dailyTodos.filter((todo) => todoChecks[`${todayKey}:${todo}`]).length;
+  const labCompleted = Object.keys(labAnswers).length;
+  const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
+  const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, attempts, labAnswers), [attempts, labAnswers, todayKey]);
 
   const studyState = useMemo<StudyStatePayload>(
     () => ({
       answers,
+      labAnswers,
+      todoChecks,
       attempts,
       wrongNotes,
       conceptMarks,
       personalNotes,
       extraQuestions
     }),
-    [answers, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions]
+    [answers, labAnswers, todoChecks, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions]
   );
 
   useEffect(() => {
@@ -210,6 +316,8 @@ export default function Home() {
         if (!error && data?.state) {
           const state = data.state as StudyStatePayload;
           setAnswers(state.answers ?? {});
+          setLabAnswers(state.labAnswers ?? {});
+          setTodoChecks(state.todoChecks ?? {});
           setAttempts(state.attempts ?? []);
           setWrongNotes(state.wrongNotes ?? {});
           setConceptMarks(state.conceptMarks ?? {});
@@ -223,7 +331,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraQuestions, setPersonalNotes, setWrongNotes, supabase]);
+  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setWrongNotes, supabase]);
 
   useEffect(() => {
     if (!supabase || !cloudUser || !cloudReady) return;
@@ -328,6 +436,15 @@ export default function Home() {
   async function runLab() {
     const localResult = gradeSqlSubmission(activeLab, labSql);
     setLabResult(localResult);
+    setLabAnswers((prev) => ({
+      ...prev,
+      [activeLab.id]: {
+        labId: activeLab.id,
+        score: localResult.score,
+        passed: localResult.passed,
+        answeredAt: nowIso()
+      }
+    }));
     setRemotePlan(null);
 
     try {
@@ -382,6 +499,15 @@ export default function Home() {
   function deletePersonalNote(noteId: string) {
     setPersonalNotes((prev) => prev.filter((note) => note.id !== noteId));
   }
+
+  function toggleTodo(todo: string) {
+    const key = `${todayKey}:${todo}`;
+    setTodoChecks((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }
+
   const wrongQuestionIds = Array.from(new Set(attempts.filter((attempt) => !attempt.correct).map((attempt) => attempt.questionId)));
   const navItems = [
     { id: "dashboard" as Section, label: "대시보드", icon: BarChart3 },
@@ -480,24 +606,31 @@ export default function Home() {
         </header>
 
         {section === "dashboard" && (
-          <div className="dashboard-grid">
-            <StatCard label="풀이 완료" value={`${completed}문제`} detail={`전체 ${objectiveQuestions.length + extraQuestions.length}문제 중`} />
-            <StatCard label="정답률" value={`${accuracy}%`} detail={`${correct}개 정답 · ${completed - correct}개 오답`} />
-            <StatCard label="오답 복습" value={`${wrongQuestionIds.length}문제`} detail={`총 오답 시도 ${wrongCount}회`} />
-            <StatCard label="개념 표시" value={`${highlightedCount}개`} detail={`개인 노트 ${personalNotes.length}개`} />
-
-            <section className="wide-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Subject Progress</p>
-                  <h2>과목별 학습 현황</h2>
-                </div>
-                <button className="ghost-button" onClick={() => setSection("practice")}>
+          <div className="dashboard-v2">
+            <section className="exam-hero">
+              <div>
+                <p className="eyebrow">SQLMate Prep Board</p>
+                <h2>SQLP 제55회까지 D-{examDday}</h2>
+                <p>{formatFullDate(today)} · 시험일 {nextExam.examDate} · 원서접수 {nextExam.applyPeriod}</p>
+              </div>
+              <div className="exam-hero-actions">
+                <span className="d-day-chip">{nextExam.round}</span>
+                <button className="primary-button" onClick={() => setSection("practice")}>
                   <Brain size={17} />
-                  이어 풀기
+                  기출형 풀기
                 </button>
               </div>
-              <div className="subject-progress">
+            </section>
+
+            <section className="progress-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Progress</p>
+                  <h2>과목별 진행률</h2>
+                </div>
+                <span className="pill">{completed} / {objectiveQuestions.length + extraQuestions.length}</span>
+              </div>
+              <div className="dashboard-progress-list">
                 {subjects.map((subject) => {
                   const subjectTotal = allQuestions.filter((question) => question.subjectId === subject.id).length;
                   const subjectDone = allQuestions.filter((question) => question.subjectId === subject.id && answers[question.id]).length;
@@ -519,23 +652,67 @@ export default function Home() {
                     </button>
                   );
                 })}
+                <button className="progress-row" onClick={() => setSection("lab")}>
+                  <span>실습 SQL 작성형</span>
+                  <div className="progress-track">
+                    <div style={{ width: `${Math.round((labCompleted / labQuestions.length) * 100)}%` }} />
+                  </div>
+                  <strong>{labCompleted}/{labQuestions.length}</strong>
+                </button>
               </div>
             </section>
 
-            <section className="plan-visual">
+            <section className="todo-panel">
               <div className="panel-heading">
                 <div>
-                  <p className="eyebrow">Execution Plan Sense</p>
-                  <h2>실기 대비 사고 흐름</h2>
+                  <p className="eyebrow">Today</p>
+                  <h2>오늘 할 일</h2>
                 </div>
+                <span className="pill">{completedTodos}/{dailyTodos.length}</span>
               </div>
-              <div className="plan-map" aria-hidden="true">
-                <span>요구사항</span>
-                <span>데이터 모델</span>
-                <span>인덱스</span>
-                <span>조인 방식</span>
-                <span>실행계획</span>
-                <span>답안 SQL</span>
+              <div className="todo-list">
+                {dailyTodos.map((todo) => {
+                  const checked = Boolean(todoChecks[`${todayKey}:${todo}`]);
+                  return (
+                    <button key={todo} className={checked ? "todo-item checked" : "todo-item"} onClick={() => toggleTodo(todo)}>
+                      <ClipboardCheck size={17} />
+                      <span>{todo}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="dashboard-kpis">
+                <StatCard label="정답률" value={`${accuracy}%`} detail={`${correct}개 정답 · ${completed - correct}개 오답`} />
+                <StatCard label="실습 통과" value={`${labPassed}개`} detail={`실습 시도 ${labCompleted}개`} />
+                <StatCard label="오답노트" value={`${wrongQuestionIds.length}개`} detail={`총 오답 시도 ${wrongCount}회`} />
+                <StatCard label="개념표시" value={`${highlightedCount}개`} detail={`개인 노트 ${personalNotes.length}개`} />
+              </div>
+            </section>
+
+            <section className="calendar-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Study Calendar</p>
+                  <h2>{today.getFullYear()}년 {today.getMonth() + 1}월 학습량</h2>
+                </div>
+                <CalendarDays size={22} />
+              </div>
+              <div className="calendar-weekdays" aria-hidden="true">
+                {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
+                  <span key={day}>{day}</span>
+                ))}
+              </div>
+              <div className="study-calendar">
+                {monthlyStudyDays.map((day) => (
+                  <span
+                    key={day.key}
+                    className={`calendar-day ${day.isToday ? "today" : ""}`}
+                    data-level={Math.min(4, day.count)}
+                    title={day.day ? `${day.day}일 · 학습 ${day.count}회` : ""}
+                  >
+                    {day.day}
+                  </span>
+                ))}
               </div>
             </section>
           </div>
@@ -579,6 +756,35 @@ export default function Home() {
               <h2>
                 {currentQuestion.number}. {currentQuestion.stem}
               </h2>
+
+              {(currentQuestion.passage || currentQuestion.code || currentQuestion.table) && (
+                <div className="exam-material">
+                  {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
+                  {currentQuestion.table && (
+                    <div className="exam-table-wrap">
+                      <table className="exam-table">
+                        <thead>
+                          <tr>
+                            {currentQuestion.table.headers.map((header) => (
+                              <th key={header}>{header}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {currentQuestion.table.rows.map((row, rowIndex) => (
+                            <tr key={`${currentQuestion.id}-row-${rowIndex}`}>
+                              {row.map((cell, cellIndex) => (
+                                <td key={`${currentQuestion.id}-${rowIndex}-${cellIndex}`}>{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {currentQuestion.code && <pre className="exam-code">{currentQuestion.code}</pre>}
+                </div>
+              )}
 
               <div className="choice-list">
                 {currentQuestion.choices.map((choice) => {
@@ -892,7 +1098,7 @@ export default function Home() {
 function sectionTitle(section: Section) {
   switch (section) {
     case "dashboard":
-      return "오늘의 SQLP 학습";
+      return "SQLP 시험 준비";
     case "practice":
       return "객관식 문제풀이";
     case "lab":

@@ -17,6 +17,12 @@ export type ObjectiveQuestion = {
   topic: string;
   difficulty: Difficulty;
   stem: string;
+  passage?: string;
+  code?: string;
+  table?: {
+    headers: string[];
+    rows: string[][];
+  };
   choices: Choice[];
   answer: ChoiceId;
   hint: string;
@@ -59,6 +65,13 @@ export type AnswerRecord = {
   hintUsed: boolean;
 };
 
+export type LabAnswerRecord = {
+  labId: string;
+  score: number;
+  passed: boolean;
+  answeredAt: string;
+};
+
 export type AttemptRecord = {
   id: string;
   questionId: string;
@@ -93,6 +106,8 @@ export type PersonalNote = {
 
 export type StudyStatePayload = {
   answers: Record<string, AnswerRecord>;
+  labAnswers: Record<string, LabAnswerRecord>;
+  todoChecks: Record<string, boolean>;
   attempts: AttemptRecord[];
   wrongNotes: Record<string, WrongNote>;
   conceptMarks: Record<string, ConceptMark>;
