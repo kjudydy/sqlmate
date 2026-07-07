@@ -38,8 +38,37 @@ describe("SQLP problem bank", () => {
   it("covers many official detail topics instead of repeating a tiny seed set", () => {
     for (const subject of subjects) {
       const topicCount = new Set(bySubject(subject.id).map((question) => question.topic)).size;
-      expect(topicCount).toBeGreaterThanOrEqual(25);
+      expect(topicCount).toBeGreaterThanOrEqual(35);
     }
+  });
+
+  it("keeps key reconstructed exam-style topics inside the first 100 questions", () => {
+    const modelingTopics = Array.from(new Set(bySubject("modeling").map((question) => question.topic)));
+    const sqlTopics = Array.from(new Set(bySubject("sql-basic").map((question) => question.topic)));
+
+    expect(modelingTopics).toEqual(
+      expect.arrayContaining([
+        "데이터 모델링 유의점",
+        "외부·개념·내부 스키마",
+        "식별·비식별 관계",
+        "주식별자 도출 기준",
+        "식별자의 최소성",
+        "도메인"
+      ])
+    );
+
+    expect(sqlTopics).toEqual(
+      expect.arrayContaining([
+        "DISTINCT",
+        "문자 함수",
+        "날짜 함수",
+        "NVL과 COALESCE",
+        "CASE 표현식",
+        "ROLLUP",
+        "CUBE",
+        "Top-N"
+      ])
+    );
   });
 
   it("offers concept articles beyond the dashboard summary cards", () => {
