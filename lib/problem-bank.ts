@@ -1977,3 +1977,7 @@ export function createLocalExtraQuestion(subjectId: SubjectId, count: number): O
 
   return buildSubject(tuning, 1, 100 + count, "extra-tuning")[0];
 }
+
+export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
+  return Array.from({ length: batchSize }, (_, offset) => createLocalExtraQuestion(subjectId, startCount + offset));
+}

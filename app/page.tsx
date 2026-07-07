@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
-import { conceptArticles, createLocalExtraQuestion, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import { conceptArticles, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { FormEvent } from "react";
 import type {
@@ -139,6 +139,12 @@ function clampIndex(index: number, length: number) {
   return Math.max(0, Math.min(index, length - 1));
 }
 
+function getNextExtraStartCount(questions: ObjectiveQuestion[], subjectId: SubjectId) {
+  return questions
+    .filter((question) => question.subjectId === subjectId)
+    .reduce((max, question) => Math.max(max, Math.max(0, question.number - 100)), 0);
+}
+
 function buildStudyCalendar(today: Date, attempts: AttemptRecord[], labAnswers: StudyStatePayload["labAnswers"]) {
   const year = today.getFullYear();
   const month = today.getMonth();
@@ -204,9 +210,17 @@ export default function Home() {
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const allQuestions = useMemo(() => [...objectiveQuestions, ...extraQuestions], [extraQuestions]);
+  const baseSubjectQuestions = useMemo(
+    () => objectiveQuestions.filter((question) => question.subjectId === activeSubject),
+    [activeSubject]
+  );
+  const subjectExtraQuestions = useMemo(
+    () => extraQuestions.filter((question) => question.subjectId === activeSubject),
+    [activeSubject, extraQuestions]
+  );
   const subjectQuestions = useMemo(
-    () => allQuestions.filter((question) => question.subjectId === activeSubject),
-    [allQuestions, activeSubject]
+    () => [...baseSubjectQuestions, ...subjectExtraQuestions].map((question, index) => ({ ...question, number: index + 1 })),
+    [baseSubjectQuestions, subjectExtraQuestions]
   );
   const currentQuestion = subjectQuestions[clampIndex(questionIndex, subjectQuestions.length)];
   const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
@@ -227,6 +241,10 @@ export default function Home() {
   const labCompleted = Object.keys(labAnswers).length;
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
   const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, attempts, labAnswers), [attempts, labAnswers, todayKey]);
+  const subjectAnsweredCount = subjectQuestions.filter((question) => answers[question.id]).length;
+  const canGenerateExtraBatch = subjectQuestions.length > 0 && subjectAnsweredCount === subjectQuestions.length;
+  const nextExtraBatchStart = subjectQuestions.length + 1;
+  const nextExtraBatchEnd = subjectQuestions.length + 20;
 
   const studyState = useMemo<StudyStatePayload>(
     () => ({
@@ -414,20 +432,18 @@ export default function Home() {
     }
   }
 
-  async function addExtraQuestion() {
+  function addExtraQuestionBatch() {
+    if (!canGenerateExtraBatch) return;
+
     setIsGenerating(true);
+    const firstNewQuestionIndex = subjectQuestions.length;
     try {
-      const response = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate-question", subjectId: activeSubject, count: extraQuestions.length })
+      setExtraQuestions((prev) => {
+        const nextStartCount = getNextExtraStartCount(prev, activeSubject);
+        const batch = createLocalExtraQuestions(activeSubject, nextStartCount, 20);
+        return [...prev, ...batch];
       });
-      const data = (await response.json()) as { question?: ObjectiveQuestion };
-      setExtraQuestions((prev) => [...prev, data.question ?? createLocalExtraQuestion(activeSubject, prev.length)]);
-      setQuestionIndex(subjectQuestions.length);
-    } catch {
-      setExtraQuestions((prev) => [...prev, createLocalExtraQuestion(activeSubject, prev.length)]);
-      setQuestionIndex(subjectQuestions.length);
+      setQuestionIndex(firstNewQuestionIndex);
     } finally {
       setIsGenerating(false);
     }
@@ -760,12 +776,22 @@ export default function Home() {
                   {subject.name}
                 </button>
               ))}
-              <button className="primary-button full" onClick={addExtraQuestion} disabled={isGenerating}>
-                <Plus size={17} />
-                {isGenerating ? "생성 중" : "추가 문제"}
-              </button>
+              <div className="extra-gate">
+                <span>
+                  {subjectAnsweredCount}/{subjectQuestions.length} 완료
+                  {subjectExtraQuestions.length > 0 ? ` · 추가 ${subjectExtraQuestions.length}문제` : ""}
+                </span>
+                {canGenerateExtraBatch ? (
+                  <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating}>
+                    <Plus size={17} />
+                    {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 추가`}
+                  </button>
+                ) : (
+                  <p>현재 과목 문제를 모두 풀면 20문제 추가 생성이 열립니다.</p>
+                )}
+              </div>
               <div className="question-list">
-                {subjectQuestions.slice(0, 120).map((question, index) => (
+                {subjectQuestions.map((question, index) => (
                   <button
                     key={question.id}
                     className={`mini-question ${index === questionIndex ? "active" : ""} ${answers[question.id]?.correct ? "correct" : answers[question.id] ? "wrong" : ""}`}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conceptArticles, createLocalExtraQuestion, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import { conceptArticles, createLocalExtraQuestion, createLocalExtraQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 function bySubject(subjectId: SubjectId) {
@@ -83,6 +83,24 @@ describe("SQLP problem bank", () => {
       expect(extra.number).toBe(101);
       expect(baseIds.has(extra.id)).toBe(false);
       expect(extra.subjectId).toBe(subject.id);
+    }
+  });
+
+  it("generates independent 20-question extra batches per subject", () => {
+    for (const subject of subjects) {
+      const firstBatch = createLocalExtraQuestions(subject.id, 0, 20);
+      const secondBatch = createLocalExtraQuestions(subject.id, 20, 20);
+      const ids = new Set([...firstBatch, ...secondBatch].map((question) => question.id));
+
+      expect(firstBatch).toHaveLength(20);
+      expect(secondBatch).toHaveLength(20);
+      expect(firstBatch[0].number).toBe(101);
+      expect(firstBatch[19].number).toBe(120);
+      expect(secondBatch[0].number).toBe(121);
+      expect(secondBatch[19].number).toBe(140);
+      expect(ids.size).toBe(40);
+      expect(firstBatch.every((question) => question.subjectId === subject.id)).toBe(true);
+      expect(secondBatch.every((question) => question.subjectId === subject.id)).toBe(true);
     }
   });
 });
