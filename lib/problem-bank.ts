@@ -1,596 +1,1276 @@
 import type { Choice, ChoiceId, ConceptArticle, Difficulty, LabQuestion, ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
+type ChoiceTuple = [string, string, string, string];
 
-type ExamSeed = {
+type DraftQuestion = {
   topic: string;
   difficulty: Difficulty;
   stem: string;
   passage?: string;
   code?: string;
   table?: ObjectiveQuestion["table"];
-  choices: [string, string, string, string];
-  answerIndex: 0 | 1 | 2 | 3;
+  choices: ChoiceTuple;
+  answerIndex?: 0 | 1 | 2 | 3;
   hint: string;
   explanation: string;
 };
 
-type ExamBank = {
+type SubjectConfig<T = ModelSpec | SqlSpec | TuningSpec> = {
   id: SubjectId;
   name: string;
-  seeds: ExamSeed[];
+  articleCategory: string;
+  specs: T[];
+  drafts: (spec: T, index: number) => DraftQuestion[];
+  article: (spec: T, index: number) => ConceptArticle;
 };
 
-function makeChoices(seed: ExamSeed): Choice[] {
-  return seed.choices.map((text, index) => ({ id: choiceIds[index], text }));
+type ModelSpec = {
+  topic: string;
+  difficulty: Difficulty;
+  scenario: string;
+  correctRule: string;
+  trap: string;
+  sqlAngle: string;
+  candidates: ChoiceTuple;
+  candidateNotes: ChoiceTuple;
+};
+
+type SqlSpec = {
+  topic: string;
+  difficulty: Difficulty;
+  scenario: string;
+  code: string;
+  correctRule: string;
+  fix: string;
+  trap: string;
+  resultAngle: string;
+};
+
+type TuningSpec = {
+  topic: string;
+  difficulty: Difficulty;
+  scenario: string;
+  code: string;
+  correctRule: string;
+  fix: string;
+  trap: string;
+  planAngle: string;
+};
+
+const extraScenarios = [
+  "월말 배치",
+  "모바일 주문",
+  "정기결제",
+  "고객등급 개편",
+  "이벤트 캠페인",
+  "대용량 이력 조회",
+  "실시간 대시보드",
+  "운영 장애 분석"
+];
+
+function rotateChoices(choices: ChoiceTuple, answerIndex: number, offset: number) {
+  const shift = offset % choices.length;
+  const rotated = choices.map((_, index) => choices[(index - shift + choices.length) % choices.length]) as ChoiceTuple;
+  return {
+    choices: rotated,
+    answerIndex: ((answerIndex + shift) % choices.length) as 0 | 1 | 2 | 3
+  };
 }
 
-function makeWhyWrong(seed: ExamSeed): Record<ChoiceId, string> {
+function makeChoices(choices: ChoiceTuple): Choice[] {
+  return choices.map((text, index) => ({ id: choiceIds[index], text }));
+}
+
+function makeWhyWrong(draft: DraftQuestion, answerIndex: number): Record<ChoiceId, string> {
   return choiceIds.reduce(
     (acc, id, index) => {
       acc[id] =
-        index === seed.answerIndex
-          ? `정답입니다. ${seed.explanation}`
-          : `오답입니다. ${seed.choices[index]}는 지문의 조건, SQL 처리 순서, 실행계획 근거 중 일부를 놓친 선택지입니다.`;
+        index === answerIndex
+          ? `정답입니다. ${draft.explanation}`
+          : `오답입니다. 이 선택지는 "${draft.topic}"에서 지문 조건, SQL 처리 순서, 모델링 원칙, 실행계획 근거 중 하나를 놓친 판단입니다.`;
       return acc;
     },
     {} as Record<ChoiceId, string>
   );
 }
 
-function build(bank: ExamBank, count: number, startIndex = 0, idPrefix: string = bank.id): ObjectiveQuestion[] {
+function withExtraContext(draft: DraftQuestion, index: number, baseLength: number): DraftQuestion {
+  const round = Math.floor(index / baseLength);
+  if (round === 0) return draft;
+
+  const scenario = extraScenarios[index % extraScenarios.length];
+  return {
+    ...draft,
+    stem: `${draft.stem} - ${scenario} 사례`,
+    passage: [draft.passage, `추가 사례: ${scenario} 상황에서도 같은 원칙을 적용해 판단한다.`].filter(Boolean).join("\n")
+  };
+}
+
+function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0, idPrefix: string = config.id): ObjectiveQuestion[] {
+  const drafts = config.specs.flatMap((spec, index) => config.drafts(spec, index));
+
   return Array.from({ length: count }, (_, offset) => {
-    const index = startIndex + offset;
-    const seed = bank.seeds[index % bank.seeds.length];
+    const globalIndex = startIndex + offset;
+    const draft = withExtraContext(drafts[globalIndex % drafts.length], globalIndex, drafts.length);
+    const answerIndex = draft.answerIndex ?? 0;
+    const rotated = rotateChoices(draft.choices, answerIndex, globalIndex);
+
     return {
-      id: `${idPrefix}-${String(index + 1).padStart(3, "0")}`,
-      number: index + 1,
-      subjectId: bank.id,
-      subjectName: bank.name,
-      topic: seed.topic,
-      difficulty: seed.difficulty,
-      stem: seed.stem,
-      passage: seed.passage,
-      code: seed.code,
-      table: seed.table,
-      choices: makeChoices(seed),
-      answer: choiceIds[seed.answerIndex],
-      hint: seed.hint,
-      explanation: seed.explanation,
-      whyWrong: makeWhyWrong(seed)
+      id: `${idPrefix}-${String(globalIndex + 1).padStart(3, "0")}`,
+      number: globalIndex + 1,
+      subjectId: config.id,
+      subjectName: config.name,
+      topic: draft.topic,
+      difficulty: draft.difficulty,
+      stem: draft.stem,
+      passage: draft.passage,
+      code: draft.code,
+      table: draft.table,
+      choices: makeChoices(rotated.choices),
+      answer: choiceIds[rotated.answerIndex],
+      hint: draft.hint,
+      explanation: draft.explanation,
+      whyWrong: makeWhyWrong(draft, rotated.answerIndex)
     };
   });
 }
 
-const modeling: ExamBank = {
-  id: "modeling",
-  name: "1과목 데이터 모델링의 이해",
-  seeds: [
+function modelDrafts(spec: ModelSpec, index: number): DraftQuestion[] {
+  return [
     {
-      topic: "엔터티",
-      difficulty: "기본",
-      stem: "다음 중 엔터티로 보기 가장 어려운 것은?",
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `${spec.topic}에 대한 설명으로 옳은 것은?`,
+      passage: spec.scenario,
+      choices: [
+        spec.correctRule,
+        spec.trap,
+        "물리 테이블 수를 먼저 정하고 그에 맞춰 업무 규칙을 해석한다.",
+        "성능을 위해 관계 선택성과 식별자 안정성은 검토하지 않아도 된다."
+      ],
+      hint: "업무 규칙을 데이터 구조로 바꾸는 기준을 보세요.",
+      explanation: spec.correctRule
+    },
+    {
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `${spec.topic} 관점에서 가장 적절한 선택지는?`,
       table: {
         headers: ["후보", "업무 설명"],
-        rows: [
-          ["고객", "서비스에 가입하고 주문을 발생시킨다."],
-          ["주문", "주문번호로 식별되며 주문일자와 상태를 가진다."],
-          ["상담이력", "고객별로 여러 건 발생하고 처리결과를 관리한다."],
-          ["고객명", "고객을 표시하기 위한 이름 값이다."]
-        ]
+        rows: spec.candidates.map((candidate, candidateIndex) => [candidate, spec.candidateNotes[candidateIndex]])
       },
-      choices: ["고객", "주문", "상담이력", "고객명"],
-      answerIndex: 3,
-      hint: "값 자체인지, 식별 가능한 인스턴스 집합인지 구분하세요.",
-      explanation: "고객명은 고객 엔터티의 속성에 가깝고, 독립적인 인스턴스 집합으로 보기 어렵습니다."
+      choices: spec.candidates,
+      hint: "독립적으로 관리되는 집합인지, 값인지, 관계인지 구분하세요.",
+      explanation: `${spec.candidates[0]}이(가) 지문 조건에서 가장 적절합니다.`
     },
     {
-      topic: "속성",
-      difficulty: "기본",
-      stem: "다음 설명에 해당하는 속성 분류로 가장 적절한 것은?",
-      passage: "주문금액은 주문수량과 상품단가를 이용해 계산할 수 있으며, 업무상 저장하지 않아도 재계산이 가능하다.",
-      choices: ["기본 속성", "설계 속성", "파생 속성", "외래 속성"],
-      answerIndex: 2,
-      hint: "다른 속성으로 계산되는 값입니다.",
-      explanation: "주문금액처럼 다른 속성으로 산출 가능한 값은 파생 속성으로 분류합니다."
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `${spec.topic} 설계 판단으로 가장 부적절한 것은?`,
+      passage: spec.scenario,
+      choices: [
+        spec.trap,
+        "업무에서 발생하는 인스턴스와 식별 가능성을 함께 확인한다.",
+        "선택 관계라면 기준 집합 보존 여부를 SQL까지 연결해 검토한다.",
+        "정규화와 반정규화는 정합성 유지 비용까지 비교한다."
+      ],
+      hint: "그럴듯하지만 모델링 원칙을 거스르는 선택지를 찾으세요.",
+      explanation: spec.trap
     },
     {
-      topic: "관계",
-      difficulty: "중간",
-      stem: "아래 업무 규칙을 논리 모델 관계로 표현할 때 가장 적절한 것은?",
-      passage: "한 고객은 주문을 하지 않을 수도 있다. 하나의 주문은 반드시 한 명의 고객에 의해 생성된다.",
-      choices: ["고객과 주문은 1:1 필수 관계", "고객 선택, 주문 필수의 1:M 관계", "고객 필수, 주문 선택의 M:N 관계", "관계가 없고 주문에 고객명을 중복 저장"],
-      answerIndex: 1,
-      hint: "고객 쪽에서 주문 존재가 선택인지 필수인지 보세요.",
-      explanation: "고객은 주문이 없을 수 있고 주문은 고객이 필수이므로 고객-주문은 고객 기준 선택 1:M 관계입니다."
-    },
-    {
-      topic: "식별자",
-      difficulty: "중간",
-      stem: "다음 중 주식별자 선정 기준으로 가장 부적절한 것은?",
-      choices: ["유일성", "최소성", "불변성 또는 안정성", "컬럼 길이가 길수록 우선"],
-      answerIndex: 3,
-      hint: "식별자는 길이보다 업무 식별성과 안정성이 중요합니다.",
-      explanation: "식별자는 유일성, 최소성, 안정성, 존재성을 봅니다. 길이가 길수록 우선한다는 기준은 없습니다."
-    },
-    {
-      topic: "정규화",
-      difficulty: "중간",
-      stem: "다음 테이블에서 가장 직접적으로 의심되는 정규형 위반은?",
-      table: {
-        headers: ["주문번호", "고객번호", "고객등급", "등급할인율"],
-        rows: [
-          ["O1001", "C01", "GOLD", "10%"],
-          ["O1002", "C02", "SILVER", "5%"],
-          ["O1003", "C03", "GOLD", "10%"]
-        ]
-      },
-      passage: "등급할인율은 고객등급에만 종속된다.",
-      choices: ["1정규형 위반", "2정규형 위반", "3정규형 위반", "도메인 무결성 위반만 해당"],
-      answerIndex: 2,
-      hint: "비식별자 속성 간 종속을 찾으세요.",
-      explanation: "고객등급 -> 등급할인율은 비식별자 속성 간 이행 종속이므로 3NF 위반으로 볼 수 있습니다."
-    },
-    {
-      topic: "반정규화",
+      topic: spec.topic,
       difficulty: "실전",
-      stem: "반정규화를 검토하는 순서로 가장 적절한 것은?",
-      choices: ["중복 컬럼 추가 후 SQL을 검토한다.", "정규화 모델, SQL, 인덱스, 통계를 검토한 뒤 정합성 유지 방안과 함께 적용한다.", "조인이 2개 이상이면 무조건 반정규화한다.", "반정규화는 정합성 검증이 필요 없다."],
-      answerIndex: 1,
-      hint: "반정규화는 마지막에 가까운 처방입니다.",
-      explanation: "반정규화는 검증된 성능 병목과 정합성 유지 방안이 있을 때 제한적으로 적용합니다."
-    },
-    {
-      topic: "NULL 속성",
-      difficulty: "중간",
-      stem: "NULL 속성에 대한 설명으로 옳은 것은?",
-      choices: ["NULL은 숫자 0과 동일하다.", "Oracle에서 빈 문자열은 NULL로 취급될 수 있다.", "NULL 비교는 = NULL로 한다.", "집계 함수는 모든 NULL을 항상 0으로 바꾼다."],
-      answerIndex: 1,
-      hint: "Oracle의 빈 문자열 처리와 3값 논리를 떠올리세요.",
-      explanation: "Oracle에서는 빈 문자열이 NULL로 취급됩니다. NULL 비교는 IS NULL을 사용해야 합니다."
-    },
-    {
-      topic: "슈퍼타입/서브타입",
-      difficulty: "실전",
-      stem: "슈퍼타입/서브타입 물리 모델 변환 시 고려 사항으로 거리가 먼 것은?",
-      choices: ["조회 패턴", "서브타입별 데이터 발생량", "배타성 여부", "서브타입 이름의 글자 수"],
-      answerIndex: 3,
-      hint: "물리화는 데이터와 업무 패턴이 기준입니다.",
-      explanation: "통합/분리 판단에는 조회 패턴, 데이터량, 공통 속성 비율, 배타성 등이 중요합니다."
-    },
-    {
-      topic: "M:N 관계",
-      difficulty: "중간",
-      stem: "아래 업무에서 필요한 모델링으로 가장 적절한 것은?",
-      passage: "학생은 여러 과목을 수강할 수 있고, 과목은 여러 학생이 수강할 수 있다. 수강일자와 성적은 수강 관계에 종속된다.",
-      choices: ["학생 테이블에 과목코드1, 과목코드2를 둔다.", "과목 테이블에 학생목록 문자열을 둔다.", "수강 엔터티를 두고 수강일자와 성적을 관리한다.", "학생명과 과목명을 하나의 컬럼에 저장한다."],
-      answerIndex: 2,
-      hint: "관계 자체가 속성을 가지면 엔터티 후보입니다.",
-      explanation: "M:N 관계는 교차 엔터티로 해소하고 관계 속성을 해당 엔터티에 둡니다."
-    },
-    {
-      topic: "모델과 SQL",
-      difficulty: "실전",
-      stem: "다음 모델에서 주문이 없는 고객까지 조회해야 할 때 적절한 SQL 방향은?",
-      table: {
-        headers: ["엔터티", "주요 속성", "관계"],
-        rows: [
-          ["고객", "고객번호, 고객명", "고객 1 : 주문 N"],
-          ["주문", "주문번호, 고객번호, 주문일자", "주문은 고객 필수"]
-        ]
-      },
-      choices: ["고객 INNER JOIN 주문", "고객 LEFT OUTER JOIN 주문", "주문 INNER JOIN 고객", "주문만 조회"],
-      answerIndex: 1,
-      hint: "보존되어야 하는 기준 집합은 고객입니다.",
-      explanation: "주문이 없는 고객도 결과에 포함해야 하므로 고객 기준 외부 조인을 사용해야 합니다."
-    },
-    {
-      topic: "이력 모델",
-      difficulty: "실전",
-      stem: "고객 등급 변경 이력을 관리하기 위한 속성 조합으로 가장 적절한 것은?",
-      choices: ["고객번호, 현재등급만 저장", "고객번호, 등급, 적용시작일, 적용종료일", "고객명, 등급명만 저장", "등급코드만 별도 테이블에 저장"],
-      answerIndex: 1,
-      hint: "이력은 기간 또는 시점이 있어야 합니다.",
-      explanation: "이력 관리를 위해서는 식별 대상과 값, 적용 기간을 함께 관리해야 합니다."
-    },
-    {
-      topic: "관계명",
-      difficulty: "기본",
-      stem: "관계명 작성 기준으로 가장 적절한 것은?",
-      choices: ["양쪽 관계의 의미가 드러나도록 동사형으로 표현한다.", "테이블명을 그대로 반복한다.", "항상 생략한다.", "관계명은 물리 모델에서만 필요하다."],
-      answerIndex: 0,
-      hint: "관계명은 업무 의미를 전달해야 합니다.",
-      explanation: "관계명은 엔터티 사이의 업무적 의미를 명확하게 표현해야 합니다."
+      stem: `${spec.topic}이 SQL 작성에 미치는 영향으로 가장 적절한 것은?`,
+      passage: spec.scenario,
+      choices: [
+        spec.sqlAngle,
+        "모델링 결과는 SQL 결과 건수와 무관하고 화면 디자인에만 영향을 준다.",
+        "조인 경로는 옵티마이저가 항상 자동으로 보정하므로 모델은 중요하지 않다.",
+        "식별자와 관계 선택성은 인덱스 설계와 실행계획에 영향을 주지 않는다."
+      ],
+      hint: "모델링 판단이 조인, NULL, 인덱스에 어떻게 이어지는지 보세요.",
+      explanation: spec.sqlAngle
     }
-  ]
-};
+  ];
+}
 
-const sqlBasic: ExamBank = {
-  id: "sql-basic",
-  name: "2과목 SQL 기본 및 활용",
-  seeds: [
+function sqlDrafts(spec: SqlSpec, index: number): DraftQuestion[] {
+  return [
     {
-      topic: "SELECT 처리 순서",
-      difficulty: "기본",
-      stem: "다음 SQL에서 SELECT 절 별칭 AMT를 WHERE 절에서 사용할 수 없는 주된 이유는?",
-      code: "SELECT order_id, amount AS amt\nFROM orders\nWHERE amt >= 10000;",
-      choices: ["WHERE가 SELECT보다 논리적으로 먼저 처리되기 때문이다.", "별칭은 ORDER BY에서만 절대 사용할 수 없다.", "숫자 컬럼에는 별칭을 줄 수 없다.", "FROM 절이 가장 마지막에 처리되기 때문이다."],
-      answerIndex: 0,
-      hint: "논리 처리 순서를 보세요.",
-      explanation: "WHERE는 SELECT보다 먼저 처리되므로 SELECT에서 만든 별칭을 WHERE에서 바로 사용할 수 없습니다."
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `${spec.topic}에 대한 설명으로 옳은 것은?`,
+      code: spec.code,
+      choices: [spec.correctRule, spec.trap, "SQL 문장은 항상 작성 순서대로만 실행된다.", "NULL은 모든 DBMS에서 숫자 0과 동일하게 처리된다."],
+      hint: "SQL의 논리 처리 순서와 NULL 처리를 함께 보세요.",
+      explanation: spec.correctRule
     },
     {
-      topic: "NULL과 집계",
-      difficulty: "중간",
-      stem: "아래 테이블에 대해 SQL 실행 결과로 옳은 것은?",
-      table: {
-        headers: ["ID", "VAL"],
-        rows: [
-          ["1", "10"],
-          ["2", "NULL"],
-          ["3", "20"]
-        ]
-      },
-      code: "SELECT COUNT(*) C1, COUNT(val) C2, SUM(val) S\nFROM T;",
-      choices: ["C1=3, C2=2, S=30", "C1=2, C2=2, S=30", "C1=3, C2=3, S=30", "C1=3, C2=2, S=NULL"],
-      answerIndex: 0,
-      hint: "COUNT(*)와 COUNT(컬럼)을 구분하세요.",
-      explanation: "COUNT(*)는 전체 행 3건, COUNT(val)은 NULL 제외 2건, SUM(val)은 NULL 제외 합계 30입니다."
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `다음 ${spec.topic} SQL에서 가장 주의해야 할 점은?`,
+      code: spec.code,
+      choices: [spec.resultAngle, spec.trap, "테이블 별칭을 쓰면 실행 결과가 항상 달라진다.", "ORDER BY가 없으면 WHERE 조건이 무시된다."],
+      hint: "결과 건수나 NULL, 집계, 조인 보존 여부를 확인하세요.",
+      explanation: spec.resultAngle
     },
     {
-      topic: "외부 조인",
+      topic: spec.topic,
       difficulty: "실전",
-      stem: "아래 SQL의 문제점으로 가장 적절한 것은?",
-      code: "SELECT c.cust_id, o.order_id\nFROM customers c LEFT JOIN orders o\n  ON o.cust_id = c.cust_id\nWHERE o.status_cd = 'PAID';",
-      choices: ["주문이 없는 고객이 제거될 수 있다.", "LEFT JOIN은 문법 오류다.", "WHERE 절은 조인 후 사용할 수 없다.", "고객 테이블이 항상 제거된다."],
-      answerIndex: 0,
-      hint: "오른쪽 테이블 조건이 WHERE에 있습니다.",
-      explanation: "외부 조인 후 오른쪽 테이블 조건을 WHERE에 두면 NULL 보존 행이 제거되어 내부 조인처럼 동작할 수 있습니다."
+      stem: `다음 ${spec.topic} 상황에서 가장 적절한 SQL 작성 방향은?`,
+      passage: spec.scenario,
+      code: spec.code,
+      choices: [spec.fix, spec.trap, "조건을 모두 SELECT 절 별칭으로 옮긴다.", "결과가 달라도 실행계획만 빠르면 정답으로 본다."],
+      hint: "문법보다 결과 보존과 논리 순서가 우선입니다.",
+      explanation: spec.fix
     },
     {
-      topic: "NOT IN",
+      topic: spec.topic,
       difficulty: "중간",
-      stem: "다음 SQL에서 서브쿼리 결과에 NULL이 포함될 때 발생 가능한 현상은?",
-      code: "SELECT empno\nFROM emp\nWHERE deptno NOT IN (SELECT deptno FROM closed_dept);",
-      choices: ["기대한 행이 반환되지 않을 수 있다.", "NULL은 자동 제외되어 항상 정상 동작한다.", "NOT IN은 EXISTS로 자동 변환되어 결과가 같다.", "서브쿼리에 NULL이 있으면 문법 오류다."],
-      answerIndex: 0,
-      hint: "3값 논리의 UNKNOWN을 생각하세요.",
-      explanation: "NOT IN 목록에 NULL이 포함되면 비교 결과가 UNKNOWN이 되어 기대한 결과가 나오지 않을 수 있습니다."
-    },
-    {
-      topic: "GROUP BY",
-      difficulty: "기본",
-      stem: "부서별 평균 급여가 5000 이상인 부서를 조회하는 조건 위치로 옳은 것은?",
-      choices: ["WHERE AVG(sal) >= 5000", "HAVING AVG(sal) >= 5000", "ORDER BY AVG(sal) >= 5000", "FROM AVG(sal) >= 5000"],
-      answerIndex: 1,
-      hint: "집계 후 조건입니다.",
-      explanation: "집계 결과 조건은 GROUP BY 이후 HAVING 절에서 판단합니다."
-    },
-    {
-      topic: "윈도우 함수",
-      difficulty: "중간",
-      stem: "동순위가 있으면 다음 순위를 건너뛰는 순위 함수는?",
-      choices: ["ROW_NUMBER", "RANK", "DENSE_RANK", "NTILE"],
-      answerIndex: 1,
-      hint: "1, 1, 3 형태의 순위입니다.",
-      explanation: "RANK는 동순위 다음 순위를 건너뛰고, DENSE_RANK는 건너뛰지 않습니다."
-    },
-    {
-      topic: "Top-N",
-      difficulty: "실전",
-      stem: "Oracle에서 정렬 후 상위 10건을 안정적으로 구하는 SQL 형태는?",
-      choices: ["SELECT * FROM emp WHERE ROWNUM <= 10 ORDER BY sal DESC", "SELECT * FROM (SELECT * FROM emp ORDER BY sal DESC) WHERE ROWNUM <= 10", "SELECT * FROM emp WHERE ROWNUM > 10 ORDER BY sal DESC", "SELECT * FROM emp HAVING ROWNUM <= 10"],
-      answerIndex: 1,
-      hint: "정렬을 안쪽에서 먼저 수행합니다.",
-      explanation: "Oracle ROWNUM은 정렬 전에 부여될 수 있으므로 정렬 인라인 뷰 바깥에서 제한해야 합니다."
-    },
-    {
-      topic: "집합 연산자",
-      difficulty: "기본",
-      stem: "중복 제거가 필요 없고 두 결과 집합을 단순히 합치려 할 때 가장 적절한 연산자는?",
-      choices: ["UNION", "UNION ALL", "INTERSECT", "MINUS"],
-      answerIndex: 1,
-      hint: "중복 제거 비용이 없는 연산입니다.",
-      explanation: "UNION ALL은 중복 제거 없이 결과를 이어 붙입니다."
-    },
-    {
-      topic: "계층형 질의",
-      difficulty: "중간",
-      stem: "조직도처럼 같은 테이블의 관리자-직원 관계를 조회할 때 필요한 개념은?",
-      choices: ["셀프 조인", "카티션 곱만 사용", "집합 연산만 사용", "DDL만 사용"],
-      answerIndex: 0,
-      hint: "같은 테이블이 두 역할을 합니다.",
-      explanation: "부모-자식 구조는 같은 테이블을 서로 다른 별칭으로 참조하는 셀프 조인 또는 계층형 질의로 다룹니다."
-    },
-    {
-      topic: "PIVOT",
-      difficulty: "중간",
-      stem: "월별 매출 행 데이터를 월 컬럼 형태로 회전시키는 기능과 가장 가까운 것은?",
-      choices: ["PIVOT", "UNPIVOT", "ROLLBACK", "GRANT"],
-      answerIndex: 0,
-      hint: "행 값을 열로 바꾸는 기능입니다.",
-      explanation: "PIVOT은 행으로 존재하는 값을 열 방향으로 회전해 집계 결과를 보여줍니다."
-    },
-    {
-      topic: "TCL",
-      difficulty: "기본",
-      stem: "다음 중 TCL에 해당하는 명령어 조합은?",
-      choices: ["COMMIT, ROLLBACK", "CREATE, ALTER", "GRANT, REVOKE", "SELECT, UPDATE"],
-      answerIndex: 0,
-      hint: "트랜잭션 제어 명령입니다.",
-      explanation: "COMMIT과 ROLLBACK은 트랜잭션을 확정하거나 취소하는 TCL입니다."
-    },
-    {
-      topic: "표준 조인",
-      difficulty: "중간",
-      stem: "두 테이블에 공통 컬럼명이 있고 해당 컬럼 기준으로 동일명 컬럼을 한 번만 표시하는 조인은?",
-      choices: ["NATURAL JOIN", "CROSS JOIN", "FULL SCAN", "UNION ALL"],
-      answerIndex: 0,
-      hint: "동일한 이름의 컬럼을 자동 기준으로 삼습니다.",
-      explanation: "NATURAL JOIN은 동일한 이름의 컬럼을 기준으로 조인하며 공통 컬럼을 한 번만 표시합니다."
+      stem: `${spec.topic} 관련 선택지 중 틀린 것은?`,
+      choices: [
+        spec.trap,
+        spec.correctRule,
+        spec.fix,
+        "실제 시험에서는 결과 건수, NULL, 조인 조건 위치를 함께 묻는 경우가 많다."
+      ],
+      hint: "단정적인 표현을 조심하세요.",
+      explanation: spec.trap
     }
-  ]
-};
+  ];
+}
 
-const tuning: ExamBank = {
-  id: "tuning",
-  name: "3과목 SQL 고급활용 및 튜닝",
-  seeds: [
+function tuningDrafts(spec: TuningSpec, index: number): DraftQuestion[] {
+  return [
     {
-      topic: "SARGable",
-      difficulty: "실전",
-      stem: "아래 조건을 인덱스 사용에 유리하게 바꾼 것으로 가장 적절한 것은?",
-      code: "WHERE TO_CHAR(order_dt, 'YYYYMM') = '202608'",
-      choices: ["WHERE order_dt >= DATE '2026-08-01' AND order_dt < DATE '2026-09-01'", "WHERE TO_CHAR(order_dt) LIKE '202608%'", "WHERE NVL(order_dt, SYSDATE) = DATE '2026-08-01'", "WHERE SUBSTR(order_dt, 1, 6) = '202608'"],
-      answerIndex: 0,
-      hint: "컬럼을 가공하지 않는 범위 조건입니다.",
-      explanation: "컬럼 함수를 제거하고 날짜 범위 조건을 사용하면 인덱스 range scan 가능성이 높아집니다."
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `${spec.topic} 관점에서 가장 적절한 설명은?`,
+      passage: spec.scenario,
+      code: spec.code,
+      choices: [spec.correctRule, spec.trap, "힌트를 많이 쓰면 통계정보는 확인하지 않아도 된다.", "인덱스 스캔이 보이면 항상 최적 실행계획이다."],
+      hint: "성능 판단은 실행계획 이름보다 근거가 중요합니다.",
+      explanation: spec.correctRule
     },
     {
-      topic: "복합 인덱스",
+      topic: spec.topic,
+      difficulty: "실전",
+      stem: `다음 ${spec.topic} SQL 또는 실행계획을 개선하는 방향으로 가장 적절한 것은?`,
+      code: spec.code,
+      choices: [spec.fix, spec.trap, "결과가 달라져도 빠른 조인 방식으로 바꾼다.", "테이블명을 짧게 바꾸면 I/O가 줄어든다."],
+      hint: "결과 보존, access predicate, 조인 순서를 함께 보세요.",
+      explanation: spec.fix
+    },
+    {
+      topic: spec.topic,
+      difficulty: spec.difficulty,
+      stem: `${spec.topic} 실행계획 해석으로 옳은 것은?`,
+      passage: spec.scenario,
+      code: spec.code,
+      choices: [spec.planAngle, spec.trap, "Rows 예상치와 실제치는 항상 같으므로 비교할 필요가 없다.", "Predicate Information은 튜닝 판단과 무관하다."],
+      hint: "Rows, Starts, Predicate, 인덱스 접근 조건을 보세요.",
+      explanation: spec.planAngle
+    },
+    {
+      topic: spec.topic,
       difficulty: "중간",
-      stem: "인덱스 IDX_ORD_01(cust_id, order_dt)가 있을 때 가장 효율적인 조건 조합은?",
-      choices: ["cust_id = :b1 AND order_dt >= :b2", "order_dt = :b1", "amount = :b1", "order_dt >= :b1 AND status_cd = :b2"],
-      answerIndex: 0,
-      hint: "선두 컬럼 사용 여부가 중요합니다.",
-      explanation: "복합 인덱스는 선두 컬럼 cust_id가 동등 조건으로 사용될 때 후속 컬럼 범위 탐색이 효율적입니다."
-    },
-    {
-      topic: "Access Predicate",
-      difficulty: "실전",
-      stem: "실행계획 Predicate Information 해석으로 가장 적절한 것은?",
-      code: "access(\"CUST_ID\"=:B1)\nfilter(TO_CHAR(\"ORDER_DT\",'YYYYMM')=:B2)",
-      choices: ["CUST_ID는 인덱스 탐색 조건으로 사용된다.", "ORDER_DT는 인덱스 탐색 범위를 줄인다.", "filter 조건은 읽기 전에 항상 탐색 범위를 줄인다.", "access와 filter는 성능상 동일하다."],
-      answerIndex: 0,
-      hint: "access와 filter를 구분하세요.",
-      explanation: "access는 인덱스 탐색 범위를 줄이는 조건이고 filter는 읽은 후 걸러내는 조건입니다."
-    },
-    {
-      topic: "NL 조인",
-      difficulty: "중간",
-      stem: "Nested Loops 조인이 유리한 상황으로 가장 적절한 것은?",
-      choices: ["선행 집합이 작고 후행 조인 컬럼에 선택도 좋은 인덱스가 있다.", "두 테이블이 모두 대용량이고 인덱스가 없다.", "조인 조건이 없고 카티션 곱이 필요하다.", "항상 Hash Join보다 빠르다."],
-      answerIndex: 0,
-      hint: "NL은 반복 탐색입니다.",
-      explanation: "NL 조인은 선행 집합이 작고 후행 테이블 인덱스 탐색이 효율적일 때 유리합니다."
-    },
-    {
-      topic: "Hash Join",
-      difficulty: "중간",
-      stem: "Hash Join에 대한 설명으로 옳은 것은?",
-      choices: ["대량 동등 조인에서 유리할 수 있다.", "비동등 조인에서만 사용된다.", "항상 인덱스가 필수다.", "항상 정렬을 먼저 수행한다."],
-      answerIndex: 0,
-      hint: "Build/Probe를 떠올리세요.",
-      explanation: "Hash Join은 대량 동등 조인에서 작은 집합을 build input으로 삼을 때 효과적일 수 있습니다."
-    },
-    {
-      topic: "스칼라 서브쿼리",
-      difficulty: "실전",
-      stem: "다음 SQL의 튜닝 방향으로 가장 적절한 것은?",
-      code: "SELECT c.cust_id,\n       (SELECT MAX(pay_dt) FROM payments p WHERE p.cust_id = c.cust_id) last_pay_dt\nFROM customers c;",
-      choices: ["payments를 사전 집계한 뒤 customers와 조인한다.", "SELECT 절 서브쿼리는 항상 한 번만 수행되므로 그대로 둔다.", "MAX 함수를 제거하고 정렬만 사용한다.", "customers를 삭제한다."],
-      answerIndex: 0,
-      hint: "고객 행마다 반복될 수 있습니다.",
-      explanation: "스칼라 서브쿼리가 반복 수행되면 사전 집계 조인으로 바꿔 비용을 줄일 수 있습니다."
-    },
-    {
-      topic: "통계정보",
-      difficulty: "실전",
-      stem: "예상 Rows와 실제 A-Rows 차이가 매우 큰 실행계획을 보았다. 우선 확인할 사항은?",
-      choices: ["통계정보와 히스토그램", "테이블명 길이", "SQL 키워드 대소문자", "컬럼 주석 존재 여부"],
-      answerIndex: 0,
-      hint: "카디널리티 추정 문제입니다.",
-      explanation: "예상 행 수와 실제 행 수 차이가 크면 통계정보, 히스토그램, 바인드 값 분포를 확인해야 합니다."
-    },
-    {
-      topic: "뷰 머징",
-      difficulty: "실전",
-      stem: "아래 SQL에서 인라인 뷰의 선집계 결과를 보존하고 싶을 때 고려할 힌트는?",
-      code: "SELECT *\nFROM (SELECT product_id, SUM(sale_amt) amt\n      FROM order_items\n      GROUP BY product_id) s\nJOIN products p ON p.product_id = s.product_id;",
-      choices: ["NO_MERGE(s)", "USE_NL(s)", "FULL(p)", "APPEND"],
-      answerIndex: 0,
-      hint: "인라인 뷰 병합을 제어합니다.",
-      explanation: "NO_MERGE 힌트는 인라인 뷰가 병합되지 않도록 의도할 때 사용합니다."
-    },
-    {
-      topic: "Top-N 튜닝",
-      difficulty: "실전",
-      stem: "대량 주문 목록에서 최신 20건만 조회한다. 가장 중요한 인덱스 설계 방향은?",
-      choices: ["WHERE 조건과 ORDER BY 컬럼 순서를 함께 고려한다.", "ORDER BY가 있으면 인덱스는 무조건 무효다.", "최신 20건이므로 통계는 필요 없다.", "항상 FULL SCAN 후 정렬한다."],
-      answerIndex: 0,
-      hint: "필터링과 정렬을 함께 줄여야 합니다.",
-      explanation: "Top-N 튜닝은 조건 컬럼과 정렬 컬럼을 고려해 전체 정렬 범위를 줄이는 것이 핵심입니다."
-    },
-    {
-      topic: "OR Expansion",
-      difficulty: "실전",
-      stem: "OR 조건을 UNION ALL로 분해할 때 반드시 확인해야 하는 것은?",
-      choices: ["분기 간 중복 발생 여부", "SELECT 컬럼명의 한글 여부", "힌트 주석 길이", "테이블스페이스명"],
-      answerIndex: 0,
-      hint: "UNION ALL은 중복 제거를 하지 않습니다.",
-      explanation: "UNION ALL은 중복을 제거하지 않으므로 분기 조건이 배타적인지 확인해야 합니다."
-    },
-    {
-      topic: "파티션",
-      difficulty: "중간",
-      stem: "주문일 기준 RANGE 파티션 테이블에서 파티션 프루닝을 기대하기 가장 어려운 조건은?",
-      choices: ["order_dt >= DATE '2026-08-01'", "order_dt < DATE '2026-09-01'", "TO_CHAR(order_dt,'YYYYMM') = '202608'", "order_dt BETWEEN :b1 AND :b2"],
-      answerIndex: 2,
-      hint: "파티션 키 컬럼 가공 여부를 보세요.",
-      explanation: "파티션 키 컬럼을 함수로 가공하면 파티션 프루닝이 어려워질 수 있습니다."
-    },
-    {
-      topic: "힌트",
-      difficulty: "실전",
-      stem: "다음 힌트 조합에서 가장 의심해야 할 문제는?",
-      code: "/*+ USE_NL(o) FULL(o) */",
-      choices: ["NL 후행 테이블에 FULL 스캔을 강제해 반복 FULL SCAN이 될 수 있다.", "힌트는 SQL에 아무 영향도 줄 수 없다.", "FULL 힌트는 항상 INDEX 힌트보다 빠르다.", "USE_NL은 정렬만 제어한다."],
-      answerIndex: 0,
-      hint: "반복 탐색 대상에 FULL을 강제했습니다.",
-      explanation: "NL 조인의 후행 테이블에 FULL 힌트가 적용되면 선행 행마다 큰 비용이 반복될 수 있습니다."
+      stem: `${spec.topic}에서 가장 위험한 판단은?`,
+      choices: [
+        spec.trap,
+        spec.correctRule,
+        spec.fix,
+        "튜닝 후에도 결과 정합성과 제약 조건 만족 여부를 검증한다."
+      ],
+      hint: "항상, 무조건 같은 표현을 의심하세요.",
+      explanation: spec.trap
     }
-  ]
-};
+  ];
+}
 
-export const subjects = [
-  { id: modeling.id, name: modeling.name },
-  { id: sqlBasic.id, name: sqlBasic.name },
-  { id: tuning.id, name: tuning.name }
+const modelingSpecs: ModelSpec[] = [
+  {
+    topic: "엔터티 판별",
+    difficulty: "기본",
+    scenario: "고객센터는 고객, 상담이력, 상담결과, 상담처리시간을 관리한다.",
+    correctRule: "업무에서 독립적으로 관리하고 반복 발생하는 대상의 집합을 엔터티로 본다.",
+    trap: "고객명처럼 값을 설명하는 항목을 엔터티로 분리한다.",
+    sqlAngle: "엔터티를 잘못 잡으면 불필요한 조인과 중복 컬럼이 생긴다.",
+    candidates: ["상담이력", "고객명", "상담처리시간", "상담결과명"],
+    candidateNotes: ["고객별 여러 건 발생하며 식별과 관리가 필요하다.", "고객을 설명하는 값이다.", "상담이력의 속성 값이다.", "코드 값의 표시명에 가깝다."]
+  },
+  {
+    topic: "속성 분류",
+    difficulty: "기본",
+    scenario: "주문금액은 주문수량과 상품단가를 이용해 계산할 수 있다.",
+    correctRule: "다른 속성으로 계산 가능한 값은 파생 속성 여부를 검토한다.",
+    trap: "계산 가능 여부와 무관하게 모든 금액 컬럼을 기본 속성으로 둔다.",
+    sqlAngle: "파생 속성 저장은 조회 성능과 정합성 유지 비용을 함께 만든다.",
+    candidates: ["주문금액", "주문번호", "상품코드", "주문일자"],
+    candidateNotes: ["수량과 단가로 계산 가능한 값이다.", "주문을 식별하는 값이다.", "상품 참조 값이다.", "주문 발생 시점이다."]
+  },
+  {
+    topic: "관계 선택성",
+    difficulty: "중간",
+    scenario: "고객은 주문하지 않을 수 있지만 주문은 반드시 고객에 의해 생성된다.",
+    correctRule: "기준 엔터티의 선택성과 상대 엔터티의 필수성을 구분해 관계를 표현한다.",
+    trap: "양쪽 모두 필수 관계로 표현해 주문 없는 고객을 제거한다.",
+    sqlAngle: "선택 관계를 무시하면 OUTER JOIN이 필요한 조회에서 기준 행이 사라진다.",
+    candidates: ["고객 선택 1:M 주문", "고객 필수 1:1 주문", "고객 M:N 주문", "관계 없음"],
+    candidateNotes: ["고객은 주문이 없을 수 있고 주문은 고객이 필요하다.", "한 고객이 여러 주문을 할 수 있다.", "교차 엔터티가 필요한 관계가 아니다.", "주문은 고객과 관련된다."]
+  },
+  {
+    topic: "식별자 안정성",
+    difficulty: "중간",
+    scenario: "사원번호는 회사 정책 변경 시 재발급될 수 있고 주민등록번호는 수집하지 않는다.",
+    correctRule: "주식별자는 유일성, 최소성, 안정성, 존재성을 함께 만족해야 한다.",
+    trap: "현재 유일하기만 하면 변경 가능성이 커도 주식별자로 확정한다.",
+    sqlAngle: "불안정한 식별자는 FK 전파 후 대량 갱신과 참조 무결성 문제를 만든다.",
+    candidates: ["인조 사원ID", "사원명", "부서명", "입사월"],
+    candidateNotes: ["변경 가능성이 낮고 내부 식별에 적합하다.", "동명이인이 가능하다.", "여러 사원이 공유한다.", "유일하지 않다."]
+  },
+  {
+    topic: "1정규형",
+    difficulty: "기본",
+    scenario: "회원 테이블에 전화번호1, 전화번호2, 전화번호3 컬럼이 반복된다.",
+    correctRule: "반복 속성이나 다중 값을 별도 행 구조로 분리하면 1NF 위반을 줄일 수 있다.",
+    trap: "반복 컬럼을 계속 늘리는 방식이 가장 정규화된 설계다.",
+    sqlAngle: "반복 컬럼은 검색 조건과 집계 SQL을 복잡하게 만들고 인덱스 설계를 어렵게 한다.",
+    candidates: ["회원전화번호", "회원명", "가입일자", "회원등급명"],
+    candidateNotes: ["회원별 여러 전화번호를 행으로 관리한다.", "회원 속성이다.", "회원 속성이다.", "등급 코드의 표시명이다."]
+  },
+  {
+    topic: "2정규형",
+    difficulty: "중간",
+    scenario: "수강(학생ID, 과목ID, 과목명, 성적)에서 과목명은 과목ID에만 종속된다.",
+    correctRule: "복합 식별자의 일부에만 종속되는 속성은 2NF 위반 후보이다.",
+    trap: "복합키가 있으면 모든 속성이 자동으로 완전 함수 종속을 만족한다.",
+    sqlAngle: "부분 종속을 방치하면 과목명 변경 시 여러 수강 행을 갱신해야 한다.",
+    candidates: ["과목", "성적", "학생명", "수강일자"],
+    candidateNotes: ["과목ID에 종속되는 과목명을 관리한다.", "학생과 과목의 관계 속성이다.", "학생 엔터티의 속성이다.", "수강 관계의 속성이다."]
+  },
+  {
+    topic: "3정규형",
+    difficulty: "중간",
+    scenario: "고객(고객ID, 등급코드, 등급할인율)에서 등급할인율은 등급코드에 종속된다.",
+    correctRule: "일반 속성 간 이행 함수 종속은 3NF 위반 후보이다.",
+    trap: "등급할인율이 조회에 필요하면 고객 테이블에만 보관해야 한다.",
+    sqlAngle: "이행 종속을 방치하면 할인율 변경 시 중복 데이터 정합성 문제가 생긴다.",
+    candidates: ["등급", "고객명", "고객ID", "가입일자"],
+    candidateNotes: ["등급코드별 할인율을 관리한다.", "고객 속성이다.", "고객 식별자다.", "고객 속성이다."]
+  },
+  {
+    topic: "반정규화",
+    difficulty: "실전",
+    scenario: "정규화된 주문 모델에서 월별 대시보드 조회가 과도하게 느리다.",
+    correctRule: "반정규화는 성능 병목, 정합성 유지 방안, 갱신 비용을 검토한 뒤 제한적으로 적용한다.",
+    trap: "조인이 2개 이상이면 항상 중복 컬럼을 추가한다.",
+    sqlAngle: "반정규화는 읽기 비용을 줄일 수 있지만 쓰기 정합성 비용을 만든다.",
+    candidates: ["월별주문요약", "고객명복사", "상품명복사", "주문메모"],
+    candidateNotes: ["반복 집계 조회 병목을 줄이기 위한 요약 엔터티다.", "무조건 복사하면 정합성 문제가 생긴다.", "무조건 복사하면 정합성 문제가 생긴다.", "성능 병목 해소 목적이 약하다."]
+  },
+  {
+    topic: "M:N 관계 해소",
+    difficulty: "중간",
+    scenario: "학생은 여러 과목을 수강하고 과목은 여러 학생이 수강한다. 수강일자와 성적은 관계에 종속된다.",
+    correctRule: "M:N 관계에 속성이 있으면 교차 엔터티로 해소한다.",
+    trap: "학생 테이블에 과목코드1, 과목코드2 컬럼을 계속 추가한다.",
+    sqlAngle: "교차 엔터티는 조인 경로를 명확하게 하고 관계 속성을 안정적으로 관리한다.",
+    candidates: ["수강", "학생명", "과목명", "성적등급명"],
+    candidateNotes: ["학생과 과목 사이의 관계와 성적을 관리한다.", "학생 속성이다.", "과목 속성이다.", "성적 코드의 표시명이다."]
+  },
+  {
+    topic: "슈퍼타입과 서브타입",
+    difficulty: "실전",
+    scenario: "회원은 개인회원과 법인회원으로 나뉘며 공통 속성과 타입별 속성이 섞여 있다.",
+    correctRule: "공통 속성과 배타성, 발생 비율, 조회 패턴을 보고 통합/분리 전략을 정한다.",
+    trap: "서브타입 이름이 길면 반드시 별도 테이블로 분리한다.",
+    sqlAngle: "통합/분리 방식은 조인 수, NULL 컬럼, 인덱스 선택성에 영향을 준다.",
+    candidates: ["회원 슈퍼타입", "회원명", "가입일자", "담당자전화"],
+    candidateNotes: ["개인/법인 공통 식별과 속성을 가진다.", "공통 속성이다.", "공통 속성이다.", "법인회원 속성일 수 있다."]
+  },
+  {
+    topic: "이력 모델",
+    difficulty: "실전",
+    scenario: "고객 등급 변경 이력을 보존하고 특정 기준일의 등급을 조회해야 한다.",
+    correctRule: "이력은 적용시작일과 적용종료일 또는 기준시점으로 유효 기간을 표현한다.",
+    trap: "현재 등급만 남기면 모든 이력 조회 요구를 만족한다.",
+    sqlAngle: "이력 모델은 기준일 조건과 기간 겹침 조건이 SQL의 핵심이 된다.",
+    candidates: ["고객등급이력", "현재등급명", "고객명", "최종수정자명"],
+    candidateNotes: ["고객별 등급의 유효기간을 관리한다.", "현재 값의 표시명이다.", "고객 속성이다.", "감사 속성에 가깝다."]
+  },
+  {
+    topic: "코드 엔터티",
+    difficulty: "중간",
+    scenario: "주문상태는 접수, 결제완료, 배송중, 취소 등 제한된 값으로 관리된다.",
+    correctRule: "코드와 코드명, 사용여부, 정렬순서처럼 표준화가 필요한 값은 코드 엔터티로 관리할 수 있다.",
+    trap: "코드 값은 화면에만 쓰이므로 데이터 모델에는 표현하지 않는다.",
+    sqlAngle: "코드 엔터티는 표시명 변경과 조건 표준화에는 유리하지만 과도한 조인은 주의한다.",
+    candidates: ["주문상태코드", "주문금액", "주문번호", "배송주소상세"],
+    candidateNotes: ["제한된 상태 값을 표준화한다.", "주문 속성이다.", "주문 식별자다.", "주소 속성이다."]
+  },
+  {
+    topic: "도메인",
+    difficulty: "기본",
+    scenario: "여러 테이블에서 사용여부 컬럼이 Y/N, 1/0, T/F로 섞여 있다.",
+    correctRule: "도메인은 속성이 가질 수 있는 값의 범위와 형식을 표준화한다.",
+    trap: "같은 의미의 값 표현은 테이블마다 달라도 전혀 문제가 없다.",
+    sqlAngle: "도메인 표준화는 조건식 단순화와 데이터 품질 개선에 도움을 준다.",
+    candidates: ["사용여부 도메인", "테이블명", "컬럼 순서", "화면 색상"],
+    candidateNotes: ["값 범위와 표현 방식을 통일한다.", "객체 이름이다.", "물리 배치 정보다.", "데이터 도메인이 아니다."]
+  },
+  {
+    topic: "본질식별자와 인조식별자",
+    difficulty: "실전",
+    scenario: "업무 식별자가 길고 변경 가능성이 있어 내부 식별자 도입을 검토한다.",
+    correctRule: "인조식별자는 안정성과 단순성을 줄 수 있지만 업무 식별자의 유일성 제약은 별도로 보장해야 한다.",
+    trap: "인조식별자를 만들면 업무키 중복 검증은 필요 없다.",
+    sqlAngle: "인조식별자는 조인 키를 단순화하지만 업무키 인덱스와 제약 설계가 추가로 필요하다.",
+    candidates: ["주문ID", "주문번호+채널코드", "고객명", "주문상태명"],
+    candidateNotes: ["내부 참조용 인조식별자로 쓸 수 있다.", "업무 식별자 후보이다.", "유일하지 않다.", "상태 표시명이다."]
+  },
+  {
+    topic: "관계명",
+    difficulty: "기본",
+    scenario: "한 고객은 여러 배송지를 등록하고 기본 배송지를 지정할 수 있다.",
+    correctRule: "관계명은 두 엔터티 사이의 업무 의미를 동사형으로 명확히 표현한다.",
+    trap: "관계명은 ERD에 보이지 않아도 SQL 작성과 무관하다.",
+    sqlAngle: "명확한 관계명은 조인 의미와 기준 집합을 이해하는 데 도움을 준다.",
+    candidates: ["고객이 배송지를 등록한다", "고객명", "배송지주소", "기본여부"],
+    candidateNotes: ["고객과 배송지의 업무 관계를 표현한다.", "고객 속성이다.", "배송지 속성이다.", "배송지 속성이다."]
+  },
+  {
+    topic: "카디널리티",
+    difficulty: "중간",
+    scenario: "한 부서는 여러 사원을 가질 수 있고 사원은 하나의 부서에 소속된다.",
+    correctRule: "카디널리티는 한 인스턴스가 상대 인스턴스와 맺을 수 있는 개수를 표현한다.",
+    trap: "카디널리티는 화면 목록 개수만 의미하며 모델에는 영향을 주지 않는다.",
+    sqlAngle: "카디널리티 이해는 조인 후 결과 건수 폭증 여부를 예측하는 기준이 된다.",
+    candidates: ["부서 1:M 사원", "부서 M:N 사원", "부서 1:1 사원", "관계 없음"],
+    candidateNotes: ["한 부서에 여러 사원이 가능하다.", "사원은 하나의 부서에 소속된다.", "여러 사원이 가능하므로 1:1이 아니다.", "소속 관계가 있다."]
+  },
+  {
+    topic: "참조 무결성",
+    difficulty: "중간",
+    scenario: "주문은 존재하지 않는 고객번호를 참조하면 안 된다.",
+    correctRule: "참조 무결성은 자식의 외래키 값이 부모의 식별자 값과 일치하도록 보장한다.",
+    trap: "외래키는 성능을 위해 논리 모델에서만 쓰고 정합성과는 무관하다.",
+    sqlAngle: "참조 무결성은 조인 결과 신뢰성과 삭제/갱신 규칙에 영향을 준다.",
+    candidates: ["주문.cust_id FK", "주문.amount", "고객명", "주문메모"],
+    candidateNotes: ["주문이 고객을 참조하는 키다.", "금액 속성이다.", "고객 속성이다.", "설명 속성이다."]
+  },
+  {
+    topic: "계층 모델",
+    difficulty: "중간",
+    scenario: "카테고리는 상위 카테고리와 하위 카테고리로 여러 단계 구성된다.",
+    correctRule: "계층 구조는 자기참조 관계나 별도 계층 엔터티로 표현할 수 있다.",
+    trap: "계층 단계가 늘어날 때마다 level1, level2 컬럼을 무한히 추가한다.",
+    sqlAngle: "계층 모델은 셀프 조인, CONNECT BY, 재귀 CTE 같은 SQL 패턴으로 이어진다.",
+    candidates: ["상위카테고리ID", "카테고리명", "정렬순서", "수정일자"],
+    candidateNotes: ["자기참조 관계를 표현하는 키다.", "카테고리 속성이다.", "표시 속성이다.", "감사 속성이다."]
+  },
+  {
+    topic: "트랜잭션 모델",
+    difficulty: "실전",
+    scenario: "주문 접수, 결제, 출고는 하나의 업무 흐름에서 상태가 변한다.",
+    correctRule: "모델은 업무 트랜잭션이 어떤 엔터티와 상태 변화를 만드는지 표현해야 한다.",
+    trap: "상태 변화는 프로그램 로직이므로 데이터 모델에는 전혀 표현하지 않는다.",
+    sqlAngle: "트랜잭션 모델 이해는 상태 조건, 이력 조회, 동시성 제어 SQL에 영향을 준다.",
+    candidates: ["주문상태이력", "주문자명", "상품명", "화면버튼명"],
+    candidateNotes: ["상태 변화와 발생 시점을 관리한다.", "주문 속성이다.", "상품 속성이다.", "데이터 모델 대상이 아니다."]
+  },
+  {
+    topic: "NULL 속성",
+    difficulty: "중간",
+    scenario: "배송완료일은 배송 전에는 존재하지 않지만 배송 완료 후에는 반드시 필요하다.",
+    correctRule: "NULL 허용은 업무상 값의 미발생과 미입력을 구분해 결정한다.",
+    trap: "모든 컬럼을 NULL 허용으로 두면 모델이 가장 유연해진다.",
+    sqlAngle: "NULL 허용은 OUTER JOIN, 집계, 조건식의 결과에 직접 영향을 준다.",
+    candidates: ["배송완료일", "주문번호", "고객ID", "상품코드"],
+    candidateNotes: ["업무 시점에 따라 미발생 상태가 가능하다.", "식별자는 보통 필수다.", "참조키는 주문에 필수다.", "주문상품에는 필수다."]
+  },
+  {
+    topic: "데이터 표준화",
+    difficulty: "기본",
+    scenario: "고객번호, 고객ID, CUST_NO가 같은 의미로 여러 시스템에 섞여 있다.",
+    correctRule: "표준 용어와 도메인을 맞추면 모델 해석과 SQL 작성의 혼선을 줄인다.",
+    trap: "같은 의미라도 개발자가 편한 이름을 각자 쓰는 것이 유지보수에 유리하다.",
+    sqlAngle: "표준화는 조인 컬럼 식별과 데이터 통합 쿼리의 오류를 줄인다.",
+    candidates: ["고객 식별자 표준", "버튼 색상", "화면 위치", "로그인 이미지"],
+    candidateNotes: ["같은 의미의 식별자를 통일한다.", "데이터 표준 대상이 아니다.", "데이터 표준 대상이 아니다.", "데이터 표준 대상이 아니다."]
+  },
+  {
+    topic: "업무 규칙 도출",
+    difficulty: "중간",
+    scenario: "쿠폰은 발급 후 한 번만 사용할 수 있고 만료일 이후에는 사용할 수 없다.",
+    correctRule: "업무 규칙은 엔터티, 속성, 관계, 제약 조건으로 분해해 모델에 반영한다.",
+    trap: "업무 규칙은 화면 설명에만 두고 데이터 제약으로는 표현하지 않는다.",
+    sqlAngle: "규칙을 모델에 반영하면 중복 사용 방지와 유효기간 조건 SQL이 명확해진다.",
+    candidates: ["쿠폰사용이력", "쿠폰명", "만료일", "할인금액"],
+    candidateNotes: ["쿠폰 사용 여부와 시점을 관리한다.", "쿠폰 속성이다.", "쿠폰 속성이다.", "쿠폰 속성이다."]
+  },
+  {
+    topic: "속성 원자성",
+    difficulty: "기본",
+    scenario: "주소 컬럼 하나에 우편번호, 시도, 상세주소를 모두 붙여 저장한다.",
+    correctRule: "업무에서 따로 검색·검증·집계해야 하는 값은 원자적으로 분리한다.",
+    trap: "문자열 하나에 모두 붙이면 항상 가장 좋은 정규화다.",
+    sqlAngle: "원자성이 낮은 컬럼은 LIKE 검색과 함수 가공을 유발해 인덱스 효율을 떨어뜨린다.",
+    candidates: ["우편번호", "전체주소문장", "화면주소", "주소라벨"],
+    candidateNotes: ["별도 검색과 검증이 필요한 값이다.", "복합 문자열이다.", "표현용 값이다.", "표시명에 가깝다."]
+  },
+  {
+    topic: "테이블 통합과 분리",
+    difficulty: "실전",
+    scenario: "온라인주문과 매장주문은 공통 속성이 많지만 일부 속성과 처리 흐름이 다르다.",
+    correctRule: "통합/분리는 공통 속성, 배타성, 조회 패턴, NULL 비율을 함께 보고 결정한다.",
+    trap: "이름이 다른 업무는 공통 속성이 많아도 반드시 완전히 분리한다.",
+    sqlAngle: "통합은 조인을 줄일 수 있지만 NULL 증가와 인덱스 선택성 저하를 만들 수 있다.",
+    candidates: ["주문 공통 엔터티", "온라인주문메모", "매장명", "배송요청사항"],
+    candidateNotes: ["공통 식별과 속성을 묶을 수 있다.", "온라인 주문 특화 속성이다.", "매장 주문 특화 속성이다.", "온라인 주문 특화 속성이다."]
+  },
+  {
+    topic: "데이터 품질",
+    difficulty: "중간",
+    scenario: "같은 고객이 시스템별로 다른 고객번호와 다른 휴대폰 형식으로 저장된다.",
+    correctRule: "데이터 품질은 표준화, 식별 기준, 중복 식별 규칙을 함께 관리해야 한다.",
+    trap: "중복 고객은 SQL로 조회할 때마다 사람이 판단하면 충분하다.",
+    sqlAngle: "품질 기준이 없으면 조인과 집계 결과의 신뢰도가 떨어진다.",
+    candidates: ["고객통합식별규칙", "메뉴명", "버튼위치", "배경색"],
+    candidateNotes: ["중복 식별과 통합 기준을 정의한다.", "데이터 품질 기준이 아니다.", "데이터 품질 기준이 아니다.", "데이터 품질 기준이 아니다."]
+  },
+  {
+    topic: "모델과 인덱스 연결",
+    difficulty: "실전",
+    scenario: "주문 조회는 고객별 최근 주문 조건으로 대부분 수행된다.",
+    correctRule: "자주 쓰는 관계와 조회 조건은 식별자와 인덱스 후보를 함께 검토하게 만든다.",
+    trap: "논리 모델은 인덱스 설계와 전혀 관련이 없다.",
+    sqlAngle: "고객-주문 관계와 주문일 조건은 복합 인덱스 컬럼 순서 판단으로 이어진다.",
+    candidates: ["주문(cust_id, order_dt)", "주문(amount)", "고객명", "상품명"],
+    candidateNotes: ["주요 조회 조건과 관계를 반영한다.", "금액 단독 조건은 주 시나리오가 아니다.", "고객 속성이다.", "상품 속성이다."]
+  },
+  {
+    topic: "모델 검증",
+    difficulty: "실전",
+    scenario: "모델 리뷰에서 주요 화면 SQL을 대입해 결과 건수와 조인 경로를 점검한다.",
+    correctRule: "모델은 업무 규칙뿐 아니라 대표 SQL을 대입해 검증해야 한다.",
+    trap: "ERD가 보기 좋으면 실제 SQL 검증은 생략해도 된다.",
+    sqlAngle: "대표 SQL 검증은 누락 관계, 잘못된 선택성, 불필요한 조인을 조기에 찾게 해준다.",
+    candidates: ["대표 조회 SQL 검증", "로고 색상 검토", "버튼 문구 검토", "폰트 크기 결정"],
+    candidateNotes: ["모델이 SQL 요구를 만족하는지 확인한다.", "모델 검증 항목이 아니다.", "모델 검증 항목이 아니다.", "모델 검증 항목이 아니다."]
+  }
 ];
 
+const sqlSpecs: SqlSpec[] = [
+  {
+    topic: "SELECT 논리 처리 순서",
+    difficulty: "기본",
+    scenario: "SELECT 별칭을 WHERE 절에서 바로 사용하려 한다.",
+    code: "SELECT order_id, amount AS amt\nFROM orders\nWHERE amt >= 10000;",
+    correctRule: "WHERE 절은 SELECT 절보다 논리적으로 먼저 처리되므로 SELECT 별칭을 바로 참조할 수 없다.",
+    fix: "별칭 조건은 인라인 뷰 바깥에서 사용하거나 원래 표현식을 WHERE 절에 작성한다.",
+    trap: "SELECT 절이 항상 가장 먼저 실행되므로 WHERE에서 별칭을 사용할 수 있다.",
+    resultAngle: "이 SQL은 별칭 인식 문제로 오류가 발생할 수 있다."
+  },
+  {
+    topic: "WHERE와 HAVING",
+    difficulty: "기본",
+    scenario: "부서별 평균 급여가 5000 이상인 부서를 찾는다.",
+    code: "SELECT deptno, AVG(sal)\nFROM emp\nGROUP BY deptno\nHAVING AVG(sal) >= 5000;",
+    correctRule: "집계 결과에 대한 조건은 HAVING 절에서 판단한다.",
+    fix: "행 조건은 WHERE, 그룹 집계 조건은 HAVING에 둔다.",
+    trap: "AVG 같은 집계 함수 조건은 WHERE 절에 작성해야 한다.",
+    resultAngle: "GROUP BY 후 평균 급여 조건을 만족하는 그룹만 남는다."
+  },
+  {
+    topic: "NULL 비교",
+    difficulty: "기본",
+    scenario: "퇴사일이 아직 없는 사원을 찾는다.",
+    code: "SELECT empno\nFROM emp\nWHERE retire_dt IS NULL;",
+    correctRule: "NULL 비교는 = NULL이 아니라 IS NULL 또는 IS NOT NULL을 사용한다.",
+    fix: "값 미존재 판단에는 IS NULL을 사용한다.",
+    trap: "retire_dt = NULL 조건이 NULL 행을 정확히 찾는다.",
+    resultAngle: "퇴사일이 미정인 행만 반환된다."
+  },
+  {
+    topic: "집계와 NULL",
+    difficulty: "중간",
+    scenario: "NULL이 포함된 금액 컬럼을 집계한다.",
+    code: "SELECT COUNT(*) c1, COUNT(amount) c2, SUM(amount) s\nFROM orders;",
+    correctRule: "COUNT(*)는 행 수를 세고 COUNT(컬럼)은 NULL을 제외한다.",
+    fix: "NULL을 0으로 보고 싶으면 COALESCE 또는 NVL 같은 처리를 명시한다.",
+    trap: "COUNT(*)와 COUNT(amount)는 NULL 포함 여부와 무관하게 항상 같다.",
+    resultAngle: "amount가 NULL인 행은 COUNT(amount)와 SUM(amount) 계산에서 제외된다."
+  },
+  {
+    topic: "INNER JOIN",
+    difficulty: "기본",
+    scenario: "주문이 존재하는 고객만 조회한다.",
+    code: "SELECT c.cust_id, o.order_id\nFROM customers c\nJOIN orders o ON o.cust_id = c.cust_id;",
+    correctRule: "INNER JOIN은 양쪽 조인 조건을 만족하는 행만 반환한다.",
+    fix: "주문 없는 고객까지 필요하면 OUTER JOIN으로 바꿔야 한다.",
+    trap: "INNER JOIN은 기준 테이블의 모든 행을 항상 보존한다.",
+    resultAngle: "주문이 없는 고객은 결과에서 제외된다."
+  },
+  {
+    topic: "OUTER JOIN 조건 위치",
+    difficulty: "실전",
+    scenario: "주문 없는 고객도 보이면서 결제완료 주문만 붙이려 한다.",
+    code: "SELECT c.cust_id, o.order_id\nFROM customers c LEFT JOIN orders o\n  ON o.cust_id = c.cust_id\nWHERE o.status_cd = 'PAID';",
+    correctRule: "OUTER JOIN의 보존되지 않는 쪽 조건을 WHERE에 두면 기준 행이 사라질 수 있다.",
+    fix: "결제완료 조건을 ON 절에 두어 고객 행 보존을 유지한다.",
+    trap: "LEFT JOIN을 쓰면 WHERE 절 조건과 무관하게 왼쪽 행이 항상 보존된다.",
+    resultAngle: "주문이 없거나 PAID 주문이 없는 고객은 WHERE 조건에서 제거될 수 있다."
+  },
+  {
+    topic: "NATURAL JOIN",
+    difficulty: "중간",
+    scenario: "두 테이블에 같은 이름의 컬럼이 여러 개 있다.",
+    code: "SELECT *\nFROM emp NATURAL JOIN dept;",
+    correctRule: "NATURAL JOIN은 동일 이름 컬럼을 자동 조인 기준으로 사용한다.",
+    fix: "의도한 조인 컬럼을 명확히 쓰려면 ON 또는 USING을 사용한다.",
+    trap: "NATURAL JOIN은 컬럼명이 달라도 FK를 자동으로 찾아 조인한다.",
+    resultAngle: "동일 이름 컬럼이 추가되면 의도치 않은 조인 조건이 늘 수 있다."
+  },
+  {
+    topic: "CROSS JOIN",
+    difficulty: "기본",
+    scenario: "색상 3개와 사이즈 4개의 모든 조합을 만든다.",
+    code: "SELECT c.color, s.size\nFROM colors c CROSS JOIN sizes s;",
+    correctRule: "CROSS JOIN은 두 집합의 모든 조합을 만든다.",
+    fix: "의도한 전체 조합이면 CROSS JOIN을 명시적으로 사용한다.",
+    trap: "CROSS JOIN은 항상 중복을 제거한 뒤 결과를 만든다.",
+    resultAngle: "색상 3개와 사이즈 4개면 12행이 만들어진다."
+  },
+  {
+    topic: "서브쿼리 IN",
+    difficulty: "중간",
+    scenario: "주문이 있는 고객을 찾는다.",
+    code: "SELECT cust_id\nFROM customers\nWHERE cust_id IN (SELECT cust_id FROM orders);",
+    correctRule: "IN 서브쿼리는 비교 대상 값이 서브쿼리 결과 집합에 포함되는지 판단한다.",
+    fix: "중복 여부와 존재 판단 중심이면 EXISTS도 대안이 될 수 있다.",
+    trap: "IN 서브쿼리는 서브쿼리 결과가 1행일 때만 사용할 수 있다.",
+    resultAngle: "주문 테이블에 cust_id가 존재하는 고객만 남는다."
+  },
+  {
+    topic: "NOT IN과 NULL",
+    difficulty: "실전",
+    scenario: "폐쇄 부서가 아닌 사원을 찾는다.",
+    code: "SELECT empno\nFROM emp\nWHERE deptno NOT IN (SELECT deptno FROM closed_dept);",
+    correctRule: "NOT IN 목록에 NULL이 포함되면 기대한 결과가 나오지 않을 수 있다.",
+    fix: "서브쿼리에서 NULL을 제거하거나 NOT EXISTS로 바꿔 검토한다.",
+    trap: "NOT IN은 NULL을 자동으로 제외하므로 결과에 영향이 없다.",
+    resultAngle: "서브쿼리 결과에 NULL이 있으면 전체 비교가 UNKNOWN이 될 수 있다."
+  },
+  {
+    topic: "EXISTS",
+    difficulty: "중간",
+    scenario: "구매 이력이 있는 고객만 조회한다.",
+    code: "SELECT c.cust_id\nFROM customers c\nWHERE EXISTS (SELECT 1 FROM orders o WHERE o.cust_id = c.cust_id);",
+    correctRule: "EXISTS는 서브쿼리 결과의 존재 여부를 판단한다.",
+    fix: "중복 제거보다 존재 여부가 목적이면 EXISTS가 자연스럽다.",
+    trap: "EXISTS는 서브쿼리 SELECT 목록의 실제 값을 모두 반환한다.",
+    resultAngle: "고객별로 주문 존재 여부가 참이면 고객 행이 반환된다."
+  },
+  {
+    topic: "스칼라 서브쿼리",
+    difficulty: "중간",
+    scenario: "고객별 마지막 주문일을 SELECT 절에 표시한다.",
+    code: "SELECT c.cust_id,\n       (SELECT MAX(o.order_dt) FROM orders o WHERE o.cust_id = c.cust_id) last_order_dt\nFROM customers c;",
+    correctRule: "스칼라 서브쿼리는 하나의 행에 하나의 값을 반환해야 한다.",
+    fix: "대량 반복 비용이 크면 사전 집계 후 조인으로 바꿀 수 있다.",
+    trap: "스칼라 서브쿼리는 여러 행과 여러 컬럼을 반환해도 자동으로 합쳐진다.",
+    resultAngle: "고객별 마지막 주문일이 하나의 값으로 표시된다."
+  },
+  {
+    topic: "UNION과 UNION ALL",
+    difficulty: "기본",
+    scenario: "두 결과 집합을 합치되 중복 제거가 필요 없다.",
+    code: "SELECT cust_id FROM online_orders\nUNION ALL\nSELECT cust_id FROM store_orders;",
+    correctRule: "UNION ALL은 중복 제거 없이 결과를 이어 붙인다.",
+    fix: "중복 제거가 필요하면 UNION을, 필요 없으면 UNION ALL을 검토한다.",
+    trap: "UNION ALL은 UNION보다 항상 더 엄격하게 중복을 제거한다.",
+    resultAngle: "같은 고객번호가 양쪽에 있으면 중복 행이 남을 수 있다."
+  },
+  {
+    topic: "INTERSECT",
+    difficulty: "중간",
+    scenario: "온라인과 매장 모두 구매한 고객을 찾는다.",
+    code: "SELECT cust_id FROM online_orders\nINTERSECT\nSELECT cust_id FROM store_orders;",
+    correctRule: "INTERSECT는 두 결과 집합에 공통으로 존재하는 행을 반환한다.",
+    fix: "공통 집합을 구할 때 INTERSECT 또는 조인/EXISTS를 검토한다.",
+    trap: "INTERSECT는 첫 번째 집합에서 두 번째 집합을 뺀 결과를 반환한다.",
+    resultAngle: "온라인과 매장 양쪽에 모두 있는 고객만 반환된다."
+  },
+  {
+    topic: "MINUS",
+    difficulty: "중간",
+    scenario: "온라인 구매자는 있지만 매장 구매자는 아닌 고객을 찾는다.",
+    code: "SELECT cust_id FROM online_orders\nMINUS\nSELECT cust_id FROM store_orders;",
+    correctRule: "MINUS는 첫 번째 결과 집합에서 두 번째 결과 집합을 제외한다.",
+    fix: "차집합 요구라면 MINUS 또는 NOT EXISTS를 고려한다.",
+    trap: "MINUS는 두 결과 집합의 공통 행만 반환한다.",
+    resultAngle: "온라인 집합에만 존재하는 고객이 반환된다."
+  },
+  {
+    topic: "ROLLUP",
+    difficulty: "중간",
+    scenario: "부서별, 전체 합계를 한 번에 구한다.",
+    code: "SELECT deptno, SUM(sal)\nFROM emp\nGROUP BY ROLLUP(deptno);",
+    correctRule: "ROLLUP은 계층적 소계와 총계를 생성한다.",
+    fix: "부분합과 총계가 필요하면 ROLLUP, CUBE, GROUPING SETS를 검토한다.",
+    trap: "ROLLUP은 WHERE 절에서만 사용할 수 있는 행 필터 기능이다.",
+    resultAngle: "부서별 합계와 전체 합계 행이 함께 나올 수 있다."
+  },
+  {
+    topic: "CUBE",
+    difficulty: "중간",
+    scenario: "지역과 상품의 모든 조합별 소계를 구한다.",
+    code: "SELECT region_cd, product_cd, SUM(amount)\nFROM sales\nGROUP BY CUBE(region_cd, product_cd);",
+    correctRule: "CUBE는 지정 컬럼 조합의 가능한 모든 소계를 생성한다.",
+    fix: "모든 차원의 소계가 필요하면 CUBE를 사용한다.",
+    trap: "CUBE는 지정한 마지막 컬럼의 총계만 만든다.",
+    resultAngle: "지역별, 상품별, 지역+상품별, 전체 합계가 가능하다."
+  },
+  {
+    topic: "ROW_NUMBER",
+    difficulty: "중간",
+    scenario: "고객별 최신 주문 1건만 뽑는다.",
+    code: "SELECT *\nFROM (\n  SELECT o.*, ROW_NUMBER() OVER(PARTITION BY cust_id ORDER BY order_dt DESC, order_id DESC) rn\n  FROM orders o\n) x\nWHERE rn = 1;",
+    correctRule: "ROW_NUMBER는 파티션 내에서 고유한 순번을 부여한다.",
+    fix: "윈도우 함수 결과는 바깥 SELECT에서 필터링한다.",
+    trap: "ROW_NUMBER는 동순위가 있으면 같은 순번을 부여한다.",
+    resultAngle: "고객별 정렬 기준상 첫 번째 주문만 남는다."
+  },
+  {
+    topic: "RANK와 DENSE_RANK",
+    difficulty: "중간",
+    scenario: "동점자를 포함한 매출 순위를 계산한다.",
+    code: "SELECT empno, RANK() OVER(ORDER BY sales_amt DESC) rnk\nFROM sales_emp;",
+    correctRule: "RANK는 동순위 다음 순위를 건너뛴다.",
+    fix: "연속 순위가 필요하면 DENSE_RANK를 사용한다.",
+    trap: "RANK와 DENSE_RANK는 모든 경우에 완전히 같은 결과를 만든다.",
+    resultAngle: "1등이 2명이면 다음 순위는 3등이 될 수 있다."
+  },
+  {
+    topic: "Top-N",
+    difficulty: "실전",
+    scenario: "Oracle에서 정렬 후 상위 10건을 구한다.",
+    code: "SELECT *\nFROM (SELECT * FROM emp ORDER BY sal DESC)\nWHERE ROWNUM <= 10;",
+    correctRule: "Oracle ROWNUM은 정렬 인라인 뷰 바깥에서 제한해야 의도한 Top-N이 된다.",
+    fix: "정렬을 먼저 수행한 인라인 뷰 외부에서 ROWNUM 조건을 적용한다.",
+    trap: "WHERE ROWNUM <= 10 ORDER BY sal DESC는 항상 급여 상위 10명을 보장한다.",
+    resultAngle: "급여 내림차순 정렬 결과 중 상위 10행이 반환된다."
+  },
+  {
+    topic: "계층형 질의",
+    difficulty: "중간",
+    scenario: "조직도처럼 관리자-직원 관계를 단계별로 조회한다.",
+    code: "SELECT empno, mgr, LEVEL\nFROM emp\nSTART WITH mgr IS NULL\nCONNECT BY PRIOR empno = mgr;",
+    correctRule: "계층형 질의는 부모-자식 관계를 따라 행을 전개한다.",
+    fix: "루트 조건과 부모-자식 연결 조건을 명확히 작성한다.",
+    trap: "CONNECT BY는 집계 함수가 있을 때만 사용할 수 있다.",
+    resultAngle: "최상위 관리자부터 하위 직원 방향으로 계층이 전개된다."
+  },
+  {
+    topic: "셀프 조인",
+    difficulty: "기본",
+    scenario: "사원과 관리자의 이름을 같은 테이블에서 조회한다.",
+    code: "SELECT e.ename, m.ename AS mgr_name\nFROM emp e LEFT JOIN emp m ON m.empno = e.mgr;",
+    correctRule: "셀프 조인은 같은 테이블을 서로 다른 별칭으로 참조한다.",
+    fix: "각 역할에 맞는 별칭을 사용해 조인 조건을 명확히 한다.",
+    trap: "같은 테이블은 자기 자신과 조인할 수 없다.",
+    resultAngle: "관리자가 없는 사원도 LEFT JOIN이면 보존될 수 있다."
+  },
+  {
+    topic: "PIVOT",
+    difficulty: "중간",
+    scenario: "월별 매출 행을 월 컬럼 형태로 보여준다.",
+    code: "SELECT *\nFROM sales\nPIVOT (SUM(amount) FOR sales_month IN ('01' AS m01, '02' AS m02));",
+    correctRule: "PIVOT은 행 값을 열 방향으로 회전해 집계 결과를 표현한다.",
+    fix: "행 값을 컬럼으로 펼칠 때 PIVOT을 검토한다.",
+    trap: "PIVOT은 컬럼을 행으로 내리는 기능만 수행한다.",
+    resultAngle: "월 값이 m01, m02 같은 컬럼으로 표현된다."
+  },
+  {
+    topic: "UNPIVOT",
+    difficulty: "중간",
+    scenario: "월별 컬럼을 행 형태로 변환한다.",
+    code: "SELECT product_id, sales_month, amount\nFROM monthly_sales\nUNPIVOT (amount FOR sales_month IN (m01, m02, m03));",
+    correctRule: "UNPIVOT은 여러 컬럼을 행 값으로 변환한다.",
+    fix: "컬럼으로 퍼진 값을 분석용 행 구조로 바꿀 때 UNPIVOT을 사용한다.",
+    trap: "UNPIVOT은 행 값을 열 방향으로 펼치는 기능이다.",
+    resultAngle: "m01, m02, m03 컬럼 값이 sales_month 행 값으로 내려간다."
+  },
+  {
+    topic: "정규표현식",
+    difficulty: "중간",
+    scenario: "전화번호 형식이 맞는 행만 찾는다.",
+    code: "SELECT phone_no\nFROM customers\nWHERE REGEXP_LIKE(phone_no, '^010-[0-9]{4}-[0-9]{4}$');",
+    correctRule: "정규표현식 함수는 문자열 패턴을 조건으로 검사할 수 있다.",
+    fix: "형식 검증에는 REGEXP_LIKE 같은 패턴 조건을 사용할 수 있다.",
+    trap: "정규표현식은 숫자 컬럼의 합계를 구할 때만 사용한다.",
+    resultAngle: "010-0000-0000 형태와 맞는 전화번호만 남는다."
+  },
+  {
+    topic: "DML",
+    difficulty: "기본",
+    scenario: "고객 등급을 갱신한다.",
+    code: "UPDATE customers\nSET grade_cd = 'VIP'\nWHERE total_amt >= 1000000;",
+    correctRule: "UPDATE는 테이블의 기존 행 값을 변경하는 DML이다.",
+    fix: "변경 대상 조건을 WHERE 절에 명확히 작성한다.",
+    trap: "UPDATE는 테이블 구조를 변경하는 DDL이다.",
+    resultAngle: "조건을 만족하는 고객의 등급 값이 변경된다."
+  },
+  {
+    topic: "TCL",
+    difficulty: "기본",
+    scenario: "작업 결과를 확정하거나 취소한다.",
+    code: "COMMIT;\nROLLBACK;",
+    correctRule: "COMMIT과 ROLLBACK은 트랜잭션을 제어하는 TCL이다.",
+    fix: "논리적 작업 단위를 완료했을 때 COMMIT, 취소할 때 ROLLBACK을 사용한다.",
+    trap: "COMMIT은 테이블 컬럼을 추가하는 DDL이다.",
+    resultAngle: "COMMIT은 변경을 확정하고 ROLLBACK은 미확정 변경을 취소한다."
+  },
+  {
+    topic: "DDL과 DCL",
+    difficulty: "기본",
+    scenario: "테이블을 만들고 권한을 부여한다.",
+    code: "CREATE TABLE t1(id NUMBER);\nGRANT SELECT ON t1 TO user_a;",
+    correctRule: "CREATE는 DDL, GRANT는 DCL에 해당한다.",
+    fix: "구조 정의와 권한 제어 명령을 구분한다.",
+    trap: "GRANT는 데이터를 조회하는 DML이다.",
+    resultAngle: "테이블 구조가 생성되고 조회 권한이 부여된다."
+  }
+];
+
+const tuningSpecs: TuningSpec[] = [
+  {
+    topic: "SQL 처리 과정",
+    difficulty: "기본",
+    scenario: "같은 SQL을 반복 수행하는데 하드 파싱이 많이 발생한다.",
+    code: "SELECT * FROM orders WHERE order_id = 1001;\nSELECT * FROM orders WHERE order_id = 1002;",
+    correctRule: "SQL 파싱과 공유를 고려하려면 바인드 변수 사용과 SQL 텍스트 동일성이 중요하다.",
+    fix: "리터럴을 바인드 변수로 바꿔 SQL 공유 가능성을 높인다.",
+    trap: "리터럴 값만 다르면 DBMS는 항상 같은 SQL로 공유한다.",
+    planAngle: "하드 파싱이 줄면 파싱 CPU와 라이브러리 캐시 경합을 줄일 수 있다."
+  },
+  {
+    topic: "데이터베이스 I/O",
+    difficulty: "중간",
+    scenario: "소량 결과를 얻기 위해 많은 블록을 읽는다.",
+    code: "Rows=10  Buffers=85000",
+    correctRule: "튜닝에서는 반환 행 수뿐 아니라 읽은 블록 수와 접근 경로를 함께 본다.",
+    fix: "불필요한 테이블 액세스와 비효율 인덱스 스캔을 줄인다.",
+    trap: "결과가 10건이면 읽은 블록 수와 무관하게 항상 효율적이다.",
+    planAngle: "Buffers가 크면 I/O 비효율이 숨어 있을 수 있다."
+  },
+  {
+    topic: "실행계획 읽기",
+    difficulty: "기본",
+    scenario: "실행계획에서 Rows와 Predicate Information을 확인한다.",
+    code: "--------------------------------------------------------------------------------\n| Id | Operation                   | Name          | Rows |\n|  1 | TABLE ACCESS BY INDEX ROWID | ORDERS        |   10 |\n|* 2 | INDEX RANGE SCAN            | IDX_ORDERS_01 |   10 |\n--------------------------------------------------------------------------------",
+    correctRule: "Operation 이름뿐 아니라 Rows, Predicate, Starts를 함께 해석해야 한다.",
+    fix: "Predicate Information에서 access 조건과 filter 조건을 분리해 본다.",
+    trap: "실행계획의 첫 줄 Operation만 보면 튜닝 판단이 충분하다.",
+    planAngle: "인덱스 스캔이 보이더라도 실제 탐색 범위와 테이블 액세스 비용을 확인해야 한다."
+  },
+  {
+    topic: "Access Predicate와 Filter Predicate",
+    difficulty: "실전",
+    scenario: "인덱스 스캔은 보이지만 읽은 범위가 크다.",
+    code: "access(\"CUST_ID\"=:B1)\nfilter(TO_CHAR(\"ORDER_DT\",'YYYYMM')=:B2)",
+    correctRule: "access 조건은 탐색 범위를 줄이고 filter 조건은 읽은 뒤 걸러내는 조건이다.",
+    fix: "ORDER_DT를 함수로 감싸지 않는 범위 조건으로 바꾼다.",
+    trap: "filter 조건도 항상 인덱스 탐색 범위를 줄인다.",
+    planAngle: "CUST_ID만 access이고 ORDER_DT는 filter라면 인덱스 효율이 낮을 수 있다."
+  },
+  {
+    topic: "SARGable 조건",
+    difficulty: "실전",
+    scenario: "주문월 조건 때문에 주문일 인덱스를 잘 쓰지 못한다.",
+    code: "WHERE TO_CHAR(order_dt, 'YYYYMM') = '202608'",
+    correctRule: "컬럼을 함수로 가공하면 일반 인덱스의 range scan 조건이 되기 어렵다.",
+    fix: "order_dt >= DATE '2026-08-01' AND order_dt < DATE '2026-09-01'로 작성한다.",
+    trap: "컬럼에 함수를 적용할수록 일반 B-Tree 인덱스 접근이 항상 빨라진다.",
+    planAngle: "날짜 범위 조건은 파티션 프루닝과 인덱스 range scan 가능성을 높인다."
+  },
+  {
+    topic: "복합 인덱스",
+    difficulty: "중간",
+    scenario: "인덱스 IDX_ORD_01(cust_id, order_dt)가 있다.",
+    code: "WHERE cust_id = :b1\n  AND order_dt >= :b2",
+    correctRule: "복합 인덱스는 선두 컬럼과 조건 형태가 탐색 효율을 좌우한다.",
+    fix: "선두 컬럼 동등 조건과 후속 컬럼 범위 조건을 활용한다.",
+    trap: "복합 인덱스는 어떤 후행 컬럼 조건만 있어도 항상 동일하게 효율적이다.",
+    planAngle: "cust_id 동등 조건으로 범위를 줄이고 order_dt 범위 탐색이 가능하다."
+  },
+  {
+    topic: "인덱스 스킵 스캔",
+    difficulty: "실전",
+    scenario: "복합 인덱스 선두 컬럼 조건이 없지만 선두 컬럼 distinct 값이 적다.",
+    code: "INDEX IDX_EMP(gender, emp_no)\nWHERE emp_no = :b1",
+    correctRule: "Skip Scan은 선두 컬럼을 건너뛰듯 탐색할 수 있지만 조건과 분포에 영향을 받는다.",
+    fix: "선두 컬럼 distinct 값과 후행 조건 선택도를 보고 인덱스 재설계를 검토한다.",
+    trap: "Skip Scan은 항상 선두 컬럼 동등 조건보다 빠르다.",
+    planAngle: "선두 컬럼 분포가 나쁘면 Skip Scan 비용이 커질 수 있다."
+  },
+  {
+    topic: "함수 기반 인덱스",
+    difficulty: "중간",
+    scenario: "대소문자 무시 이름 검색이 매우 많다.",
+    code: "WHERE UPPER(customer_name) = UPPER(:name)",
+    correctRule: "함수 기반 인덱스는 함수 표현식 조건을 인덱스로 지원할 수 있다.",
+    fix: "UPPER(customer_name) 표현식 기반 인덱스를 검토한다.",
+    trap: "함수 기반 인덱스는 어떤 함수 조건에도 자동으로 적용된다.",
+    planAngle: "쿼리 표현식과 인덱스 표현식이 맞아야 활용 가능성이 높다."
+  },
+  {
+    topic: "클러스터링 팩터",
+    difficulty: "실전",
+    scenario: "인덱스를 탔는데 테이블 랜덤 액세스가 많아 느리다.",
+    code: "INDEX RANGE SCAN -> TABLE ACCESS BY INDEX ROWID\nRows=50000 Buffers=300000",
+    correctRule: "클러스터링 팩터가 나쁘면 인덱스 경유 테이블 액세스 비용이 커질 수 있다.",
+    fix: "조회 범위, 정렬 상태, 테이블 액세스량을 보고 인덱스/저장 구조를 검토한다.",
+    trap: "인덱스만 사용하면 테이블 액세스 비용은 항상 0이다.",
+    planAngle: "많은 ROWID 랜덤 액세스는 인덱스 사용이 오히려 불리할 수 있음을 뜻한다."
+  },
+  {
+    topic: "NL 조인",
+    difficulty: "중간",
+    scenario: "선행 집합은 작고 후행 테이블 조인 컬럼에 선택도 좋은 인덱스가 있다.",
+    code: "/*+ leading(c) use_nl(o) index(o idx_orders_01) */",
+    correctRule: "Nested Loops는 선행 집합이 작고 후행 인덱스 탐색이 효율적일 때 유리하다.",
+    fix: "선행 집합을 먼저 줄이고 후행 테이블에 적절한 인덱스를 사용한다.",
+    trap: "대용량 두 테이블을 조인할 때 NL 조인은 항상 Hash Join보다 빠르다.",
+    planAngle: "선행 행마다 후행 인덱스를 반복 탐색하므로 반복 횟수가 핵심이다."
+  },
+  {
+    topic: "Hash Join",
+    difficulty: "중간",
+    scenario: "대량 주문과 주문상세를 동등 조건으로 조인한다.",
+    code: "/*+ use_hash(oi) */\norders o JOIN order_items oi ON oi.order_id = o.order_id",
+    correctRule: "Hash Join은 대량 동등 조인에서 유리할 수 있다.",
+    fix: "작은 집합을 build input으로 삼고 메모리 사용량을 확인한다.",
+    trap: "Hash Join은 비동등 조인에서만 사용할 수 있다.",
+    planAngle: "Build input 크기와 해시 영역 메모리가 성능에 영향을 준다."
+  },
+  {
+    topic: "Sort Merge Join",
+    difficulty: "중간",
+    scenario: "조인 양쪽이 이미 정렬되어 있거나 비동등 조인을 검토한다.",
+    code: "MERGE JOIN\nSORT JOIN\nSORT JOIN",
+    correctRule: "Sort Merge Join은 양쪽을 정렬한 뒤 병합하는 조인 방식이다.",
+    fix: "정렬 비용과 조인 조건 형태를 보고 NL/Hash와 비교한다.",
+    trap: "Sort Merge Join은 정렬이 전혀 필요 없는 조인 방식이다.",
+    planAngle: "정렬된 결과를 병합하므로 정렬 비용과 입력 크기가 중요하다."
+  },
+  {
+    topic: "조인 순서",
+    difficulty: "실전",
+    scenario: "세 테이블 조인에서 선택도가 높은 고객 필터가 있다.",
+    code: "customers c JOIN orders o JOIN order_items oi\nWHERE c.region_cd = :region",
+    correctRule: "선택도가 높은 조건으로 선행 집합을 줄이면 조인 비용을 낮출 수 있다.",
+    fix: "LEADING 힌트나 SQL 구조로 선행 집합 축소 의도를 표현한다.",
+    trap: "조인 순서는 FROM 절에 적힌 순서와 항상 동일하게 고정된다.",
+    planAngle: "선행 집합 크기가 후속 조인 반복 횟수와 해시 입력 크기를 좌우한다."
+  },
+  {
+    topic: "스칼라 서브쿼리 튜닝",
+    difficulty: "실전",
+    scenario: "고객 행마다 마지막 결제일을 반복 조회한다.",
+    code: "SELECT c.cust_id,\n       (SELECT MAX(pay_dt) FROM payments p WHERE p.cust_id = c.cust_id)\nFROM customers c",
+    correctRule: "스칼라 서브쿼리는 반복 수행 비용이 커질 수 있어 집계 조인으로 바꿔 검토한다.",
+    fix: "payments를 cust_id별로 사전 집계한 뒤 customers와 조인한다.",
+    trap: "SELECT 절 스칼라 서브쿼리는 데이터량과 무관하게 항상 한 번만 실행된다.",
+    planAngle: "Starts가 고객 행 수만큼 증가한다면 반복 수행 비용을 의심한다."
+  },
+  {
+    topic: "통계정보",
+    difficulty: "실전",
+    scenario: "예상 Rows와 실제 A-Rows 차이가 매우 크다.",
+    code: "E-Rows=10  A-Rows=150000",
+    correctRule: "통계정보와 히스토그램은 카디널리티 추정과 조인 순서에 영향을 준다.",
+    fix: "최신 통계, 히스토그램, 데이터 편중, 바인드 값 분포를 확인한다.",
+    trap: "옵티마이저는 통계가 없어도 실제 행 수를 항상 미리 정확히 안다.",
+    planAngle: "예상과 실제 차이가 크면 잘못된 조인 방식이나 접근 경로가 선택될 수 있다."
+  },
+  {
+    topic: "히스토그램",
+    difficulty: "실전",
+    scenario: "상태코드 값이 일부 값에 심하게 몰려 있다.",
+    code: "WHERE status_cd = :status",
+    correctRule: "데이터 분포가 치우친 컬럼은 히스토그램이 선택도 추정에 도움을 줄 수 있다.",
+    fix: "편중 컬럼의 히스토그램 필요성과 바인드 변수 영향을 검토한다.",
+    trap: "히스토그램은 모든 컬럼에 많을수록 항상 좋고 부작용이 없다.",
+    planAngle: "인기 값과 비인기 값에 따라 다른 실행계획이 유리할 수 있다."
+  },
+  {
+    topic: "바인드 변수와 공유",
+    difficulty: "중간",
+    scenario: "리터럴 SQL이 매우 많이 생성된다.",
+    code: "WHERE cust_id = 101\nWHERE cust_id = 102\nWHERE cust_id = 103",
+    correctRule: "바인드 변수는 SQL 공유를 높여 파싱 비용을 줄일 수 있다.",
+    fix: "반복 실행되는 조건 값을 바인드 변수로 처리한다.",
+    trap: "바인드 변수는 SQL 공유와 전혀 관련이 없다.",
+    planAngle: "공유 커서가 늘면 하드 파싱과 라이브러리 캐시 부담이 줄 수 있다."
+  },
+  {
+    topic: "쿼리 변환",
+    difficulty: "실전",
+    scenario: "옵티마이저가 SQL을 내부적으로 다른 형태로 변환한다.",
+    code: "View Merging / Subquery Unnesting / Predicate Pushdown",
+    correctRule: "쿼리 변환은 결과를 유지하면서 더 나은 실행계획 후보를 만들기 위한 과정이다.",
+    fix: "변환이 불리하면 NO_MERGE, NO_UNNEST 등 제어 힌트를 검토한다.",
+    trap: "쿼리 변환은 항상 결과를 바꾸므로 사용되면 안 된다.",
+    planAngle: "작성한 SQL 모양과 실제 실행계획의 로우 소스가 다를 수 있다."
+  },
+  {
+    topic: "뷰 머징",
+    difficulty: "실전",
+    scenario: "인라인 뷰에서 먼저 집계한 뒤 조인해야 한다.",
+    code: "SELECT /*+ no_merge(s) */ *\nFROM (SELECT product_id, SUM(amount) amt FROM sales GROUP BY product_id) s\nJOIN products p ON p.product_id = s.product_id",
+    correctRule: "NO_MERGE는 인라인 뷰 병합을 막아 선집계 의도를 보존할 때 검토한다.",
+    fix: "집계 결과 보존이 중요하면 쿼리 블록 별칭과 함께 NO_MERGE를 사용한다.",
+    trap: "인라인 뷰는 어떤 경우에도 반드시 물리적으로 먼저 실행된다.",
+    planAngle: "뷰 머징 여부에 따라 집계 시점과 조인 대상 행 수가 달라질 수 있다."
+  },
+  {
+    topic: "서브쿼리 Unnesting",
+    difficulty: "실전",
+    scenario: "EXISTS 서브쿼리가 조인 형태로 변환될 수 있다.",
+    code: "WHERE EXISTS (SELECT 1 FROM orders o WHERE o.cust_id = c.cust_id)",
+    correctRule: "Unnesting은 서브쿼리를 조인 형태로 풀어 실행계획 후보를 넓힌다.",
+    fix: "변환 결과와 원래 의미가 맞는지 확인하고 필요 시 힌트로 제어한다.",
+    trap: "EXISTS 서브쿼리는 절대 조인 방식으로 최적화될 수 없다.",
+    planAngle: "SEMI JOIN 형태로 보이면 존재 여부 판단이 조인으로 처리된 것이다."
+  },
+  {
+    topic: "Predicate Pushdown",
+    difficulty: "실전",
+    scenario: "뷰 바깥 조건을 뷰 내부로 밀어 넣을 수 있다.",
+    code: "SELECT * FROM (SELECT * FROM orders) v WHERE v.order_dt >= :dt",
+    correctRule: "Predicate Pushdown은 조건을 더 이른 단계에 적용해 처리량을 줄일 수 있다.",
+    fix: "조건이 내부 집합을 줄일 수 있는지 실행계획에서 확인한다.",
+    trap: "조건은 항상 최종 SELECT 단계에서만 적용된다.",
+    planAngle: "조건이 내부 테이블 액세스 단계에 적용되면 읽는 범위가 줄 수 있다."
+  },
+  {
+    topic: "파티션 프루닝",
+    difficulty: "실전",
+    scenario: "주문일 기준 RANGE 파티션 테이블에서 특정 월만 조회한다.",
+    code: "WHERE order_dt >= DATE '2026-08-01'\n  AND order_dt < DATE '2026-09-01'",
+    correctRule: "파티션 키 조건이 명확하면 필요한 파티션만 읽는 프루닝이 가능하다.",
+    fix: "파티션 키를 함수로 감싸지 않는 범위 조건을 사용한다.",
+    trap: "파티션 테이블은 조건과 무관하게 항상 모든 파티션을 읽는다.",
+    planAngle: "Pstart/Pstop 또는 partition range 정보로 프루닝 여부를 확인한다."
+  },
+  {
+    topic: "OR Expansion",
+    difficulty: "실전",
+    scenario: "서로 다른 컬럼의 OR 조건 때문에 인덱스 활용이 애매하다.",
+    code: "WHERE status_cd = :status OR channel_cd = :channel",
+    correctRule: "OR 조건은 분기별 인덱스 활용을 위해 UNION ALL 분해를 검토할 수 있다.",
+    fix: "분기 조건이 중복을 만들지 않도록 배타 조건을 추가해 UNION ALL로 나눈다.",
+    trap: "OR 조건은 어떤 경우에도 인덱스를 사용할 수 없다.",
+    planAngle: "분기마다 다른 access path를 선택할 수 있으면 비용이 줄 수 있다."
+  },
+  {
+    topic: "Top-N 튜닝",
+    difficulty: "실전",
+    scenario: "최신 주문 20건만 자주 조회한다.",
+    code: "WHERE status_cd = 'PAID'\nORDER BY order_dt DESC, order_id DESC\nFETCH FIRST 20 ROWS ONLY",
+    correctRule: "Top-N은 필터 조건과 정렬 컬럼을 함께 고려한 인덱스 설계가 중요하다.",
+    fix: "status_cd, order_dt, order_id 순서 등 조건과 정렬을 만족하는 인덱스를 검토한다.",
+    trap: "Top-N은 20건만 보므로 인덱스나 정렬 비용을 전혀 고려하지 않아도 된다.",
+    planAngle: "STOPKEY와 정렬 생략 가능성은 실행계획에서 중요한 판단 포인트다."
+  },
+  {
+    topic: "소트 튜닝",
+    difficulty: "중간",
+    scenario: "대량 ORDER BY와 GROUP BY로 TEMP 사용량이 크다.",
+    code: "SORT ORDER BY\nTEMP 8GB",
+    correctRule: "정렬은 메모리와 TEMP 사용량에 영향을 주므로 입력량 축소와 인덱스 정렬을 검토한다.",
+    fix: "필터링을 먼저 강화하고 정렬 컬럼 인덱스 또는 집계 방식 변경을 검토한다.",
+    trap: "SORT 작업은 항상 CPU만 사용하고 TEMP I/O와 무관하다.",
+    planAngle: "TEMP 사용이 크면 대량 정렬이 병목일 수 있다."
+  },
+  {
+    topic: "DML 튜닝",
+    difficulty: "실전",
+    scenario: "대량 UPDATE가 오래 걸리고 인덱스가 매우 많다.",
+    code: "UPDATE order_items SET status_cd = 'C' WHERE order_dt < :dt",
+    correctRule: "대량 DML은 인덱스 유지 비용, 로그, 락, 커밋 단위를 함께 고려한다.",
+    fix: "처리 범위 분할, 불필요 인덱스 점검, 배치 커밋 전략을 검토한다.",
+    trap: "인덱스가 많을수록 대량 UPDATE는 항상 더 빨라진다.",
+    planAngle: "변경 행 수와 인덱스 유지 비용이 전체 수행 시간에 크게 작용한다."
+  },
+  {
+    topic: "Lock",
+    difficulty: "중간",
+    scenario: "동시에 같은 주문 행을 갱신하려는 세션들이 대기한다.",
+    code: "UPDATE orders SET status_cd = 'PAID' WHERE order_id = :id",
+    correctRule: "Lock은 동시 변경에서 데이터 정합성을 보장하지만 대기와 경합을 만들 수 있다.",
+    fix: "트랜잭션 범위를 줄이고 필요한 순서로 일관되게 자원을 접근한다.",
+    trap: "트랜잭션이 길어도 Lock 경합은 절대 발생하지 않는다.",
+    planAngle: "대기 이벤트와 블로킹 세션을 함께 확인해야 원인을 좁힐 수 있다."
+  },
+  {
+    topic: "트랜잭션 동시성",
+    difficulty: "실전",
+    scenario: "재고 차감과 주문 확정을 동시에 처리한다.",
+    code: "UPDATE stock SET qty = qty - :order_qty WHERE product_id = :pid",
+    correctRule: "동시성 제어는 정합성, 격리 수준, 락 범위, 트랜잭션 길이를 함께 다룬다.",
+    fix: "재고 검증과 차감을 하나의 일관된 트랜잭션으로 설계한다.",
+    trap: "동시성 문제는 SELECT 문만 사용하면 언제나 자동으로 해결된다.",
+    planAngle: "정합성 보장과 대기 최소화 사이의 균형을 검토해야 한다."
+  },
+  {
+    topic: "Call 최소화",
+    difficulty: "실전",
+    scenario: "애플리케이션이 고객 1명마다 주문 조회 SQL을 반복 호출한다.",
+    code: "for each customer:\n  SELECT * FROM orders WHERE cust_id = :cust_id",
+    correctRule: "데이터베이스 Call이 많으면 네트워크 왕복과 반복 파싱/실행 비용이 커진다.",
+    fix: "집합 기반 SQL로 한 번에 필요한 고객의 주문을 조회한다.",
+    trap: "SQL을 여러 번 잘게 호출하면 항상 집합 SQL보다 빠르다.",
+    planAngle: "실행계획이 좋아도 호출 횟수가 많으면 전체 응답 시간이 나빠질 수 있다."
+  },
+  {
+    topic: "대용량 배치",
+    difficulty: "실전",
+    scenario: "야간 배치가 제한 시간 안에 끝나지 않는다.",
+    code: "INSERT INTO summary_table\nSELECT ... FROM large_sales GROUP BY ...",
+    correctRule: "대용량 배치는 처리 범위, 병렬, 파티션, 로그, 커밋 전략을 함께 검토한다.",
+    fix: "파티션 단위 처리, 병렬 처리 가능성, 중간 집계 전략을 검토한다.",
+    trap: "대용량 배치는 SQL 하나만 짧게 쓰면 항상 빨라진다.",
+    planAngle: "스캔량, 정렬/해시 작업, TEMP, 병렬 분배가 핵심 병목이 될 수 있다."
+  },
+  {
+    topic: "힌트 충돌",
+    difficulty: "실전",
+    scenario: "NL 조인을 의도하면서 후행 테이블 FULL 스캔을 강제했다.",
+    code: "/*+ USE_NL(o) FULL(o) */",
+    correctRule: "힌트는 조인 방식, 조인 순서, 접근 경로가 서로 모순되지 않아야 한다.",
+    fix: "후행 테이블에는 조인 키 인덱스 사용 의도를 명확히 작성한다.",
+    trap: "서로 충돌하는 힌트를 많이 넣을수록 목표 실행계획이 안정된다.",
+    planAngle: "NL 후행 테이블 FULL 스캔은 반복 FULL SCAN으로 이어질 수 있다."
+  },
+  {
+    topic: "실제 실행 통계",
+    difficulty: "실전",
+    scenario: "예상 실행계획과 실제 수행 결과가 다르다.",
+    code: "Starts=10000  A-Rows=10000  Buffers=500000",
+    correctRule: "실제 실행 통계는 Starts, A-Rows, Buffers를 함께 봐야 한다.",
+    fix: "반복 수행이 많은 로우 소스와 버퍼 사용량이 큰 지점을 우선 확인한다.",
+    trap: "예상 실행계획만 있으면 실제 실행 통계는 볼 필요가 없다.",
+    planAngle: "Starts가 큰 단계는 반복 호출 비용의 원인일 수 있다."
+  }
+];
+
+function modelingConceptPoints(spec: ModelSpec) {
+  return [
+    `핵심 정의: ${spec.correctRule}`,
+    `지문 읽기: ${spec.scenario}`,
+    "판단 순서: 업무에서 독립적으로 관리되는 집합인지, 반복 발생하는지, 식별 가능한지 먼저 본다.",
+    "모델링 연결: 엔터티, 속성, 관계, 식별자를 분리해서 읽으면 정규화와 조인 경로가 함께 보인다.",
+    `SQL 연결: ${spec.sqlAngle}`,
+    "실전 체크: 선택 관계는 OUTER JOIN 필요 여부, 필수 관계는 INNER JOIN 가능 여부와 연결된다.",
+    "복습 포인트: 주식별자는 유일성, 최소성, 안정성, 존재성을 함께 확인하고 변경 가능성이 큰 업무번호는 조심한다.",
+    `함정: ${spec.trap}`
+  ];
+}
+
+function sqlConceptPoints(spec: SqlSpec) {
+  return [
+    `핵심 규칙: ${spec.correctRule}`,
+    `예제 상황: ${spec.scenario}`,
+    `SQL 작성 방향: ${spec.fix}`,
+    `결과 판단: ${spec.resultAngle}`,
+    "지문 읽기: SELECT 결과 건수, NULL 포함 여부, 조건 위치, 정렬 기준, 중복 제거 여부를 먼저 표시한다.",
+    "객관식 포인트: 표가 나오면 조건 적용 전후의 행 수를 직접 세고, 코드가 나오면 논리 처리 순서대로 해석한다.",
+    "Oracle 관점: NULL 비교, OUTER JOIN 조건 위치, ROWNUM/ROW_NUMBER 차이, 계층형 질의 처리 순서를 특히 조심한다.",
+    `함정: ${spec.trap}`
+  ];
+}
+
+function tuningConceptPoints(spec: TuningSpec) {
+  return [
+    `핵심 원리: ${spec.correctRule}`,
+    `상황: ${spec.scenario}`,
+    `개선 방향: ${spec.fix}`,
+    `실행계획 관점: ${spec.planAngle}`,
+    "읽는 순서: 조인 순서, 접근 방법, Access Predicate와 Filter Predicate, 예상 Rows와 실제 Rows 차이를 함께 본다.",
+    "인덱스 체크: 선두 컬럼, 조건 연산자, 범위 조건 이후 컬럼 활용도, 클러스터링 팩터, 테이블 액세스 횟수를 확인한다.",
+    "힌트 체크: LEADING, USE_NL, USE_HASH, INDEX, NO_MERGE 같은 힌트가 서로 같은 실행계획을 가리키는지 확인한다.",
+    "실기 체크: 요구사항을 만족한 상태에서 실행계획 의도를 SQL에 표현해야 하며, 결과가 달라지는 튜닝은 정답이 아니다.",
+    `함정: ${spec.trap}`
+  ];
+}
+
+const modeling: SubjectConfig<ModelSpec> = {
+  id: "modeling",
+  name: "1과목 데이터 모델링의 이해",
+  articleCategory: "1과목 데이터 모델링",
+  specs: modelingSpecs,
+  drafts: modelDrafts,
+  article: (spec) => ({
+    id: `concept-modeling-${spec.topic.replace(/\s+/g, "-")}`,
+    category: `1과목 데이터 모델링 > ${spec.topic}`,
+    title: spec.topic,
+    summary: spec.scenario,
+    keyPoints: modelingConceptPoints(spec),
+    examTrap: spec.trap,
+    oracleAngle: spec.sqlAngle
+  })
+};
+
+const sqlBasic: SubjectConfig<SqlSpec> = {
+  id: "sql-basic",
+  name: "2과목 SQL 기본 및 활용",
+  articleCategory: "2과목 SQL 기본 및 활용",
+  specs: sqlSpecs,
+  drafts: sqlDrafts,
+  article: (spec) => ({
+    id: `concept-sql-${spec.topic.replace(/\s+/g, "-")}`,
+    category: `2과목 SQL 기본 및 활용 > ${spec.topic}`,
+    title: spec.topic,
+    summary: spec.scenario,
+    keyPoints: sqlConceptPoints(spec),
+    examTrap: spec.trap
+  })
+};
+
+const tuning: SubjectConfig<TuningSpec> = {
+  id: "tuning",
+  name: "3과목 SQL 고급활용 및 튜닝",
+  articleCategory: "3과목 SQL 고급활용 및 튜닝",
+  specs: tuningSpecs,
+  drafts: tuningDrafts,
+  article: (spec) => ({
+    id: `concept-tuning-${spec.topic.replace(/\s+/g, "-")}`,
+    category: `3과목 SQL 고급활용 및 튜닝 > ${spec.topic}`,
+    title: spec.topic,
+    summary: spec.scenario,
+    keyPoints: tuningConceptPoints(spec),
+    examTrap: spec.trap,
+    oracleAngle: spec.planAngle
+  })
+};
+
+const configs = [modeling, sqlBasic, tuning] as const;
+
+export const subjects = configs.map((config) => ({ id: config.id, name: config.name }));
+
 export const objectiveQuestions: ObjectiveQuestion[] = [
-  ...build(modeling, 100),
-  ...build(sqlBasic, 100),
-  ...build(tuning, 100)
+  ...buildSubject(modeling, 100),
+  ...buildSubject(sqlBasic, 100),
+  ...buildSubject(tuning, 100)
 ];
 
 export const conceptArticles: ConceptArticle[] = [
-  {
-    id: "modeling-entity-attribute",
-    category: "1과목 데이터 모델링 > 엔터티와 속성",
-    title: "엔터티는 업무가 관리해야 하는 집합이다",
-    summary: "SQLP 모델링 문제는 용어 암기보다 후보가 엔터티인지, 속성인지, 관계인지 구분하는 능력을 자주 묻습니다.",
-    keyPoints: [
-      "엔터티는 업무에서 독립적으로 관리할 필요가 있는 대상의 집합입니다.",
-      "속성은 엔터티를 설명하는 값이며, 계산으로 얻는 값은 저장 여부를 신중히 판단합니다.",
-      "인스턴스가 반복적으로 발생하고 식별자가 필요하면 엔터티 후보로 봅니다.",
-      "M:N 관계에서 관계 자체의 속성이 생기면 교차 엔터티로 분해합니다."
-    ],
-    examTrap: "고객명, 주문금액처럼 값 하나를 설명하는 항목을 엔터티로 고르는 선택지가 자주 함정입니다.",
-    oracleAngle: "엔터티와 관계 선택은 조인 경로와 인덱스 설계에 직접 영향을 줍니다."
-  },
-  {
-    id: "modeling-normalization",
-    category: "1과목 데이터 모델링 > 정규화와 반정규화",
-    title: "정규화는 이상 현상 제거, 반정규화는 근거 있는 예외다",
-    summary: "정규화는 종속성을 기준으로 중복과 이상 현상을 줄이고, 반정규화는 조회 성능과 업무 요구를 검증한 뒤 제한적으로 적용합니다.",
-    keyPoints: [
-      "1NF는 반복 속성과 다중 값을 제거합니다.",
-      "2NF는 복합 식별자에 대한 부분 함수 종속을 제거합니다.",
-      "3NF는 일반 속성 간 이행 함수 종속을 제거합니다.",
-      "반정규화는 정합성 유지 방안과 갱신 비용을 함께 제시해야 합니다."
-    ],
-    examTrap: "조회가 느리다는 이유만으로 무조건 중복 컬럼을 추가하는 선택지는 위험합니다.",
-    oracleAngle: "반정규화 전에는 실행계획, 조인 비용, 인덱스 후보를 먼저 확인합니다."
-  },
-  {
-    id: "modeling-relationship-identifier",
-    category: "1과목 데이터 모델링 > 관계와 식별자",
-    title: "관계의 선택성과 필수성은 SQL 결과 건수를 바꾼다",
-    summary: "필수/선택 관계, 식별/비식별 관계, 주식별자 선택은 실제 SQL의 INNER/OUTER JOIN과 결과 보존 조건으로 이어집니다.",
-    keyPoints: [
-      "필수 관계는 반드시 대응 행이 있어야 하고 선택 관계는 없을 수 있습니다.",
-      "식별 관계는 부모 식별자가 자식 식별자에 포함됩니다.",
-      "대체 식별자는 후보키 중 주식별자가 아닌 식별자입니다.",
-      "관계 차수와 카디널리티는 ERD와 SQL 결과 건수를 함께 설명합니다."
-    ],
-    examTrap: "선택 관계인데 INNER JOIN으로만 해석하면 기준 행이 사라지는 문제가 생깁니다.",
-    oracleAngle: "OUTER JOIN 조건을 ON에 둘지 WHERE에 둘지에 따라 결과 보존 여부가 달라집니다."
-  },
-  {
-    id: "sql-order-null",
-    category: "2과목 SQL 기본 및 활용 > 처리 순서와 NULL",
-    title: "논리 처리 순서와 NULL은 객관식 단골 함정이다",
-    summary: "SELECT 절이 먼저 실행된다고 착각하거나 NULL 비교를 일반 비교처럼 보는 문제가 반복됩니다.",
-    keyPoints: [
-      "논리 처리 순서는 FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY 순서로 이해합니다.",
-      "WHERE는 행 필터, HAVING은 그룹 결과 필터입니다.",
-      "COUNT(*)는 행 수를 세고 COUNT(expr)는 NULL 표현식을 제외합니다.",
-      "NULL 비교는 IS NULL, IS NOT NULL을 사용하고 3값 논리를 고려합니다."
-    ],
-    examTrap: "SELECT 별칭을 같은 SELECT 블록의 WHERE에서 바로 쓰는 선택지는 틀린 경우가 많습니다.",
-    oracleAngle: "Oracle에서는 빈 문자열을 NULL로 취급하는 특성도 함께 기억해야 합니다."
-  },
-  {
-    id: "sql-join-subquery",
-    category: "2과목 SQL 기본 및 활용 > 조인과 서브쿼리",
-    title: "조인은 행 보존, 서브쿼리는 NULL 전파를 먼저 본다",
-    summary: "OUTER JOIN 조건 위치와 NOT IN 서브쿼리의 NULL 포함 여부는 정답을 갈라놓는 핵심 포인트입니다.",
-    keyPoints: [
-      "LEFT JOIN의 오른쪽 테이블 조건을 WHERE에 두면 OUTER JOIN 효과가 사라질 수 있습니다.",
-      "NOT IN 서브쿼리에 NULL이 포함되면 기대한 결과가 나오지 않을 수 있습니다.",
-      "EXISTS는 존재 여부를 판단하므로 중복 제거보다 반조인 관점으로 봅니다.",
-      "NATURAL JOIN은 동일 이름 컬럼을 자동 사용하므로 의도치 않은 조인이 생길 수 있습니다."
-    ],
-    examTrap: "LEFT JOIN이라고 해서 기준 행이 항상 보존된다고 단정하면 안 됩니다.",
-    oracleAngle: "Predicate Information에서 조인 조건과 필터 조건이 어디에 적용되는지 확인합니다."
-  },
-  {
-    id: "sql-window-topn",
-    category: "2과목 SQL 기본 및 활용 > 윈도우 함수와 Top-N",
-    title: "Top-N은 정렬 후 제한하는 위치가 중요하다",
-    summary: "ROWNUM, ROW_NUMBER, RANK, DENSE_RANK의 차이와 정렬 시점은 SQLP 객관식과 실습 모두에서 자주 나옵니다.",
-    keyPoints: [
-      "ROW_NUMBER는 유일 순번, RANK는 동순위 후 건너뜀, DENSE_RANK는 연속 순위입니다.",
-      "윈도우 함수 결과를 필터링하려면 인라인 뷰나 CTE 바깥에서 조건을 둡니다.",
-      "Oracle ROWNUM은 ORDER BY보다 먼저 부여될 수 있어 정렬 인라인 뷰 바깥에서 제한합니다.",
-      "동점 포함 Top-N은 RANK, DENSE_RANK, WITH TIES 계열을 검토합니다."
-    ],
-    examTrap: "ORDER BY와 ROWNUM을 같은 블록에 둔 뒤 정렬 후 상위 N건이라고 보는 선택지는 위험합니다.",
-    oracleAngle: "FETCH FIRST, STOPKEY, WINDOW SORT가 실행계획에 어떻게 나타나는지 함께 봅니다."
-  },
-  {
-    id: "tuning-index-predicate",
-    category: "3과목 SQL 고급활용 및 튜닝 > 인덱스와 Predicate",
-    title: "인덱스는 탔는지가 아니라 어떻게 탔는지가 중요하다",
-    summary: "인덱스 스캔이라는 단어만 보고 정답을 고르면 안 되고 access predicate와 filter predicate를 구분해야 합니다.",
-    keyPoints: [
-      "컬럼을 함수로 감싸면 일반 B-Tree 인덱스의 탐색 조건이 되기 어렵습니다.",
-      "복합 인덱스는 선두 컬럼, 동등 조건, 범위 조건 순서를 함께 봅니다.",
-      "access 조건은 탐색 범위를 줄이고 filter 조건은 읽은 뒤 걸러냅니다.",
-      "선택도가 낮은 컬럼 인덱스는 단독 사용 효과가 제한될 수 있습니다."
-    ],
-    examTrap: "실행계획에 INDEX RANGE SCAN이 보인다는 이유만으로 효율적이라고 판단하는 선택지는 함정입니다.",
-    oracleAngle: "DBMS_XPLAN의 Predicate Information에서 access/filter를 반드시 확인합니다."
-  },
-  {
-    id: "tuning-join-method",
-    category: "3과목 SQL 고급활용 및 튜닝 > 조인 방식",
-    title: "NL, Hash, Sort Merge는 데이터량과 인덱스가 결정한다",
-    summary: "조인 방식은 선행 집합 크기, 후행 인덱스, 조인 조건, 메모리와 정렬 비용에 따라 달라집니다.",
-    keyPoints: [
-      "Nested Loops는 선행 집합이 작고 후행 인덱스가 효율적일 때 유리합니다.",
-      "Hash Join은 대량 동등 조인에서 작은 입력을 build input으로 삼을 때 효과적입니다.",
-      "Sort Merge Join은 정렬된 집합이나 비동등 조인에서 검토됩니다.",
-      "LEADING, USE_NL, USE_HASH 힌트는 별칭과 쿼리 블록이 맞아야 의도대로 작동합니다."
-    ],
-    examTrap: "USE_NL 힌트 하나만으로 조인 순서까지 항상 고정된다고 보는 선택지는 틀릴 수 있습니다.",
-    oracleAngle: "힌트는 결과를 바꾸면 안 되며, 목표 실행계획과 정합성을 함께 만족해야 합니다."
-  },
-  {
-    id: "tuning-transform-plan",
-    category: "3과목 SQL 고급활용 및 튜닝 > 옵티마이저와 실행계획",
-    title: "옵티마이저는 통계와 변환으로 실행계획을 만든다",
-    summary: "SQLP 실습형은 단순히 SQL을 맞히는 것이 아니라 왜 그 실행계획이 나와야 하는지 설명할 수 있어야 합니다.",
-    keyPoints: [
-      "통계정보와 히스토그램은 카디널리티 추정과 조인 순서에 영향을 줍니다.",
-      "뷰 머징, 서브쿼리 Unnesting, 조건 Pushdown은 SQL 모양과 다른 계획을 만들 수 있습니다.",
-      "실제 실행 통계에서는 Starts, A-Rows, Buffers를 함께 봅니다.",
-      "목표 실행계획을 맞추려면 요구사항, 모델, 인덱스, 힌트를 동시에 점검합니다."
-    ],
-    examTrap: "목표 실행계획만 맞추려고 결과 보존 조건을 깨뜨리면 감점입니다.",
-    oracleAngle: "NO_MERGE, LEADING, INDEX, FULL 같은 힌트는 쿼리 블록과 별칭 기준으로 정확히 작성합니다."
-  }
+  ...modeling.specs.map((spec, index) => modeling.article(spec, index)),
+  ...sqlBasic.specs.map((spec, index) => sqlBasic.article(spec, index)),
+  ...tuning.specs.map((spec, index) => tuning.article(spec, index))
 ];
 
 const commonSchema = `customers(cust_id, cust_name, grade_cd, region_cd, created_at)
@@ -603,65 +1283,33 @@ idx_orders_02(order_dt, status_cd)
 idx_items_01(product_id, order_id)
 idx_payments_01(order_id, pay_dt)`;
 
-const cleanSeedSql = `-- PostgreSQL 실습에서는 SELECT/WITH 쿼리만 실행합니다.
+const seedSql = `-- PostgreSQL 실습에서는 SELECT/WITH 쿼리만 실행합니다.
 -- Oracle 힌트는 주석 형태로 작성하고, 목표 실행계획 의도를 함께 학습합니다.`;
 
-const cleanLabCases = [
-  [
-    "조인 순서",
-    "고객 기준 최근 주문 조회",
-    "활성 고객 중 최근 30일 주문이 있는 고객만 조회한다. 고객을 먼저 줄인 뒤 주문을 Nested Loops로 탐색하는 의도를 SQL에 표현하라.",
-    `select /*+ leading(c) use_nl(o) index(o idx_orders_01) */ c.cust_id, c.cust_name, o.order_id, o.order_dt
+const labCases = [
+  ["조인 순서", "고객 기준 최근 주문 조회", "활성 고객 중 최근 30일 주문이 있는 고객만 조회한다. 고객을 먼저 줄인 뒤 주문을 Nested Loops로 탐색하는 의도를 SQL에 표현하라.", `select /*+ leading(c) use_nl(o) index(o idx_orders_01) */ c.cust_id, c.cust_name, o.order_id, o.order_dt
 from customers c
 join orders o on o.cust_id = c.cust_id
 where c.region_cd = :region_cd
-  and o.order_dt >= :from_dt`,
-    ["CUSTOMERS region filter", "NESTED LOOPS", "ORDERS IDX_ORDERS_01 RANGE SCAN"],
-    ["leading(c)", "use_nl(o)", "index(o idx_orders_01)"]
-  ],
-  [
-    "인덱스 조건",
-    "주문월 조건 SARGable 변환",
-    "TO_CHAR(order_dt,'YYYYMM') 조건을 주문일 인덱스를 사용할 수 있는 범위 조건으로 바꿔 작성하라.",
-    `select /*+ index(o idx_orders_02) */ o.order_id, o.order_dt, o.amount
+  and o.order_dt >= :from_dt`, ["CUSTOMERS region filter", "NESTED LOOPS", "ORDERS IDX_ORDERS_01 RANGE SCAN"], ["leading(c)", "use_nl(o)", "index(o idx_orders_01)"]],
+  ["인덱스 조건", "주문월 조건 SARGable 변환", "TO_CHAR(order_dt,'YYYYMM') 조건을 주문일 인덱스를 사용할 수 있는 범위 조건으로 바꿔 작성하라.", `select /*+ index(o idx_orders_02) */ o.order_id, o.order_dt, o.amount
 from orders o
 where o.order_dt >= :month_start
-  and o.order_dt < :next_month_start`,
-    ["ORDERS IDX_ORDERS_02 RANGE SCAN", "TABLE ACCESS BY INDEX ROWID"],
-    ["index(o idx_orders_02)", "컬럼 함수 제거"]
-  ],
-  [
-    "해시 조인",
-    "대량 주문상품 집계",
-    "최근 분기 주문상품을 상품별로 집계한다. 대량 동등 조인과 해시 집계를 의도한 SQL을 작성하라.",
-    `select /*+ leading(o) use_hash(oi) */ oi.product_id, sum(oi.sale_amt) sale_amt
+  and o.order_dt < :next_month_start`, ["ORDERS IDX_ORDERS_02 RANGE SCAN", "TABLE ACCESS BY INDEX ROWID"], ["index(o idx_orders_02)", "컬럼 함수 제거"]],
+  ["해시 조인", "대량 주문상품 집계", "최근 분기 주문상품을 상품별로 집계한다. 대량 동등 조인과 해시 집계를 의도한 SQL을 작성하라.", `select /*+ leading(o) use_hash(oi) */ oi.product_id, sum(oi.sale_amt) sale_amt
 from orders o
 join order_items oi on oi.order_id = o.order_id
 where o.order_dt >= :q_start
   and o.order_dt < :q_end
-group by oi.product_id`,
-    ["ORDERS date range scan", "HASH JOIN", "HASH GROUP BY"],
-    ["use_hash(oi)", "group by 집계"]
-  ],
-  [
-    "아우터 조인",
-    "주문 없는 고객 보존",
-    "고객 목록을 기준으로 최근 주문 상태를 보여준다. 주문이 없는 고객도 출력되도록 조건 위치를 조정하라.",
-    `select c.cust_id, c.cust_name, o.order_id, o.status_cd
+group by oi.product_id`, ["ORDERS date range scan", "HASH JOIN", "HASH GROUP BY"], ["use_hash(oi)", "group by 집계"]],
+  ["아우터 조인", "주문 없는 고객 보존", "고객 목록을 기준으로 최근 주문 상태를 보여준다. 주문이 없는 고객도 출력되도록 조건 위치를 조정하라.", `select c.cust_id, c.cust_name, o.order_id, o.status_cd
 from customers c
 left join orders o
   on o.cust_id = c.cust_id
  and o.order_dt >= :from_dt
  and o.status_cd = 'PAID'
-where c.region_cd = :region_cd`,
-    ["CUSTOMERS preserved", "OUTER JOIN", "ORDERS condition in ON"],
-    ["ON 절 조건 위치", "기준 행 보존"]
-  ],
-  [
-    "Top-N",
-    "카테고리별 매출 Top-N",
-    "상품 카테고리별 매출 상위 3개 상품을 조회한다. 집계 후 순위 필터링이 가능하도록 작성하라.",
-    `with sales as (
+where c.region_cd = :region_cd`, ["CUSTOMERS preserved", "OUTER JOIN", "ORDERS condition in ON"], ["ON 절 조건 위치", "기준 행 보존"]],
+  ["Top-N", "카테고리별 매출 Top-N", "상품 카테고리별 매출 상위 3개 상품을 조회한다. 집계 후 순위 필터링이 가능하도록 작성하라.", `with sales as (
   select p.category_cd, oi.product_id, sum(oi.sale_amt) sale_amt
   from products p
   join order_items oi on oi.product_id = p.product_id
@@ -671,15 +1319,8 @@ ranked as (
   select sales.*, row_number() over(partition by category_cd order by sale_amt desc) rn
   from sales
 )
-select * from ranked where rn <= 3`,
-    ["HASH GROUP BY", "WINDOW SORT", "RN <= 3 FILTER"],
-    ["window function", "inline view filter"]
-  ],
-  [
-    "스칼라 서브쿼리",
-    "반복 스칼라 서브쿼리 제거",
-    "고객별 마지막 결제일을 SELECT 절 스칼라 서브쿼리로 반복 조회하던 SQL을 사전 집계 조인으로 개선하라.",
-    `with last_pay as (
+select * from ranked where rn <= 3`, ["HASH GROUP BY", "WINDOW SORT", "RN <= 3 FILTER"], ["window function", "inline view filter"]],
+  ["스칼라 서브쿼리", "반복 스칼라 서브쿼리 제거", "고객별 마지막 결제일을 SELECT 절 스칼라 서브쿼리로 반복 조회하던 SQL을 사전 집계 조인으로 개선하라.", `with last_pay as (
   select o.cust_id, max(p.pay_dt) last_pay_dt
   from orders o
   join payments p on p.order_id = o.order_id
@@ -687,15 +1328,8 @@ select * from ranked where rn <= 3`,
 )
 select c.cust_id, c.cust_name, lp.last_pay_dt
 from customers c
-left join last_pay lp on lp.cust_id = c.cust_id`,
-    ["PAYMENTS pre aggregation", "CUSTOMERS OUTER JOIN", "No repeated scalar subquery"],
-    ["사전 집계", "반복 수행 제거"]
-  ],
-  [
-    "세미 조인",
-    "구매 이력 존재 고객",
-    "특정 상품을 구매한 이력이 있는 고객만 조회한다. 중복 제거 정렬보다 존재 여부 중심으로 작성하라.",
-    `select c.cust_id, c.cust_name
+left join last_pay lp on lp.cust_id = c.cust_id`, ["PAYMENTS pre aggregation", "CUSTOMERS OUTER JOIN", "No repeated scalar subquery"], ["사전 집계", "반복 수행 제거"]],
+  ["세미 조인", "구매 이력 존재 고객", "특정 상품을 구매한 이력이 있는 고객만 조회한다. 중복 제거 정렬보다 존재 여부 중심으로 작성하라.", `select c.cust_id, c.cust_name
 from customers c
 where exists (
   select 1
@@ -703,43 +1337,22 @@ where exists (
   join order_items oi on oi.order_id = o.order_id
   where o.cust_id = c.cust_id
     and oi.product_id = :product_id
-)`,
-    ["CUSTOMERS", "SEMI JOIN / EXISTS", "ORDER_ITEMS IDX_ITEMS_01"],
-    ["exists", "중복 제거 회피"]
-  ],
-  [
-    "뷰 머징 제어",
-    "집계 후 조인 순서 보존",
-    "주문상품을 상품별로 먼저 집계한 뒤 상품과 조인해야 한다. 집계 인라인 뷰가 병합되지 않도록 의도를 표현하라.",
-    `select /*+ no_merge(s) use_hash(p) */ p.category_cd, s.product_id, s.sale_amt
+)`, ["CUSTOMERS", "SEMI JOIN / EXISTS", "ORDER_ITEMS IDX_ITEMS_01"], ["exists", "중복 제거 회피"]],
+  ["뷰 머징 제어", "집계 후 조인 순서 보존", "주문상품을 상품별로 먼저 집계한 뒤 상품과 조인해야 한다. 집계 인라인 뷰가 병합되지 않도록 의도를 표현하라.", `select /*+ no_merge(s) use_hash(p) */ p.category_cd, s.product_id, s.sale_amt
 from (
   select product_id, sum(sale_amt) sale_amt
   from order_items
   group by product_id
 ) s
-join products p on p.product_id = s.product_id`,
-    ["ORDER_ITEMS HASH GROUP BY", "NO_MERGE inline view", "HASH JOIN PRODUCTS"],
-    ["no_merge(s)", "use_hash(p)"]
-  ],
-  [
-    "Top-N 페이징",
-    "주문 목록 페이징",
-    "최근 주문 목록에서 101~120번째 행을 조회한다. 결정적인 정렬 기준을 포함해 작성하라.",
-    `select *
+join products p on p.product_id = s.product_id`, ["ORDER_ITEMS HASH GROUP BY", "NO_MERGE inline view", "HASH JOIN PRODUCTS"], ["no_merge(s)", "use_hash(p)"]],
+  ["Top-N 페이징", "주문 목록 페이징", "최근 주문 목록에서 101~120번째 행을 조회한다. 결정적인 정렬 기준을 포함해 작성하라.", `select *
 from (
   select q.*, row_number() over(order by q.order_dt desc, q.order_id desc) rn
   from orders q
   where q.order_dt >= :from_dt
 ) x
-where x.rn between 101 and 120`,
-    ["ORDERS date range", "WINDOW SORT ORDER BY", "RN BETWEEN filter"],
-    ["deterministic order by", "row_number"]
-  ],
-  [
-    "OR 조건 분해",
-    "OR 조건 인덱스 활용",
-    "상태 조건과 채널 조건이 OR로 묶여 인덱스 효율이 낮다. UNION ALL 분해를 고려해 작성하라.",
-    `select order_id, order_dt, amount
+where x.rn between 101 and 120`, ["ORDERS date range", "WINDOW SORT ORDER BY", "RN BETWEEN filter"], ["deterministic order by", "row_number"]],
+  ["OR 조건 분해", "OR 조건 인덱스 활용", "상태 조건과 채널 조건이 OR로 묶여 인덱스 효율이 낮다. UNION ALL 분해를 고려해 작성하라.", `select order_id, order_dt, amount
 from orders
 where status_cd = :status_cd
   and order_dt >= :from_dt
@@ -748,26 +1361,23 @@ select order_id, order_dt, amount
 from orders
 where channel_cd = :channel_cd
   and order_dt >= :from_dt
-  and status_cd <> :status_cd`,
-    ["Branch 1 index candidate", "Branch 2 index candidate", "UNION ALL no duplicate"],
-    ["or expansion", "중복 방지 조건"]
-  ]
+  and status_cd <> :status_cd`, ["Branch 1 index candidate", "Branch 2 index candidate", "UNION ALL no duplicate"], ["or expansion", "중복 방지 조건"]]
 ] as const;
 
-const cleanLabDifficulties: Difficulty[] = ["실전", "중간", "기본"];
+const labDifficulties: Difficulty[] = ["실전", "중간", "기본"];
 
 export const labQuestions: LabQuestion[] = Array.from({ length: 20 }, (_, index) => {
-  const lab = cleanLabCases[index % cleanLabCases.length];
-  const round = Math.floor(index / cleanLabCases.length) + 1;
+  const lab = labCases[index % labCases.length];
+  const round = Math.floor(index / labCases.length) + 1;
   return {
     id: `lab-${String(index + 1).padStart(2, "0")}`,
     number: index + 1,
     title: round === 1 ? lab[1] : `${lab[1]} 변형`,
-    difficulty: cleanLabDifficulties[index % cleanLabDifficulties.length],
+    difficulty: labDifficulties[index % labDifficulties.length],
     topic: lab[0],
     scenario: "PostgreSQL에서 실행 가능한 SELECT를 작성하되 Oracle SQLP 튜닝 관점의 힌트와 실행계획 의도를 함께 학습합니다.",
     schemaSql: commonSchema,
-    seedSql: cleanSeedSql,
+    seedSql,
     prompt: lab[2],
     expectedSql: lab[3],
     targetPlan: [...lab[4]],
@@ -782,6 +1392,13 @@ export const labQuestions: LabQuestion[] = Array.from({ length: 20 }, (_, index)
 });
 
 export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
-  const bank = [modeling, sqlBasic, tuning].find((item) => item.id === subjectId) ?? tuning;
-  return build(bank, 1, 100 + count, `extra-${bank.id}`)[0];
+  if (subjectId === "modeling") {
+    return buildSubject(modeling, 1, 100 + count, "extra-modeling")[0];
+  }
+
+  if (subjectId === "sql-basic") {
+    return buildSubject(sqlBasic, 1, 100 + count, "extra-sql-basic")[0];
+  }
+
+  return buildSubject(tuning, 1, 100 + count, "extra-tuning")[0];
 }
