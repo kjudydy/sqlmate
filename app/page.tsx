@@ -16,7 +16,7 @@ import {
   Play,
   Plus,
   RotateCcw,
-  Save,
+  Trash2,
   ShieldCheck,
   Sparkles,
   XCircle
@@ -379,6 +379,9 @@ export default function Home() {
     );
   }
 
+  function deletePersonalNote(noteId: string) {
+    setPersonalNotes((prev) => prev.filter((note) => note.id !== noteId));
+  }
   const wrongQuestionIds = Array.from(new Set(attempts.filter((attempt) => !attempt.correct).map((attempt) => attempt.questionId)));
   const navItems = [
     { id: "dashboard" as Section, label: "대시보드", icon: BarChart3 },
@@ -850,10 +853,29 @@ export default function Home() {
             <div className="notes-grid">
               {personalNotes.map((note) => (
                 <article className="note-card" key={note.id}>
-                  <input value={note.title} onChange={(event) => updatePersonalNote(note.id, { title: event.target.value })} />
-                  <textarea value={note.body} onChange={(event) => updatePersonalNote(note.id, { body: event.target.value })} />
+                  <div className="note-card-head">
+                    <input
+                      aria-label="노트 제목"
+                      value={note.title}
+                      onChange={(event) => updatePersonalNote(note.id, { title: event.target.value })}
+                      placeholder="노트 제목"
+                    />
+                    <button className="ghost-button icon-only" aria-label="노트 삭제" onClick={() => deletePersonalNote(note.id)}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <textarea
+                    value={note.body}
+                    onChange={(event) => updatePersonalNote(note.id, { body: event.target.value })}
+                    placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
+                  />
                   <div className="note-footer">
-                    <input value={note.tags} onChange={(event) => updatePersonalNote(note.id, { tags: event.target.value })} />
+                    <input
+                      aria-label="노트 태그"
+                      value={note.tags}
+                      onChange={(event) => updatePersonalNote(note.id, { tags: event.target.value })}
+                      placeholder="태그"
+                    />
                     <span>{formatDateTime(note.updatedAt)}</span>
                   </div>
                 </article>
@@ -893,3 +915,6 @@ function StatCard({ label, value, detail }: { label: string; value: string; deta
     </article>
   );
 }
+
+
+

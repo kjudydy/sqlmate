@@ -14,8 +14,7 @@ const DANGEROUS_SQL = [
   /\bcall\b/i,
   /\bdo\s+\$\$/i,
   /;/,
-  /--/,
-  /\/\*/
+  /--/
 ];
 
 export function isChoiceCorrect(question: ObjectiveQuestion, selected: ChoiceId) {
@@ -23,11 +22,7 @@ export function isChoiceCorrect(question: ObjectiveQuestion, selected: ChoiceId)
 }
 
 export function normalizeSql(sql: string) {
-  return sql
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/;$/g, "")
-    .toLowerCase();
+  return sql.trim().replace(/\s+/g, " ").replace(/;$/g, "").toLowerCase();
 }
 
 export function stripOracleHints(sql: string) {
@@ -52,11 +47,15 @@ export function extractPlanSignals(sql: string) {
     hasLeadingHint: /leading\s*\(/.test(normalized),
     hasUseNlHint: /use_nl\s*\(/.test(normalized),
     hasUseHashHint: /use_hash\s*\(/.test(normalized),
+    hasNoMergeHint: /no_merge\s*\(/.test(normalized),
+    hasFullHint: /full\s*\(/.test(normalized),
     hasDateRange: />=\s*(:|\$|\?|'|\w)|<\s*(:|\$|\?|'|\w)/.test(normalized),
     hasFunctionOnColumn: /\b(lower|upper|substr|to_char|coalesce|nvl)\s*\(\s*[a-z_][\w.]*\s*[,)]/.test(normalized),
     hasExists: /\bexists\b/.test(normalized),
     hasScalarSubquery: /\(\s*select\b/.test(normalized),
-    hasWindowFunction: /\bover\s*\(/.test(normalized)
+    hasWindowFunction: /\bover\s*\(/.test(normalized),
+    hasUnionAll: /\bunion all\b/.test(normalized),
+    hasOuterJoin: /\bleft\s+join\b|\bleft\s+outer\s+join\b|\bright\s+join\b|\bfull\s+join\b/.test(normalized)
   };
 }
 
@@ -65,7 +64,7 @@ export function gradeSqlSubmission(lab: LabQuestion, sql: string) {
     return {
       score: 0,
       passed: false,
-      feedback: ["SQL을 먼저 작성해야 합니다."],
+      feedback: ["먼저 답안 SQL을 작성해야 합니다."],
       plan: ["No plan"]
     };
   }
@@ -74,41 +73,51 @@ export function gradeSqlSubmission(lab: LabQuestion, sql: string) {
     return {
       score: 0,
       passed: false,
-      feedback: ["실습 샌드박스는 SELECT, WITH, EXPLAIN 계열의 읽기 전용 SQL만 허용합니다."],
+      feedback: ["실습 채점은 SELECT, WITH, EXPLAIN 계열의 읽기 전용 SQL만 허용합니다."],
       plan: ["Rejected before execution"]
     };
   }
 
   const signals = extractPlanSignals(sql);
   const feedback: string[] = [];
-  let score = 50;
+  let score = 45;
 
   if (signals.hasFunctionOnColumn) {
     score -= 20;
-    feedback.push("조건절에서 컬럼에 함수를 적용하면 인덱스 액세스 조건이 되기 어렵습니다.");
+    feedback.push("조건절에서 컬럼에 함수를 적용하면 인덱스 액세스 조건으로 쓰이기 어렵습니다.");
   } else {
-    score += 10;
+    score += 12;
     feedback.push("컬럼 변형을 피한 조건식이라 인덱스 활용 가능성이 좋습니다.");
   }
 
   if (signals.hasDateRange) {
     score += 10;
-    feedback.push("날짜/범위 조건을 SARGable 형태로 작성했습니다.");
+    feedback.push("날짜 또는 범위 조건을 SARGable 형태로 작성했습니다.");
   }
 
-  if (signals.hasIndexHint || signals.hasLeadingHint || signals.hasUseNlHint || signals.hasUseHashHint) {
-    score += 20;
-    feedback.push("Oracle 관점의 힌트 의도를 명시했습니다. 실제 SQLP 실기에서는 힌트 위치와 대상 별칭 정확도가 중요합니다.");
+  if (signals.hasIndexHint || signals.hasLeadingHint || signals.hasUseNlHint || signals.hasUseHashHint || signals.hasNoMergeHint || signals.hasFullHint) {
+    score += 18;
+    feedback.push("Oracle 관점의 힌트 의도가 보입니다. SQLP 실기에서는 힌트 위치와 별칭 정확도가 중요합니다.");
   }
 
-  if (lab.topic.includes("조인") && (signals.hasUseNlHint || signals.hasUseHashHint || signals.hasExists)) {
+  if (lab.topic.includes("조인") && (signals.hasUseNlHint || signals.hasUseHashHint || signals.hasExists || signals.hasOuterJoin)) {
     score += 10;
-    feedback.push("조인 방식 또는 세미 조인 의도가 드러납니다.");
+    feedback.push("조인 방식이나 보존 집합을 의식한 답안입니다.");
   }
 
-  if (signals.hasScalarSubquery && lab.topic.includes("스칼라")) {
+  if (lab.topic.includes("Top-N") && signals.hasWindowFunction) {
     score += 10;
-    feedback.push("스칼라 서브쿼리의 반복 수행 여부를 실행계획에서 확인해야 합니다.");
+    feedback.push("윈도우 함수로 Top-N 처리 범위를 명확하게 잡았습니다.");
+  }
+
+  if (lab.topic.includes("스칼라") && signals.hasScalarSubquery) {
+    score -= 8;
+    feedback.push("반복 실행되는 스칼라 서브쿼리는 사전 집계 조인으로 바꿀 수 있는지 확인하세요.");
+  }
+
+  if (lab.topic.includes("OR") && signals.hasUnionAll) {
+    score += 8;
+    feedback.push("OR 조건을 UNION ALL로 분해해 인덱스 후보를 살리는 접근이 좋습니다.");
   }
 
   const boundedScore = Math.max(0, Math.min(100, score));
@@ -135,6 +144,8 @@ export function simulatePlan(sql: string) {
     plan.push("        -> Nested Loop");
   } else if (signals.hasExists) {
     plan.push("        -> Semi Join");
+  } else if (signals.hasOuterJoin) {
+    plan.push("        -> Outer Join");
   } else {
     plan.push("        -> Planner selected join strategy");
   }
