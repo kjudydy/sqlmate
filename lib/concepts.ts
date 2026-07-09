@@ -18,7 +18,7 @@ function completeStudyBlocks(blocks: ConceptStudyBlock[], defaults: ConceptStudy
   const hasType = (type: ConceptStudyBlock["type"]) => completed.some((block) => block.type === type);
 
   for (const block of defaults) {
-    if (completed.length >= 4 && hasType("table") && hasType("flow") && hasType("checklist")) break;
+    if (completed.length >= 3 && hasType("table") && hasType("checklist")) break;
     if (!hasType(block.type)) {
       completed.push(block);
     }
@@ -73,58 +73,38 @@ function buildDefaultStudyBlocks(seed: ConceptSeed): ConceptStudyBlock[] {
             ]
           };
 
-  const pointRows = seed.keyPoints.slice(0, 6).map((point, index) => [
-    `포인트 ${index + 1}`,
-    point,
-    index === 0
-      ? "정의형 보기로 나오기도 하지만, 대부분은 작은 사례나 SQL 결과 예측과 함께 물어본다."
-      : index === 1
-        ? "비슷한 용어를 섞어 출제하므로 반대 개념과 예외 조건을 같이 외운다."
-        : "표, SQL, 실행계획이 함께 나오면 문장 암기보다 조건 적용 후 결과가 어떻게 달라지는지 따라간다."
-  ]);
+  const noteParagraphs = [
+    seed.summary,
+    ...seed.keyPoints.map((point) => `- ${point}`),
+    `- 기출 함정: ${seed.examTrap}`,
+    seed.oracleAngle ? `- Oracle/실무 연결: ${seed.oracleAngle}` : ""
+  ].filter(Boolean);
 
   return [
     {
       type: "section",
-      title: "시험에서 보는 범위",
-      paragraphs: [
-        `${seed.detailTopic}은 ${seed.majorTopic} 안에서 반복 출제되는 항목이다. ${subjectGuide.lens}`,
-        seed.summary,
-        `${subjectGuide.firstQuestion} ${subjectGuide.secondQuestion}`
-      ]
+      title: `${seed.detailTopic} 요약`,
+      paragraphs: noteParagraphs
     },
     {
       type: "table",
-      title: "개념 지도",
-      headers: ["구분", "공부할 내용", "문제에서 확인할 것"],
+      title: `${seed.detailTopic} 암기표`,
+      headers: ["구분", "정리"],
       rows: [
-        ["정의", seed.summary, "단어 하나를 맞히는 문제보다 정의를 사례에 적용하는 문제가 많다."],
-        ["기준", subjectGuide.firstQuestion, "보기의 표현이 기준을 뒤집거나 과장하는지 확인한다."],
-        ["연결", subjectGuide.secondQuestion, "모델링, SQL 결과, 실행계획 중 어디와 연결되는지 표시한다."],
-        ["함정", seed.examTrap, "부적절한 것, 틀린 것, 항상/무조건 표현을 먼저 의심한다."],
-        ["Oracle/실무", seed.oracleAngle ?? "SQLP는 Oracle 기준의 결과 해석과 튜닝 관점을 함께 묻는다.", "객관식에서도 실제 실행 결과와 성능 근거를 같이 판단한다."]
+        ["정의", seed.summary],
+        ["판단 기준", subjectGuide.firstQuestion],
+        ["문제 연결", subjectGuide.secondQuestion],
+        ["주의", seed.examTrap],
+        ["Oracle/실무", seed.oracleAngle ?? "SQLP는 Oracle 기준의 결과 해석과 튜닝 관점을 함께 묻는다."]
       ]
-    },
-    {
-      type: "table",
-      title: "세부 포인트",
-      headers: ["번호", "반드시 알아야 할 내용", "기출형 변형"],
-      rows: pointRows
-    },
-    {
-      type: "flow",
-      title: "지문/SQL 판정 순서",
-      steps: subjectGuide.flow
     },
     {
       type: "checklist",
-      title: "마지막 체크",
+      title: `${seed.detailTopic} 기출 체크`,
       items: [
         `${seed.detailTopic}의 정의, 반대 개념, 예외 조건을 한 번에 말할 수 있어야 한다.`,
         "문제에서 '옳은 것', '부적절한 것', '결과가 같은 것', '성능상 유리한 것' 중 무엇을 묻는지 먼저 표시한다.",
-        "표나 SQL이 있으면 머릿속으로만 풀지 말고 행 수, NULL, 중복, 조인 보존 여부를 단계별로 따라간다.",
-        "실행계획이 있으면 access/filter predicate, row source 반복 횟수, 정렬/TEMP, 조인 순서를 분리해서 본다.",
-        "정답을 고른 뒤에도 왜 나머지 보기가 틀렸는지 한 문장으로 설명할 수 있어야 한다.",
+        ...subjectGuide.flow,
         seed.examTrap
       ]
     }

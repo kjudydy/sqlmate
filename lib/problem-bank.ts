@@ -1947,6 +1947,8 @@ export { conceptArticles } from "./concepts";
 
 type LabCase = Omit<LabQuestion, "id" | "number" | "schemaSql" | "seedSql">;
 
+type LabEnvironment = Pick<LabQuestion, "schemaSql" | "seedSql">;
+
 const sqlpLabSchema = `공통 실습 모델
 
 [업무 테이블]
@@ -1988,6 +1990,216 @@ const commonOracleNotes = [
 ];
 
 const commonRubric = ["요구 결과 보존", "부분범위/집합처리 의도", "인덱스 접근 조건", "조인 순서와 방식", "Oracle 힌트 별칭 정확성"];
+
+function labEnvironment(round: string, schemaSql: string, seedSql: string): LabEnvironment {
+  return {
+    schemaSql: `[${round} 복원형 DDL/인덱스]\n${schemaSql}`,
+    seedSql: `[${round} AS-IS/제약조건]\n${seedSql}`
+  };
+}
+
+const sqlpLabEnvironments: LabEnvironment[] = [
+  labEnvironment(
+    "53회 1번",
+    `create table t1(dt date, id varchar2(10), cd varchar2(10), v1 number);
+create unique index t1_pk on t1(dt, id);
+create table t2(dt date, id varchar2(10), cd varchar2(10), v1 number);
+create unique index t2_pk on t2(dt, id);
+create table t3(id varchar2(10), nm varchar2(10));
+create unique index t3_pk on t3(id);
+create table t4(id varchar2(10), nm varchar2(10));
+create unique index t4_pk on t4(id);`,
+    `AS-IS는 t1/t2가 먼저 t3와 조인한 뒤 UNION ALL, 정렬, exists(t4), rownum <= 10을 적용한다.
+TO-BE는 t1/t2 각 분기에서 t4와 NL 조인 후 COUNT STOPKEY, UNION ALL 후 다시 COUNT STOPKEY, t3는 최종 스칼라 조회로 보이게 작성한다.
+힌트 의도: no_merge, leading, use_nl, index, 각 분기 rownum 위치.`
+  ),
+  labEnvironment(
+    "53회 2번",
+    `create table t1(dt date, id varchar2(10), cd varchar2(10), v1 number)
+partition by range(dt)(
+  partition p202501 values less than (date '2025-02-01'),
+  partition p202502 values less than (date '2025-03-01'),
+  partition pmax values less than (maxvalue)
+);
+create unique index t1_pk on t1(dt, id) local;
+create table t2(dt date, id varchar2(10), cd varchar2(10), v1 number);
+create unique index t2_pk on t2(dt, id);`,
+    `AS-IS는 merge into t1 using t2로 update 후 일부 delete, 미존재 row insert가 섞인다.
+TO-BE는 t1_p202501 교환용 테이블을 만들고, 최종 생존 행을 insert한 뒤 exchange partition으로 교체하는 방향이다.
+답안에는 SELECT뿐 아니라 Oracle 관점으로 create table, insert append, exchange partition, drop table 순서를 설명할 수 있어야 한다.`
+  ),
+  labEnvironment(
+    "52회 1번",
+    `create table orders(order_id number, cust_id varchar2(11), order_dt date, delivery_id number, constraint orders_pk primary key(order_id));
+create index orders_x1 on orders(cust_id, order_dt);
+create table order_items(order_id number, product_id number, qty number, constraint order_items_pk primary key(order_id, product_id));
+create table product_history(product_id number, start_dt date, end_dt date, event_cd varchar2(20), unit_price number);
+create index product_history_x2 on product_history(product_id, start_dt, end_dt);
+create table deliveries(delivery_id number, delivery_status_cd varchar2(10));`,
+    `AS-IS는 고객 주문 전체를 조인한 뒤 정렬하고 10건을 자른다.
+TO-BE는 orders_x1을 cust_id, order_dt 순서로 활용하여 order by desc에도 SORT ORDER BY를 피하고 COUNT STOPKEY로 10건을 먼저 줄인다.
+상품이력은 product_id/start_dt/end_dt 인덱스를 사용하고, 배송상태는 마지막 스칼라 조회로 처리한다.`
+  ),
+  labEnvironment(
+    "52회 2번",
+    `create table orders_a(order_no varchar2(16), cust_no varchar2(11), order_dt date) partition by range(order_no)(partition p202501 values less than('202502'), partition pmax values less than(maxvalue));
+create table order_detail_b(order_no varchar2(16), product_no varchar2(10));
+create table customer_c(cust_no varchar2(11), grade_cd varchar2(10));
+create table product_d(product_no varchar2(10), product_nm varchar2(100));
+create table code_e(code_cd varchar2(10), code_nm varchar2(100));
+create table order_stat_f(order_no varchar2(16), stat_amt number);
+create index orders_a_x1 on orders_a(order_dt, order_no);`,
+    `문제 제약: FROM 절은 a,b,c,d,e,f 별칭 순서를 유지한다.
+하지만 목표 실행계획은 최근 주문 a를 먼저 줄이고 b,d,c,e,f 순서로 NL 조인하도록 유도한다.
+FROM 작성 순서와 LEADING 힌트의 조인 순서가 다를 수 있음을 설명해야 한다.`
+  ),
+  labEnvironment(
+    "51회 1번",
+    `create table products(product_id number primary key, product_name varchar2(100), cust_id number);
+create table orders(order_id number primary key, order_dt date);
+create index orders_x01 on orders(order_dt);
+create table order_items(order_id number primary key, product_id number, qty number);
+create index order_items_x01 on order_items(order_id, product_id);`,
+    `요구사항: 주문일시가 1시간 이내인 최근 주문 1000건 중 2번 이상 주문된 상품명, 주문합계수량, 마지막 주문일시를 구한다.
+목표 포인트: 최근 1000건을 먼저 제한한 뒤 주문상품을 조인하고 상품별 집계를 수행한다.
+힌트는 목표 실행계획과 같은 순서가 나오도록 작성한다.`
+  ),
+  labEnvironment(
+    "50회 1-1",
+    `create table emp(empno number, deptno number, hire_dt date, job_cd varchar2(20), sal number, memo varchar2(4000));
+-- 관찰된 계획: TABLE ACCESS FULL EMP, Rows는 작지만 Bytes가 매우 큼`,
+    `단답형 스타일: 실행계획 문제점과 개선점을 각각 적는다.
+문제점: 조건이 소량인데 전체 테이블을 읽거나, 필요한 컬럼보다 큰 payload를 읽는다.
+개선: 조건 컬럼 기반 인덱스와 필요한 컬럼만 조회하는 SQL을 제시한다.`
+  ),
+  labEnvironment(
+    "50회 1-2",
+    `create table emp(empno number, deptno number, hire_dt date, job_cd varchar2(20), sal number);
+create index emp_x01 on emp(deptno);
+-- 관찰된 계획: INDEX RANGE SCAN EMP_X01 1000건 후 TABLE ACCESS 100건`,
+    `단답형 스타일: 인덱스는 타지만 효율이 나쁘다.
+문제점: 필터 조건 컬럼이 인덱스에 없어 많은 rowid를 만든 뒤 테이블에서 버린다.
+개선: deptno + hire_dt 또는 deptno + job_cd처럼 조건 조합에 맞는 복합 인덱스와 조건식을 제시한다.`
+  ),
+  labEnvironment(
+    "50회 1-3",
+    `create table emp_part(dt date, empno number, deptno number, job_cd varchar2(20), sal number)
+partition by range(dt)(partition p202607 values less than(date '2026-08-01'), partition pmax values less than(maxvalue));
+create index emp_part_x2 on emp_part(job_cd) local;`,
+    `관찰된 계획: local index를 사용하지만 PARTITION RANGE ALL로 모든 파티션을 본다.
+문제점: 파티션 키 조건이 없거나 dt 컬럼을 함수로 감싸 pruning이 안 된다.
+개선: 파티션 키 범위 조건을 직접 쓰고 PSTART/PSTOP이 줄어드는지 확인한다.`
+  ),
+  labEnvironment(
+    "OR 확장형",
+    `create table orders(order_id number, order_dt date, status_cd varchar2(10), channel_cd varchar2(10), amount number);
+create index orders_x1 on orders(status_cd, order_dt);
+create index orders_x2 on orders(channel_cd, order_dt);`,
+    `AS-IS는 status_cd 조건과 channel_cd 조건이 OR로 묶여 한쪽 인덱스만 타거나 넓은 범위를 스캔한다.
+TO-BE는 UNION ALL 분기로 나누고, 두 번째 분기에 중복 방지 조건을 둔다.
+UNION은 정렬/중복제거가 발생하므로 UNION ALL이 기본이다.`
+  ),
+  labEnvironment(
+    "스칼라 개선형",
+    `create table customers(cust_id varchar2(20), cust_name varchar2(100), region_cd varchar2(10));
+create table orders(order_id number, cust_id varchar2(20), order_dt date);
+create table payments(payment_id number, order_id number, pay_dt date, pay_amt number);
+create index payments_x1 on payments(order_id, pay_dt);`,
+    `AS-IS는 customers 각 행마다 SELECT 절 상관 스칼라 서브쿼리로 마지막 결제일과 합계를 반복 조회한다.
+TO-BE는 payments를 고객별로 먼저 집계하고 customers와 outer join한다.
+결과 보존을 위해 결제 없는 고객도 출력할지 확인한다.`
+  ),
+  labEnvironment(
+    "해시 집계형",
+    `create table orders(order_id number, order_dt date, status_cd varchar2(10));
+create table order_items(order_id number, product_id number, sale_amt number);
+create table products(product_id number, category_cd varchar2(10));
+create index orders_x1 on orders(order_dt, status_cd);`,
+    `대량 분기 범위 매출 집계 문제다.
+소량 NL이 아니라 orders 범위 -> order_items -> products 해시 조인과 HASH GROUP BY를 의도한다.
+PGA/TEMP 사용 가능성도 해설에 적는다.`
+  ),
+  labEnvironment(
+    "세미조인형",
+    `create table customers(cust_id varchar2(20), cust_name varchar2(100));
+create table orders(order_id number, cust_id varchar2(20));
+create table order_items(order_id number, product_id varchar2(20));
+create index order_items_x1 on order_items(product_id, order_id);`,
+    `AS-IS는 JOIN 후 DISTINCT로 구매 고객 중복을 제거한다.
+TO-BE는 존재 여부만 필요하므로 EXISTS 기반 세미 조인으로 작성한다.
+실행계획에서 HASH JOIN SEMI 또는 NESTED LOOPS SEMI를 기대한다.`
+  ),
+  labEnvironment(
+    "안티조인형",
+    `create table orders(order_id number, cust_id varchar2(20), order_dt date);
+create table payments(payment_id number, order_id number, pay_dt date);
+create index payments_x1 on payments(order_id);`,
+    `미결제 주문 조회 문제다.
+NOT IN은 서브쿼리 결과에 NULL이 섞이면 결과가 사라질 수 있으므로 NOT EXISTS로 안전하게 작성한다.
+최근 주문 범위를 먼저 줄이는 조건도 필요하다.`
+  ),
+  labEnvironment(
+    "OUTER 조건위치형",
+    `create table orders(order_id number, order_dt date);
+create table order_items(order_id number, product_id number);
+create table product_history(product_id number, start_dt date, end_dt date, event_cd varchar2(20), unit_price number);
+create index product_history_x2 on product_history(product_id, start_dt, end_dt);`,
+    `상품이력이 없어도 주문상품 행은 보존해야 한다.
+오른쪽 테이블의 기간/이벤트 조건을 WHERE에 두면 outer join이 inner join처럼 변한다.
+조건 위치가 정답의 핵심이다.`
+  ),
+  labEnvironment(
+    "SARGable 변환형",
+    `create table orders(order_id number, order_dt date, status_cd varchar2(10));
+create index orders_x1 on orders(order_dt, status_cd);`,
+    `AS-IS는 to_char(order_dt,'YYYYMM') = '202607' 형태다.
+TO-BE는 order_dt >= date '2026-07-01' and order_dt < date '2026-08-01' 반개구간으로 바꾼다.
+함수 기반 인덱스가 없으면 컬럼 함수는 일반 인덱스 access 조건이 되기 어렵다.`
+  ),
+  labEnvironment(
+    "뷰머징 제어형",
+    `create table order_items(order_id number, product_id number, sale_amt number);
+create table products(product_id number, category_cd varchar2(10));
+create index order_items_x1 on order_items(product_id);`,
+    `주문상품을 상품별로 먼저 집계한 뒤 products와 조인해야 한다.
+옵티마이저가 집계 인라인 뷰를 병합하면 목표 순서가 깨질 수 있으므로 no_merge 의도를 표현한다.
+집계 후 소량 조인의 근거를 설명한다.`
+  ),
+  labEnvironment(
+    "페이징/정렬형",
+    `create table orders(order_id number, cust_id varchar2(20), order_dt date, amount number);
+create index orders_x1 on orders(cust_id, order_dt desc, order_id desc);`,
+    `최근 주문 101~120번째 페이지를 가져온다.
+정렬 기준이 유일하지 않으면 페이지가 흔들리므로 order_dt desc, order_id desc처럼 결정적 정렬을 사용한다.
+index_desc와 row_number 또는 rownum inline view를 비교한다.`
+  ),
+  labEnvironment(
+    "Call 최소화형",
+    `create table customers(cust_id varchar2(20), cust_name varchar2(100), region_cd varchar2(10));
+create table orders(order_id number, cust_id varchar2(20), order_dt date, amount number);`,
+    `AS-IS는 애플리케이션에서 고객 목록을 루프 돌며 고객별 주문 합계를 반복 조회한다.
+TO-BE는 한 번의 집합 SQL로 지역/고객별 합계를 구한다.
+짧은 SQL도 반복 호출되면 parse/execute/fetch call이 병목이 된다.`
+  ),
+  labEnvironment(
+    "대량삭제 대체형",
+    `create table emp_part(dt date, empno number, deptno number, job_cd varchar2(20), sal number)
+partition by range(dt)(partition p202602 values less than(date '2026-03-01'), partition pmax values less than(maxvalue));`,
+    `특정 파티션의 대부분을 삭제해야 한다.
+일반 DELETE 대신 보존할 소량 행만 CTAS/insert append로 만들고 exchange 또는 truncate+insert를 고려한다.
+SELECT 답안은 보존 대상 행 집합을 정확히 만든다.`
+  ),
+  labEnvironment(
+    "기간조인형",
+    `create table orders(order_id number, order_dt date);
+create table order_items(order_id number, product_id number);
+create table product_history(product_id number, start_dt date, end_dt date, unit_price number);
+create index product_history_x1 on product_history(product_id, start_dt, end_dt);`,
+    `주문 시점에 유효한 가격 이력을 찾는다.
+기간 조건은 start_dt <= order_dt and order_dt < end_dt 형태가 중복을 줄이는 데 안전하다.
+이력이 없는 주문상품을 보존해야 하면 outer join을 유지한다.`
+  )
+];
 
 const sqlpLabCases: LabCase[] = [
   {
@@ -2591,8 +2803,8 @@ export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, i
   ...lab,
   id: `lab-${String(index + 1).padStart(2, "0")}`,
   number: index + 1,
-  schemaSql: sqlpLabSchema,
-  seedSql: sqlpLabSeed
+  schemaSql: sqlpLabEnvironments[index]?.schemaSql ?? sqlpLabSchema,
+  seedSql: sqlpLabEnvironments[index]?.seedSql ?? sqlpLabSeed
 }));
 
 export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
@@ -2609,4 +2821,26 @@ export function createLocalExtraQuestion(subjectId: SubjectId, count: number): O
 
 export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
   return Array.from({ length: batchSize }, (_, offset) => createLocalExtraQuestion(subjectId, startCount + offset));
+}
+
+export function createLocalExtraLabQuestion(count: number): LabQuestion {
+  const base = sqlpLabCases[count % sqlpLabCases.length];
+  const env = sqlpLabEnvironments[count % sqlpLabEnvironments.length];
+  const variant = Math.floor(count / sqlpLabCases.length) + 1;
+  const number = 20 + count + 1;
+
+  return {
+    ...base,
+    id: `lab-extra-${String(count + 1).padStart(3, "0")}`,
+    number,
+    title: `${base.title} 변형 ${variant}`,
+    scenario: `${base.scenario} 같은 유형을 다른 조건으로 다시 풀어보는 추가 실습입니다.`,
+    prompt: `${base.prompt}\n\n추가 조건: 같은 실행계획 의도를 유지하되 날짜 범위, 선행 집합, 조인 보존 조건이 바뀌어도 답안 구조가 흔들리지 않게 작성하세요.`,
+    schemaSql: `${env?.schemaSql ?? sqlpLabSchema}\n\n[추가 변형 조건]\n- 같은 유형의 다른 회차 복원 문제처럼 테이블명과 조건값이 달라졌다고 가정합니다.\n- 목표는 암기한 SQL을 복붙하는 것이 아니라 실행계획 의도를 재현하는 것입니다.`,
+    seedSql: `${env?.seedSql ?? sqlpLabSeed}\n\n[추가 출제 포인트]\n- 결과 보존 조건을 먼저 확인합니다.\n- 인덱스/힌트는 별칭이 바뀌어도 논리가 같아야 합니다.\n- COUNT STOPKEY, PSTART/PSTOP, OUTER JOIN 조건 위치, access/filter 구분을 설명할 수 있어야 합니다.`
+  };
+}
+
+export function createLocalExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
+  return Array.from({ length: batchSize }, (_, offset) => createLocalExtraLabQuestion(startCount + offset));
 }

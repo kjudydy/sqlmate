@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { conceptArticles, createLocalExtraQuestion, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import {
+  conceptArticles,
+  createLocalExtraLabQuestions,
+  createLocalExtraQuestion,
+  createLocalExtraQuestions,
+  labQuestions,
+  objectiveQuestions,
+  subjects
+} from "@/lib/problem-bank";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 function bySubject(subjectId: SubjectId) {
@@ -132,10 +140,11 @@ describe("SQLP problem bank", () => {
 
   it("gives every concept a structured study-note layout", () => {
     for (const concept of conceptArticles) {
-      expect(concept.studyBlocks?.length).toBeGreaterThanOrEqual(4);
+      expect(concept.studyBlocks?.length).toBeGreaterThanOrEqual(3);
       expect(concept.studyBlocks?.some((block) => block.type === "table")).toBe(true);
-      expect(concept.studyBlocks?.some((block) => block.type === "flow")).toBe(true);
       expect(concept.studyBlocks?.some((block) => block.type === "checklist")).toBe(true);
+      expect(JSON.stringify(concept.studyBlocks)).not.toContain("세부 포인트");
+      expect(JSON.stringify(concept.studyBlocks)).not.toContain("지문/SQL 판정 순서");
     }
   });
 
@@ -143,6 +152,8 @@ describe("SQLP problem bank", () => {
     expect(labQuestions).toHaveLength(20);
     expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(20);
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(15);
+    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(20);
+    expect(new Set(labQuestions.map((lab) => lab.seedSql)).size).toBe(20);
 
     const labText = JSON.stringify(labQuestions);
     expect(labText).toContain("COUNT STOPKEY");
@@ -192,5 +203,18 @@ describe("SQLP problem bank", () => {
       expect(firstBatch.every((question) => question.subjectId === subject.id)).toBe(true);
       expect(secondBatch.every((question) => question.subjectId === subject.id)).toBe(true);
     }
+  });
+
+  it("generates independent extra SQL lab batches after the first 20", () => {
+    const firstBatch = createLocalExtraLabQuestions(0, 5);
+    const secondBatch = createLocalExtraLabQuestions(5, 5);
+    const ids = new Set([...firstBatch, ...secondBatch].map((question) => question.id));
+
+    expect(firstBatch).toHaveLength(5);
+    expect(secondBatch).toHaveLength(5);
+    expect(firstBatch[0].number).toBe(21);
+    expect(secondBatch[0].number).toBe(26);
+    expect(ids.size).toBe(10);
+    expect(new Set([...firstBatch, ...secondBatch].map((question) => question.schemaSql)).size).toBeGreaterThanOrEqual(5);
   });
 });

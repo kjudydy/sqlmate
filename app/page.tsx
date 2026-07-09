@@ -24,14 +24,15 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
-import { conceptArticles, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import { conceptArticles, createLocalExtraLabQuestions, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import type {
   AnswerRecord,
   AttemptRecord,
   ChoiceId,
   ConceptMark,
+  LabQuestion,
   ObjectiveQuestion,
   PersonalNote,
   StudyStatePayload,
@@ -51,7 +52,8 @@ const emptyState: StudyStatePayload = {
   wrongNotes: {},
   conceptMarks: {},
   personalNotes: [],
-  extraQuestions: []
+  extraQuestions: [],
+  extraLabQuestions: []
 };
 
 const sqlpExamSchedule = [
@@ -197,8 +199,13 @@ export default function Home() {
   const [conceptMarks, setConceptMarks] = usePersistentState<Record<string, ConceptMark>>("sqlmate.conceptMarks", emptyState.conceptMarks);
   const [personalNotes, setPersonalNotes] = usePersistentState<PersonalNote[]>("sqlmate.personalNotes", emptyState.personalNotes);
   const [extraQuestions, setExtraQuestions] = usePersistentState<ObjectiveQuestion[]>("sqlmate.extraQuestions", emptyState.extraQuestions);
+  const [extraLabQuestions, setExtraLabQuestions] = usePersistentState<LabQuestion[]>("sqlmate.extraLabQuestions", emptyState.extraLabQuestions ?? []);
   const [selectedConceptId, setSelectedConceptId] = useState(conceptArticles[0]?.id ?? "");
   const [selectedPersonalNoteId, setSelectedPersonalNoteId] = useState("");
+  const [conceptNavCollapsed, setConceptNavCollapsed] = useState(false);
+  const [noteListCollapsed, setNoteListCollapsed] = useState(false);
+  const [selectedHighlightText, setSelectedHighlightText] = useState("");
+  const [highlightColor, setHighlightColor] = useState<"yellow" | "green" | "pink">("yellow");
   const [activeConceptSubject, setActiveConceptSubject] = useState<SubjectId>("modeling");
   const [activeConceptMajor, setActiveConceptMajor] = useState(
     conceptArticles.find((concept) => concept.subjectId === "modeling")?.majorTopic ?? ""
@@ -215,6 +222,7 @@ export default function Home() {
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const allQuestions = useMemo(() => [...objectiveQuestions, ...extraQuestions], [extraQuestions]);
+  const allLabQuestions = useMemo(() => [...labQuestions, ...extraLabQuestions], [extraLabQuestions]);
   const baseSubjectQuestions = useMemo(
     () => objectiveQuestions.filter((question) => question.subjectId === activeSubject),
     [activeSubject]
@@ -256,24 +264,26 @@ export default function Home() {
   );
   const selectedConcept = visibleConceptArticles.find((concept) => concept.id === selectedConceptId) ?? visibleConceptArticles[0];
   const selectedPersonalNote = personalNotes.find((note) => note.id === selectedPersonalNoteId) ?? personalNotes[0];
-  const activeLab = labQuestions[activeLabIndex];
+  const activeLab = allLabQuestions[clampIndex(activeLabIndex, allLabQuestions.length)];
+  const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
 
   const completed = Object.keys(answers).length;
   const correct = Object.values(answers).filter((answer) => answer.correct).length;
   const accuracy = completed ? Math.round((correct / completed) * 100) : 0;
   const wrongCount = attempts.filter((attempt) => !attempt.correct).length;
-  const highlightedCount = Object.values(conceptMarks).filter((mark) => mark.highlighted).length;
+  const highlightedCount = Object.values(conceptMarks).reduce((sum, mark) => sum + (mark.highlights?.length ?? (mark.highlighted ? 1 : 0)), 0);
   const today = new Date();
   const todayKey = toDateKey(today);
   const nextExam = sqlpExamSchedule.find((exam) => daysBetween(today, new Date(`${exam.examDate}T00:00:00`)) >= 0) ?? sqlpExamSchedule[sqlpExamSchedule.length - 1];
   const examDday = Math.max(0, daysBetween(today, new Date(`${nextExam.examDate}T00:00:00`)));
   const todaysTodos = todoItems[todayKey] ?? [];
   const completedTodos = todaysTodos.filter((todo) => todo.checked).length;
-  const labCompleted = Object.keys(labAnswers).length;
+  const labCompleted = allLabQuestions.filter((lab) => labAnswers[lab.id]).length;
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
   const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, attempts, labAnswers), [attempts, labAnswers, todayKey]);
   const subjectAnsweredCount = subjectQuestions.filter((question) => answers[question.id]).length;
   const canGenerateExtraBatch = subjectQuestions.length > 0 && subjectAnsweredCount === subjectQuestions.length;
+  const canGenerateExtraLabBatch = allLabQuestions.length > 0 && labCompleted === allLabQuestions.length;
   const nextExtraBatchStart = subjectQuestions.length + 1;
   const nextExtraBatchEnd = subjectQuestions.length + 20;
 
@@ -287,9 +297,10 @@ export default function Home() {
       wrongNotes,
       conceptMarks,
       personalNotes,
-      extraQuestions
+      extraQuestions,
+      extraLabQuestions
     }),
-    [answers, labAnswers, todoChecks, todoItems, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions]
+    [answers, labAnswers, todoChecks, todoItems, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions, extraLabQuestions]
   );
 
   useEffect(() => {
@@ -372,6 +383,7 @@ export default function Home() {
           setConceptMarks(state.conceptMarks ?? {});
           setPersonalNotes(state.personalNotes ?? []);
           setExtraQuestions(state.extraQuestions ?? []);
+          setExtraLabQuestions(state.extraLabQuestions ?? []);
         }
         setCloudReady(true);
         setCloudStatus(error ? "클라우드 스키마 확인 필요" : "클라우드 동기화");
@@ -380,7 +392,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setTodoItems, setWrongNotes, supabase]);
+  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraLabQuestions, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setTodoItems, setWrongNotes, supabase]);
 
   useEffect(() => {
     if (!supabase || !cloudUser || !cloudReady) return;
@@ -480,7 +492,24 @@ export default function Home() {
     }
   }
 
+  function addExtraLabBatch() {
+    if (!canGenerateExtraLabBatch) return;
+
+    setIsGenerating(true);
+    const firstNewLabIndex = allLabQuestions.length;
+    try {
+      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(prev.length, 5)]);
+      setActiveLabIndex(firstNewLabIndex);
+      setLabSql("");
+      setLabResult(null);
+      setRemotePlan(null);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   async function runLab() {
+    if (!activeLab) return;
     const localResult = gradeSqlSubmission(activeLab, labSql);
     setLabResult(localResult);
     setLabAnswers((prev) => ({
@@ -526,11 +555,75 @@ export default function Home() {
     }));
   }
 
+  function renderHighlightedText(text: string): ReactNode {
+    if (!selectedConceptHighlights.length) return text;
+
+    const highlights = [...selectedConceptHighlights]
+      .filter((highlight) => highlight.text.trim().length > 0)
+      .sort((a, b) => b.text.length - a.text.length);
+
+    let parts: ReactNode[] = [text];
+
+    highlights.forEach((highlight) => {
+      parts = parts.flatMap((part, partIndex) => {
+        if (typeof part !== "string") return [part];
+
+        const chunks = part.split(highlight.text);
+        if (chunks.length === 1) return [part];
+
+        return chunks.flatMap((chunk, chunkIndex) => {
+          if (chunkIndex === chunks.length - 1) return [chunk];
+
+          return [
+            chunk,
+            <mark className={`concept-mark mark-${highlight.color}`} key={`${highlight.id}-${partIndex}-${chunkIndex}`}>
+              {highlight.text}
+            </mark>
+          ];
+        });
+      });
+    });
+
+    return parts;
+  }
+
+  function captureConceptSelection() {
+    const text = window.getSelection()?.toString().trim() ?? "";
+    if (text.length >= 2) {
+      setSelectedHighlightText(text.slice(0, 160));
+    }
+  }
+
+  function addConceptHighlight() {
+    if (!selectedConcept || !selectedHighlightText.trim()) return;
+
+    const nextHighlight = {
+      id: `mark-${Date.now()}`,
+      text: selectedHighlightText.trim(),
+      color: highlightColor
+    };
+    const previousHighlights = conceptMarks[selectedConcept.id]?.highlights ?? [];
+
+    updateConceptMark(selectedConcept.id, {
+      highlighted: false,
+      highlights: [...previousHighlights.filter((item) => item.text !== nextHighlight.text), nextHighlight]
+    });
+    setSelectedHighlightText("");
+    window.getSelection()?.removeAllRanges();
+  }
+
+  function clearConceptHighlights() {
+    if (!selectedConcept) return;
+    updateConceptMark(selectedConcept.id, { highlighted: false, highlights: [] });
+    setSelectedHighlightText("");
+  }
+
   function selectConceptSubject(subjectId: SubjectId) {
     const firstConcept = conceptArticles.find((concept) => concept.subjectId === subjectId);
     setActiveConceptSubject(subjectId);
     setActiveConceptMajor(firstConcept?.majorTopic ?? "");
     setSelectedConceptId(firstConcept?.id ?? "");
+    setConceptNavCollapsed(false);
   }
 
   function selectConceptMajor(majorTopic: string) {
@@ -539,6 +632,7 @@ export default function Home() {
     );
     setActiveConceptMajor(majorTopic);
     setSelectedConceptId(firstConcept?.id ?? "");
+    setConceptNavCollapsed(false);
   }
 
   function addPersonalNote() {
@@ -552,6 +646,7 @@ export default function Home() {
     };
     setPersonalNotes((prev) => [note, ...prev]);
     setSelectedPersonalNoteId(id);
+    setNoteListCollapsed(true);
   }
 
   function updatePersonalNote(noteId: string, patch: Partial<PersonalNote>) {
@@ -740,9 +835,9 @@ export default function Home() {
                 <button className="progress-row" onClick={() => setSection("lab")}>
                   <span>실습 SQL 작성형</span>
                   <div className="progress-track">
-                    <div style={{ width: `${Math.round((labCompleted / labQuestions.length) * 100)}%` }} />
+                    <div style={{ width: `${Math.round((labCompleted / allLabQuestions.length) * 100)}%` }} />
                   </div>
-                  <strong>{labCompleted}/{labQuestions.length}</strong>
+                  <strong>{labCompleted}/{allLabQuestions.length}</strong>
                 </button>
               </div>
             </section>
@@ -963,7 +1058,7 @@ export default function Home() {
         {section === "lab" && (
           <div className="lab-layout">
             <section className="subject-panel">
-              {labQuestions.map((lab, index) => (
+              {allLabQuestions.map((lab, index) => (
                 <button
                   key={lab.id}
                   className={index === activeLabIndex ? "subject-tab active" : "subject-tab"}
@@ -977,6 +1072,16 @@ export default function Home() {
                   실습 {lab.number}. {lab.topic}
                 </button>
               ))}
+              {canGenerateExtraLabBatch && (
+                <div className="extra-gate">
+                  <span>실습 추가 생성 가능</span>
+                  <p>현재 실습 {allLabQuestions.length}개를 모두 시도했습니다. 복원형 변형 5문제를 더 받을 수 있어요.</p>
+                  <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
+                    <Sparkles size={17} />
+                    실습 5문제 추가
+                  </button>
+                </div>
+              )}
             </section>
 
             <section className="lab-main">
@@ -992,14 +1097,14 @@ export default function Home() {
                 <div className="code-panel schema-panel">
                   <div className="code-panel-heading">
                     <h3>스키마/인덱스</h3>
-                    <span>공통 실습 모델</span>
+                    <span>복원형 조건</span>
                   </div>
                   <pre>{activeLab.schemaSql}</pre>
                 </div>
                 <div className="code-panel schema-panel compact">
                   <div className="code-panel-heading">
-                    <h3>작성 규칙</h3>
-                    <span>PostgreSQL 실행 + Oracle 해설</span>
+                    <h3>AS-IS/제약</h3>
+                    <span>현재 SQL과 제한사항</span>
                   </div>
                   <pre>{activeLab.seedSql}</pre>
                 </div>
@@ -1116,54 +1221,71 @@ export default function Home() {
         )}
 
         {section === "concepts" && selectedConcept && (
-          <div className="concept-layout">
+          <div className={conceptNavCollapsed ? "concept-layout nav-collapsed" : "concept-layout"}>
             <section className="concept-toc">
-              <div className="concept-subject-tabs">
-                {conceptSubjectTabs.map((subject) => (
-                  <button
-                    key={subject.id}
-                    className={subject.id === activeConceptSubject ? "concept-subject active" : "concept-subject"}
-                    onClick={() => selectConceptSubject(subject.id)}
-                  >
-                    <span>{subject.label}</span>
-                    <strong>{subject.title}</strong>
-                    <small>{subject.count}개 세부항목</small>
-                  </button>
-                ))}
-              </div>
+              <button className="toc-toggle" onClick={() => setConceptNavCollapsed((prev) => !prev)}>
+                <BookOpen size={16} />
+                <span>{conceptNavCollapsed ? "펼치기" : "목록 접기"}</span>
+              </button>
 
-              <div className="concept-major-list">
-                <p className="eyebrow">주요항목</p>
-                {conceptMajorTopics.map((majorTopic) => (
-                  <button
-                    key={majorTopic}
-                    className={majorTopic === resolvedConceptMajor ? "major-topic active" : "major-topic"}
-                    onClick={() => selectConceptMajor(majorTopic)}
-                  >
-                    {majorTopic}
-                  </button>
-                ))}
-              </div>
+              {conceptNavCollapsed ? (
+                <div className="collapsed-label">
+                  <span>{selectedConcept.subjectName.replace(/^(\d과목)\s*/, "$1")}</span>
+                  <strong>{selectedConcept.title}</strong>
+                </div>
+              ) : (
+                <>
+                  <div className="concept-subject-tabs">
+                    {conceptSubjectTabs.map((subject) => (
+                      <button
+                        key={subject.id}
+                        className={subject.id === activeConceptSubject ? "concept-subject active" : "concept-subject"}
+                        onClick={() => selectConceptSubject(subject.id)}
+                      >
+                        <span>{subject.label}</span>
+                        <strong>{subject.title}</strong>
+                        <small>{subject.count}개 세부항목</small>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="concept-major-list">
+                    <p className="eyebrow">주요항목</p>
+                    {conceptMajorTopics.map((majorTopic) => (
+                      <button
+                        key={majorTopic}
+                        className={majorTopic === resolvedConceptMajor ? "major-topic active" : "major-topic"}
+                        onClick={() => selectConceptMajor(majorTopic)}
+                      >
+                        {majorTopic}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="concept-detail-list">
+                    <div className="panel-mini-heading">
+                      <p className="eyebrow">세부항목</p>
+                      <strong>{resolvedConceptMajor}</strong>
+                    </div>
+                    {visibleConceptArticles.map((concept) => (
+                      <button
+                        key={concept.id}
+                        className={concept.id === selectedConcept.id ? "concept-detail active" : "concept-detail"}
+                        onClick={() => {
+                          setSelectedConceptId(concept.id);
+                          setConceptNavCollapsed(true);
+                        }}
+                      >
+                        <strong>{concept.title}</strong>
+                        <span>{concept.summary}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
 
-            <section className="concept-detail-list">
-              <div className="panel-mini-heading">
-                <p className="eyebrow">세부항목</p>
-                <strong>{resolvedConceptMajor}</strong>
-              </div>
-              {visibleConceptArticles.map((concept) => (
-                <button
-                  key={concept.id}
-                  className={concept.id === selectedConcept.id ? "concept-detail active" : "concept-detail"}
-                  onClick={() => setSelectedConceptId(concept.id)}
-                >
-                  <strong>{concept.title}</strong>
-                  <span>{concept.summary}</span>
-                </button>
-              ))}
-            </section>
-
-            <section className={conceptMarks[selectedConcept.id]?.highlighted ? "concept-article highlighted" : "concept-article"}>
+            <section className="concept-article" onMouseUp={captureConceptSelection}>
               <div className="panel-heading">
                 <div>
                   <p className="eyebrow">
@@ -1171,19 +1293,30 @@ export default function Home() {
                   </p>
                   <h2>{selectedConcept.title}</h2>
                 </div>
-                <button
-                  className="ghost-button"
-                  onClick={() =>
-                    updateConceptMark(selectedConcept.id, {
-                      highlighted: !conceptMarks[selectedConcept.id]?.highlighted
-                    })
-                  }
-                >
-                  <Highlighter size={17} />
-                  중요 표시
-                </button>
+                <div className="highlight-toolbar">
+                  <div className="color-palette" aria-label="형광펜 색상">
+                    {(["yellow", "green", "pink"] as const).map((color) => (
+                      <button
+                        key={color}
+                        className={highlightColor === color ? `color-dot ${color} active` : `color-dot ${color}`}
+                        aria-label={`${color} 형광펜`}
+                        onClick={() => setHighlightColor(color)}
+                      />
+                    ))}
+                  </div>
+                  <button className="ghost-button" onClick={addConceptHighlight} disabled={!selectedHighlightText}>
+                    <Highlighter size={17} />
+                    선택 형광펜
+                  </button>
+                  {selectedConceptHighlights.length > 0 && (
+                    <button className="ghost-button" onClick={clearConceptHighlights}>
+                      지우기
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="lead">{selectedConcept.summary}</p>
+              {selectedHighlightText && <p className="selection-preview">선택됨: {selectedHighlightText}</p>}
+              <p className="lead">{renderHighlightedText(selectedConcept.summary)}</p>
               {selectedConcept.studyBlocks?.map((block, blockIndex) => {
                 if (block.type === "table") {
                   return (
@@ -1194,7 +1327,7 @@ export default function Home() {
                           <thead>
                             <tr>
                               {block.headers.map((header) => (
-                                <th key={header}>{header}</th>
+                                <th key={header}>{renderHighlightedText(header)}</th>
                               ))}
                             </tr>
                           </thead>
@@ -1202,7 +1335,7 @@ export default function Home() {
                             {block.rows.map((row, rowIndex) => (
                               <tr key={`${block.title}-${rowIndex}`}>
                                 {row.map((cell, cellIndex) => (
-                                  <td key={`${block.title}-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                  <td key={`${block.title}-${rowIndex}-${cellIndex}`}>{renderHighlightedText(cell)}</td>
                                 ))}
                               </tr>
                             ))}
@@ -1221,7 +1354,7 @@ export default function Home() {
                         {block.steps.map((step, stepIndex) => (
                           <li key={`${block.title}-${stepIndex}`}>
                             <span>{stepIndex + 1}</span>
-                            <p>{step}</p>
+                            <p>{renderHighlightedText(step)}</p>
                           </li>
                         ))}
                       </ol>
@@ -1235,7 +1368,7 @@ export default function Home() {
                       <h3>{block.title}</h3>
                       <ul className="concept-checklist">
                         {block.items.map((item) => (
-                          <li key={item}>{item}</li>
+                          <li key={item}>{renderHighlightedText(item)}</li>
                         ))}
                       </ul>
                     </div>
@@ -1246,7 +1379,7 @@ export default function Home() {
                   <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
                     <h3>{block.title}</h3>
                     {block.paragraphs.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
+                      <p key={paragraph}>{renderHighlightedText(paragraph)}</p>
                     ))}
                   </div>
                 );
@@ -1254,17 +1387,17 @@ export default function Home() {
               <h3>시험에 자주 나오는 핵심</h3>
               <ul className="concept-points">
                 {selectedConcept.keyPoints.map((point) => (
-                  <li key={point}>{point}</li>
+                  <li key={point}>{renderHighlightedText(point)}</li>
                 ))}
               </ul>
               <div className="prompt-box">
                 <strong>시험 함정</strong>
-                <p>{selectedConcept.examTrap}</p>
+                <p>{renderHighlightedText(selectedConcept.examTrap)}</p>
               </div>
               {selectedConcept.oracleAngle && (
                 <div className="prompt-box oracle">
                   <strong>Oracle 관점</strong>
-                  <p>{selectedConcept.oracleAngle}</p>
+                  <p>{renderHighlightedText(selectedConcept.oracleAngle)}</p>
                 </div>
               )}
               <textarea
@@ -1291,21 +1424,37 @@ export default function Home() {
             {personalNotes.length === 0 && <p className="empty">개인 노트를 만들면 로컬에 즉시 저장되고, 로그인 후에는 Supabase에 동기화됩니다.</p>}
 
             {personalNotes.length > 0 && selectedPersonalNote && (
-              <div className="notes-workspace">
+              <div className={noteListCollapsed ? "notes-workspace notes-collapsed" : "notes-workspace"}>
                 <aside className="note-list">
-                  {personalNotes.map((note) => (
-                    <button
-                      className={note.id === selectedPersonalNote.id ? "note-list-item active" : "note-list-item"}
-                      key={note.id}
-                      onClick={() => setSelectedPersonalNoteId(note.id)}
-                    >
-                      <strong>{note.title || "제목 없는 노트"}</strong>
-                      <span>{note.body || "내용 없음"}</span>
-                      <small>
-                        {note.tags || "태그 없음"} · {formatDateTime(note.updatedAt)}
-                      </small>
-                    </button>
-                  ))}
+                  <button className="toc-toggle" onClick={() => setNoteListCollapsed((prev) => !prev)}>
+                    <NotebookPen size={16} />
+                    <span>{noteListCollapsed ? "목록" : "목록 접기"}</span>
+                  </button>
+                  {noteListCollapsed ? (
+                    <div className="collapsed-label">
+                      <span>{personalNotes.length}개 노트</span>
+                      <strong>{selectedPersonalNote.title || "제목 없는 노트"}</strong>
+                    </div>
+                  ) : (
+                    <div className="note-list-items">
+                      {personalNotes.map((note) => (
+                        <button
+                          className={note.id === selectedPersonalNote.id ? "note-list-item active" : "note-list-item"}
+                          key={note.id}
+                          onClick={() => {
+                            setSelectedPersonalNoteId(note.id);
+                            setNoteListCollapsed(true);
+                          }}
+                        >
+                          <strong>{note.title || "제목 없는 노트"}</strong>
+                          <span>{note.body || "내용 없음"}</span>
+                          <small>
+                            {note.tags || "태그 없음"} · {formatDateTime(note.updatedAt)}
+                          </small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </aside>
 
                 <article className="note-editor-panel">

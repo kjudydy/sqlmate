@@ -120,6 +120,11 @@ export type WrongNote = {
 export type ConceptMark = {
   conceptId: string;
   highlighted: boolean;
+  highlights?: Array<{
+    id: string;
+    text: string;
+    color: "yellow" | "green" | "pink";
+  }>;
   memo: string;
   updatedAt: string;
 };
@@ -149,4 +154,5 @@ export type StudyStatePayload = {
   conceptMarks: Record<string, ConceptMark>;
   personalNotes: PersonalNote[];
   extraQuestions: ObjectiveQuestion[];
+  extraLabQuestions?: LabQuestion[];
 };
