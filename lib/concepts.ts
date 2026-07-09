@@ -16,6 +16,12 @@ function concept(seed: ConceptSeed): ConceptArticle {
 function completeStudyBlocks(blocks: ConceptStudyBlock[], defaults: ConceptStudyBlock[]) {
   const completed = [...blocks];
   const hasType = (type: ConceptStudyBlock["type"]) => completed.some((block) => block.type === type);
+  const hasFormula = completed.some((block) => block.title.includes("단권화 풀이 공식"));
+  const formulaBlock = defaults.find((block) => block.title.includes("단권화 풀이 공식"));
+
+  if (formulaBlock && !hasFormula) {
+    completed.splice(Math.min(completed.length, 2), 0, formulaBlock);
+  }
 
   for (const block of defaults) {
     if (completed.length >= 3 && hasType("table") && hasType("checklist")) break;
@@ -96,6 +102,17 @@ function buildDefaultStudyBlocks(seed: ConceptSeed): ConceptStudyBlock[] {
         ["문제 연결", subjectGuide.secondQuestion],
         ["주의", seed.examTrap],
         ["Oracle/실무", seed.oracleAngle ?? "SQLP는 Oracle 기준의 결과 해석과 튜닝 관점을 함께 묻는다."]
+      ]
+    },
+    {
+      type: "table",
+      title: `${seed.detailTopic} 단권화 풀이 공식`,
+      headers: ["시험장에서 할 일", "판단 기준", "오답 제거 포인트"],
+      rows: [
+        ["1. 핵심 용어 표시", `${seed.detailTopic}이 정의, 구조, 결과, 성능 중 무엇을 묻는지 먼저 표시한다.`, "보기의 표현이 맞아 보여도 질문이 '부적절한 것'이면 반대로 읽는다."],
+        ["2. 조건과 예외 분리", subjectGuide.firstQuestion, "항상/절대/무조건 같은 표현은 예외가 있는지 확인한다."],
+        ["3. 결과 영향 추적", subjectGuide.secondQuestion, "모델링은 조인/NULL/건수, SQL은 처리 순서/집계/정렬, 튜닝은 access/filter/loop/CR로 연결한다."],
+        ["4. 답안화 문장", `정답 근거는 '${seed.summary}'에서 출발해 기출 함정 '${seed.examTrap}'을 제거하는 방식으로 설명한다.`, "외운 문장보다 지문 조건을 바꿔도 유지되는 원리를 고른다."]
       ]
     },
     {

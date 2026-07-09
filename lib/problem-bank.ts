@@ -82,6 +82,25 @@ function makeChoices(choices: ChoiceTuple): Choice[] {
   return choices.map((text, index) => ({ id: choiceIds[index], text }));
 }
 
+function seededRank(seed: string, index: number) {
+  let hash = 2166136261;
+  const value = `${seed}:${index}`;
+
+  for (let charIndex = 0; charIndex < value.length; charIndex += 1) {
+    hash ^= value.charCodeAt(charIndex);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function mixDrafts<T>(drafts: T[], seed: string) {
+  return drafts
+    .map((draft, index) => ({ draft, rank: seededRank(seed, index) }))
+    .sort((a, b) => a.rank - b.rank)
+    .map((item) => item.draft);
+}
+
 function hasAny(text: string, patterns: string[]) {
   return patterns.some((pattern) => text.includes(pattern));
 }
@@ -562,7 +581,8 @@ function buildDraftSequence<T>(config: SubjectConfig<T>): DraftQuestion[] {
   ];
   const maxGroupLength = Math.max(...groups.map((group) => group.length));
 
-  return Array.from({ length: maxGroupLength }, (_, draftIndex) => groups.map((group) => group[draftIndex]).filter(Boolean)).flat();
+  const interleaved = Array.from({ length: maxGroupLength }, (_, draftIndex) => groups.map((group) => group[draftIndex]).filter(Boolean)).flat();
+  return mixDrafts(interleaved, config.id);
 }
 
 function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0, idPrefix: string = config.id): ObjectiveQuestion[] {
@@ -1991,6 +2011,112 @@ const commonOracleNotes = [
 
 const commonRubric = ["요구 결과 보존", "부분범위/집합처리 의도", "인덱스 접근 조건", "조인 순서와 방식", "Oracle 힌트 별칭 정확성"];
 
+const labTraceProfiles = [
+  {
+    trace: `Oracle SQL Trace 목표 통계
+Id Operation                         Name        Rows  Loop     PR     CR    time
+ 0 SELECT STATEMENT                               10     1       0     47   00:00:00.01
+ 1  TABLE ACCESS BY INDEX ROWID      T3          10    10       0     20   00:00:00.01
+ 2   INDEX UNIQUE SCAN               T3_PK       10    10       0     10   00:00:00.01
+ 3  COUNT STOPKEY                                10     1       0     27   00:00:00.01
+ 4   VIEW                                        20     1       0     27   00:00:00.01
+ 5    UNION-ALL                                  20     1       0     27   00:00:00.01
+핵심: T1/T2 각 분기에서 먼저 10건으로 줄인 뒤 T3는 최종 10건에 대해서만 조회한다.`,
+    predicate: `Predicate Information
+ 2 - access("T3"."ID"=:B1)
+ 6 - filter(ROWNUM<=10)
+ 9 - access("T1"."DT"=TRUNC(SYSDATE) AND "T1"."ID"="T4"."ID")
+10 - access("T4"."ID"="T1"."ID")
+11 - filter(ROWNUM<=10)
+14 - access("T2"."DT"=TRUNC(SYSDATE) AND "T2"."ID"="T4"."ID")
+15 - access("T4"."ID"="T2"."ID")`
+  },
+  {
+    trace: `Oracle SQL Trace 목표 통계
+Id Operation                         Name        Rows  Loop     PR     CR    time
+ 0 INSERT STATEMENT                              850     1      12    210   00:00:00.05
+ 1  LOAD TABLE CONVENTIONAL          T1_P202501 850     1      12    210   00:00:00.05
+ 2   NESTED LOOPS OUTER                          850     1      12    210   00:00:00.04
+ 3    PARTITION RANGE SINGLE         T1          900     1      10    160   00:00:00.03
+ 4     TABLE ACCESS FULL             T1          900     1      10    160   00:00:00.03
+ 5    TABLE ACCESS BY INDEX ROWID    T2          850   900       2     50   00:00:00.01
+핵심: MERGE의 update/delete/insert를 그대로 수행하지 않고 보존/교체 집합을 만들어 EXCHANGE 대상으로 적재한다.`,
+    predicate: `Predicate Information
+ 4 - filter("T1"."DT">=DATE '2025-01-01' AND "T1"."DT"<DATE '2025-02-01')
+ 6 - access("T2"."DT"="T1"."DT" AND "T2"."ID"="T1"."ID")
+제약: T1_P202501은 T1 파티션과 컬럼 순서, 타입, nullable, check 조건이 교환 가능해야 한다.`
+  },
+  {
+    trace: `Oracle SQL Trace 목표 통계
+Id Operation                         Name                 Rows  Loop     PR     CR    time
+ 0 SELECT STATEMENT                                         10     1       0     55   00:00:00.01
+ 1  COUNT STOPKEY                                           10     1       0     55   00:00:00.01
+ 2   VIEW                                                   10     1       0     55   00:00:00.01
+ 3    NESTED LOOPS OUTER                                    10     1       0     55   00:00:00.01
+ 4     TABLE ACCESS BY INDEX ROWID       ORDERS             10     1       0     24   00:00:00.01
+ 5      INDEX RANGE SCAN DESCENDING      ORDERS_X1          10     1       0      4   00:00:00.01
+ 6     TABLE ACCESS BY INDEX ROWID       PRODUCT_HISTORY    10    10       0     31   00:00:00.01
+핵심: ORDER BY를 인덱스 역순으로 해결하고 10건을 먼저 자른다.`,
+    predicate: `Predicate Information
+ 5 - access("ORDERS"."CUST_ID"=:B1)
+ 5 - filter(ROWNUM<=10)
+ 7 - access("PH"."PRODUCT_ID"="OI"."PRODUCT_ID" AND "PH"."START_DT"<=:ORDER_DT)
+ 7 - filter("PH"."END_DT">:ORDER_DT)
+주의: 상품 이력 조건을 WHERE로 내리면 OUTER JOIN 보존 행이 사라질 수 있다.`
+  },
+  {
+    trace: `Oracle SQL Trace 목표 통계
+Id Operation                         Name             Rows  Loop     PR     CR    time
+ 0 SELECT STATEMENT                                    100     1       3    420   00:00:00.08
+ 1  NESTED LOOPS                                       100     1       3    420   00:00:00.08
+ 2   VIEW                                              100     1       2     80   00:00:00.02
+ 3    WINDOW SORT PUSHED RANK                         1000    1       2     80   00:00:00.02
+ 4     TABLE ACCESS BY INDEX ROWID BATCHED ORDERS     1000    1       2     80   00:00:00.02
+ 5      INDEX RANGE SCAN                  ORDERS_X01  1000    1       0     12   00:00:00.01
+ 6   INDEX RANGE SCAN                     DETAIL_X01  1000 1000       1    340   00:00:00.06
+핵심: 최근 1시간 조건으로 주문을 먼저 줄이고 ROW_NUMBER로 최근 1000건만 남긴다.`,
+    predicate: `Predicate Information
+ 3 - filter(ROW_NUMBER() OVER (ORDER BY INTERNAL_FUNCTION("주문일시") DESC)<=1000)
+ 5 - access("주문일시">=SYSDATE-1/24)
+ 6 - access("주문상품"."주문번호"="주문1"."주문번호")
+주의: ROWNUM으로 자르면 COUNT STOPKEY가 생겨 목표 계획과 달라질 수 있다.`
+  },
+  {
+    trace: `Oracle SQL Trace 목표 통계
+Id Operation                         Name          Rows  Loop     PR      CR    time
+ 0 SELECT STATEMENT                                  50     1      32   38000   00:00:01.20
+ 1  TABLE ACCESS BY INDEX ROWID       EMP           50  12000      32   38000   00:00:01.20
+ 2   INDEX RANGE SCAN                 EMP_X01    12000     1       4     150   00:00:00.02
+핵심: 인덱스에서 많이 찾고 테이블에서 대부분 버리는 구조다. 조건 컬럼을 인덱스에 보강해야 한다.`,
+    predicate: `Predicate Information
+ 2 - access("EMP"."DEPTNO"=:B1)
+ 1 - filter("EMP"."HIRE_DT">=:B2 AND "EMP"."JOB_CD"=:B3)
+개선 방향: EMP_X02(DEPTNO, JOB_CD, HIRE_DT) 또는 업무 선택도에 맞춘 복합 인덱스를 제안한다.`
+  },
+  {
+    trace: `Oracle SQL Trace 목표 통계
+Id Operation                         Name             Rows  Loop     PR      CR    time
+ 0 SELECT STATEMENT                                 1200     1      70    6200   00:00:00.45
+ 1  HASH GROUP BY                                   1200     1      70    6200   00:00:00.45
+ 2   HASH JOIN                                      8000     1      70    6200   00:00:00.40
+ 3    PARTITION RANGE SINGLE          ORDERS        3000    1      22    1800   00:00:00.12
+ 4    TABLE ACCESS FULL               ORDER_ITEMS   9000    1      48    4400   00:00:00.28
+핵심: 대량 집계는 NL 반복보다 해시 조인과 해시 집계가 자연스럽다.`,
+    predicate: `Predicate Information
+ 3 - access("ORDERS"."ORDER_DT">=DATE '2026-04-01' AND "ORDERS"."ORDER_DT"<DATE '2026-07-01')
+ 2 - access("OI"."ORDER_ID"="O"."ORDER_ID")
+주의: 대량 범위인데 USE_NL을 강제하면 Loop와 CR이 폭증한다.`
+  }
+];
+
+function labTrace(index: number, variant = 0) {
+  return labTraceProfiles[(index + variant) % labTraceProfiles.length].trace;
+}
+
+function labPredicate(index: number, variant = 0) {
+  return labTraceProfiles[(index + variant) % labTraceProfiles.length].predicate;
+}
+
 function labEnvironment(round: string, schemaSql: string, seedSql: string): LabEnvironment {
   return {
     schemaSql: `[${round} 복원형 DDL/인덱스]\n${schemaSql}`,
@@ -2804,7 +2930,9 @@ export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, i
   id: `lab-${String(index + 1).padStart(2, "0")}`,
   number: index + 1,
   schemaSql: sqlpLabEnvironments[index]?.schemaSql ?? sqlpLabSchema,
-  seedSql: sqlpLabEnvironments[index]?.seedSql ?? sqlpLabSeed
+  seedSql: sqlpLabEnvironments[index]?.seedSql ?? sqlpLabSeed,
+  traceStats: labTrace(index),
+  predicateInfo: labPredicate(index)
 }));
 
 export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
@@ -2842,5 +2970,12 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
 }
 
 export function createLocalExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
-  return Array.from({ length: batchSize }, (_, offset) => createLocalExtraLabQuestion(startCount + offset));
+  return Array.from({ length: batchSize }, (_, offset) => {
+    const count = startCount + offset;
+    return {
+      ...createLocalExtraLabQuestion(count),
+      traceStats: `${labTrace(count, offset)}\n\n추가 변형 포인트: 기준 Trace보다 Loop 또는 CR이 커지면 선행 집합 축소 위치를 먼저 의심합니다.`,
+      predicateInfo: `${labPredicate(count, offset)}\n\n추가 변형 포인트: access 조건은 인덱스 진입 조건, filter 조건은 읽은 뒤 버리는 조건으로 나누어 서술합니다.`
+    };
+  });
 }

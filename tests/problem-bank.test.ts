@@ -154,6 +154,8 @@ describe("SQLP problem bank", () => {
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(15);
     expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(20);
     expect(new Set(labQuestions.map((lab) => lab.seedSql)).size).toBe(20);
+    expect(labQuestions.every((lab) => lab.traceStats?.includes("Rows") && lab.traceStats.includes("Loop"))).toBe(true);
+    expect(labQuestions.every((lab) => lab.predicateInfo?.includes("Predicate Information"))).toBe(true);
 
     const labText = JSON.stringify(labQuestions);
     expect(labText).toContain("COUNT STOPKEY");
@@ -216,5 +218,7 @@ describe("SQLP problem bank", () => {
     expect(secondBatch[0].number).toBe(26);
     expect(ids.size).toBe(10);
     expect(new Set([...firstBatch, ...secondBatch].map((question) => question.schemaSql)).size).toBeGreaterThanOrEqual(5);
+    expect(firstBatch.every((question) => question.traceStats?.includes("CR"))).toBe(true);
+    expect(firstBatch.every((question) => question.predicateInfo?.includes("access"))).toBe(true);
   });
 });

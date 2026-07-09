@@ -43,6 +43,12 @@ import type {
 
 type Section = "dashboard" | "practice" | "lab" | "wrong" | "concepts" | "notes";
 
+type PendingHighlight = {
+  text: string;
+  fieldKey: string;
+  occurrenceIndex: number;
+};
+
 const emptyState: StudyStatePayload = {
   answers: {},
   labAnswers: {},
@@ -147,6 +153,35 @@ function getNextExtraStartCount(questions: ObjectiveQuestion[], subjectId: Subje
     .reduce((max, question) => Math.max(max, Math.max(0, question.number - 100)), 0);
 }
 
+function findNthOccurrence(text: string, needle: string, occurrenceIndex: number) {
+  if (!needle) return -1;
+
+  let fromIndex = 0;
+  let foundIndex = -1;
+
+  for (let index = 0; index <= occurrenceIndex; index += 1) {
+    foundIndex = text.indexOf(needle, fromIndex);
+    if (foundIndex === -1) return -1;
+    fromIndex = foundIndex + needle.length;
+  }
+
+  return foundIndex;
+}
+
+function countOccurrencesBefore(text: string, needle: string) {
+  if (!needle) return 0;
+
+  let count = 0;
+  let fromIndex = 0;
+
+  while (true) {
+    const foundIndex = text.indexOf(needle, fromIndex);
+    if (foundIndex === -1) return count;
+    count += 1;
+    fromIndex = foundIndex + needle.length;
+  }
+}
+
 function buildStudyCalendar(today: Date, attempts: AttemptRecord[], labAnswers: StudyStatePayload["labAnswers"]) {
   const year = today.getFullYear();
   const month = today.getMonth();
@@ -205,6 +240,7 @@ export default function Home() {
   const [conceptNavCollapsed, setConceptNavCollapsed] = useState(false);
   const [noteListCollapsed, setNoteListCollapsed] = useState(false);
   const [selectedHighlightText, setSelectedHighlightText] = useState("");
+  const [selectedHighlightTarget, setSelectedHighlightTarget] = useState<PendingHighlight | null>(null);
   const [highlightColor, setHighlightColor] = useState<"yellow" | "green" | "pink">("yellow");
   const [activeConceptSubject, setActiveConceptSubject] = useState<SubjectId>("modeling");
   const [activeConceptMajor, setActiveConceptMajor] = useState(
@@ -476,8 +512,6 @@ export default function Home() {
   }
 
   function addExtraQuestionBatch() {
-    if (!canGenerateExtraBatch) return;
-
     setIsGenerating(true);
     const firstNewQuestionIndex = subjectQuestions.length;
     try {
@@ -493,8 +527,6 @@ export default function Home() {
   }
 
   function addExtraLabBatch() {
-    if (!canGenerateExtraLabBatch) return;
-
     setIsGenerating(true);
     const firstNewLabIndex = allLabQuestions.length;
     try {
@@ -555,67 +587,104 @@ export default function Home() {
     }));
   }
 
-  function renderHighlightedText(text: string): ReactNode {
-    if (!selectedConceptHighlights.length) return text;
+  function renderHighlightedText(text: string, fieldKey: string): ReactNode {
+    const ranges = selectedConceptHighlights
+      .filter((highlight) => highlight.fieldKey === fieldKey && highlight.text.trim().length > 0)
+      .map((highlight) => {
+        const start = findNthOccurrence(text, highlight.text, highlight.occurrenceIndex ?? 0);
+        return start >= 0 ? { highlight, start, end: start + highlight.text.length } : null;
+      })
+      .filter((range): range is NonNullable<typeof range> => Boolean(range))
+      .sort((a, b) => a.start - b.start || b.end - a.end);
 
-    const highlights = [...selectedConceptHighlights]
-      .filter((highlight) => highlight.text.trim().length > 0)
-      .sort((a, b) => b.text.length - a.text.length);
+    if (!ranges.length) return text;
 
-    let parts: ReactNode[] = [text];
+    const parts: ReactNode[] = [];
+    let cursor = 0;
 
-    highlights.forEach((highlight) => {
-      parts = parts.flatMap((part, partIndex) => {
-        if (typeof part !== "string") return [part];
-
-        const chunks = part.split(highlight.text);
-        if (chunks.length === 1) return [part];
-
-        return chunks.flatMap((chunk, chunkIndex) => {
-          if (chunkIndex === chunks.length - 1) return [chunk];
-
-          return [
-            chunk,
-            <mark className={`concept-mark mark-${highlight.color}`} key={`${highlight.id}-${partIndex}-${chunkIndex}`}>
-              {highlight.text}
-            </mark>
-          ];
-        });
-      });
+    ranges.forEach(({ highlight, start, end }) => {
+      if (start < cursor) return;
+      if (start > cursor) parts.push(text.slice(cursor, start));
+      parts.push(
+        <mark className={`concept-mark mark-${highlight.color}`} key={highlight.id} title="아래 형광펜 목록에서 개별 삭제할 수 있어요.">
+          {text.slice(start, end)}
+        </mark>
+      );
+      cursor = end;
     });
 
+    if (cursor < text.length) parts.push(text.slice(cursor));
     return parts;
   }
 
   function captureConceptSelection() {
-    const text = window.getSelection()?.toString().trim() ?? "";
-    if (text.length >= 2) {
-      setSelectedHighlightText(text.slice(0, 160));
+    const selection = window.getSelection();
+    const text = selection?.toString().trim() ?? "";
+    if (!selection || text.length < 2 || selection.rangeCount === 0) {
+      setSelectedHighlightText("");
+      setSelectedHighlightTarget(null);
+      return;
     }
+
+    const range = selection.getRangeAt(0);
+    const startElement = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : (range.startContainer as Element);
+    const fieldElement = startElement?.closest<HTMLElement>("[data-highlight-field]");
+    const fieldKey = fieldElement?.dataset.highlightField;
+
+    if (!fieldElement || !fieldKey) {
+      setSelectedHighlightText("");
+      setSelectedHighlightTarget(null);
+      return;
+    }
+
+    const beforeRange = range.cloneRange();
+    beforeRange.selectNodeContents(fieldElement);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+    const occurrenceIndex = countOccurrencesBefore(beforeRange.toString(), text);
+
+    setSelectedHighlightText(text.slice(0, 160));
+    setSelectedHighlightTarget({ text: text.slice(0, 160), fieldKey, occurrenceIndex });
   }
 
   function addConceptHighlight() {
-    if (!selectedConcept || !selectedHighlightText.trim()) return;
+    if (!selectedConcept || !selectedHighlightTarget) return;
 
     const nextHighlight = {
       id: `mark-${Date.now()}`,
-      text: selectedHighlightText.trim(),
-      color: highlightColor
+      text: selectedHighlightTarget.text,
+      color: highlightColor,
+      fieldKey: selectedHighlightTarget.fieldKey,
+      occurrenceIndex: selectedHighlightTarget.occurrenceIndex
     };
     const previousHighlights = conceptMarks[selectedConcept.id]?.highlights ?? [];
 
     updateConceptMark(selectedConcept.id, {
       highlighted: false,
-      highlights: [...previousHighlights.filter((item) => item.text !== nextHighlight.text), nextHighlight]
+      highlights: [
+        ...previousHighlights.filter(
+          (item) =>
+            !(
+              item.text === nextHighlight.text &&
+              item.fieldKey === nextHighlight.fieldKey &&
+              (item.occurrenceIndex ?? 0) === nextHighlight.occurrenceIndex
+            )
+        ),
+        nextHighlight
+      ]
     });
     setSelectedHighlightText("");
+    setSelectedHighlightTarget(null);
     window.getSelection()?.removeAllRanges();
   }
 
-  function clearConceptHighlights() {
+  function removeConceptHighlight(highlightId: string) {
     if (!selectedConcept) return;
-    updateConceptMark(selectedConcept.id, { highlighted: false, highlights: [] });
+    updateConceptMark(selectedConcept.id, {
+      highlighted: false,
+      highlights: selectedConceptHighlights.filter((highlight) => highlight.id !== highlightId)
+    });
     setSelectedHighlightText("");
+    setSelectedHighlightTarget(null);
   }
 
   function selectConceptSubject(subjectId: SubjectId) {
@@ -925,14 +994,11 @@ export default function Home() {
                   {subjectAnsweredCount}/{subjectQuestions.length} 완료
                   {subjectExtraQuestions.length > 0 ? ` · 추가 ${subjectExtraQuestions.length}문제` : ""}
                 </span>
-                {canGenerateExtraBatch ? (
-                  <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating}>
-                    <Plus size={17} />
-                    {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 추가`}
-                  </button>
-                ) : (
-                  <p>현재 과목 문제를 모두 풀면 20문제 추가 생성이 열립니다.</p>
-                )}
+                <p>원할 때마다 기출 변형 20문제를 추가해서 같은 과목을 계속 반복할 수 있어요.</p>
+                <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating}>
+                  <Plus size={17} />
+                  {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 문제 추가`}
+                </button>
               </div>
               <div className="question-list">
                 {subjectQuestions.map((question, index) => (
@@ -1051,6 +1117,16 @@ export default function Home() {
                   <ChevronRight size={18} />
                 </button>
               </div>
+              <div className="bottom-add-panel">
+                <div>
+                  <strong>문제 풀이 풀 확장</strong>
+                  <span>현재 과목에 복원형 변형 20문제를 바로 추가합니다.</span>
+                </div>
+                <button className="primary-button" onClick={addExtraQuestionBatch} disabled={isGenerating}>
+                  <Plus size={17} />
+                  문제 추가
+                </button>
+              </div>
             </section>
           </div>
         )}
@@ -1072,16 +1148,14 @@ export default function Home() {
                   실습 {lab.number}. {lab.topic}
                 </button>
               ))}
-              {canGenerateExtraLabBatch && (
-                <div className="extra-gate">
-                  <span>실습 추가 생성 가능</span>
-                  <p>현재 실습 {allLabQuestions.length}개를 모두 시도했습니다. 복원형 변형 5문제를 더 받을 수 있어요.</p>
-                  <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
-                    <Sparkles size={17} />
-                    실습 5문제 추가
-                  </button>
-                </div>
-              )}
+              <div className="extra-gate">
+                <span>{labCompleted}/{allLabQuestions.length} 시도 · 실습 풀 확장</span>
+                <p>최근 SQLP 실기 복기형 Trace/Predicate 변형 5문제를 바로 추가합니다.</p>
+                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
+                  <Sparkles size={17} />
+                  실습 5문제 추가
+                </button>
+              </div>
             </section>
 
             <section className="lab-main">
@@ -1119,6 +1193,24 @@ export default function Home() {
                     ))}
                   </ul>
                 </div>
+                {activeLab.traceStats && (
+                  <div className="code-panel schema-panel compact">
+                    <div className="code-panel-heading">
+                      <h3>SQL Trace 통계</h3>
+                      <span>Rows · Loop · PR · CR · time</span>
+                    </div>
+                    <pre>{activeLab.traceStats}</pre>
+                  </div>
+                )}
+                {activeLab.predicateInfo && (
+                  <div className="code-panel schema-panel compact">
+                    <div className="code-panel-heading">
+                      <h3>Predicate Information</h3>
+                      <span>access/filter 판정</span>
+                    </div>
+                    <pre>{activeLab.predicateInfo}</pre>
+                  </div>
+                )}
               </div>
 
               <div className="prompt-box">
@@ -1142,6 +1234,16 @@ export default function Home() {
                 <button className="ghost-button" onClick={() => setLabSql(activeLab.expectedSql)}>
                   <Sparkles size={17} />
                   기준 답안
+                </button>
+              </div>
+              <div className="bottom-add-panel">
+                <div>
+                  <strong>실습 문제 풀 확장</strong>
+                  <span>50~53회 복기형 실행계획 변형 5문제를 추가합니다.</span>
+                </div>
+                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
+                  <Plus size={17} />
+                  문제 추가
                 </button>
               </div>
 
@@ -1304,19 +1406,26 @@ export default function Home() {
                       />
                     ))}
                   </div>
-                  <button className="ghost-button" onClick={addConceptHighlight} disabled={!selectedHighlightText}>
+                  <button className="ghost-button" onClick={addConceptHighlight} disabled={!selectedHighlightTarget}>
                     <Highlighter size={17} />
                     선택 형광펜
                   </button>
-                  {selectedConceptHighlights.length > 0 && (
-                    <button className="ghost-button" onClick={clearConceptHighlights}>
-                      지우기
-                    </button>
-                  )}
                 </div>
               </div>
               {selectedHighlightText && <p className="selection-preview">선택됨: {selectedHighlightText}</p>}
-              <p className="lead">{renderHighlightedText(selectedConcept.summary)}</p>
+              {selectedConceptHighlights.length > 0 && (
+                <div className="highlight-list">
+                  {selectedConceptHighlights.map((highlight) => (
+                    <button key={highlight.id} className={`highlight-chip mark-${highlight.color}`} onClick={() => removeConceptHighlight(highlight.id)}>
+                      <span>{highlight.text}</span>
+                      <b>삭제</b>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="lead" data-highlight-field={`${selectedConcept.id}:summary`}>
+                {renderHighlightedText(selectedConcept.summary, `${selectedConcept.id}:summary`)}
+              </p>
               {selectedConcept.studyBlocks?.map((block, blockIndex) => {
                 if (block.type === "table") {
                   return (
@@ -1326,8 +1435,10 @@ export default function Home() {
                         <table className="concept-table">
                           <thead>
                             <tr>
-                              {block.headers.map((header) => (
-                                <th key={header}>{renderHighlightedText(header)}</th>
+                              {block.headers.map((header, headerIndex) => (
+                                <th key={header} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:header-${headerIndex}`}>
+                                  {renderHighlightedText(header, `${selectedConcept.id}:block-${blockIndex}:header-${headerIndex}`)}
+                                </th>
                               ))}
                             </tr>
                           </thead>
@@ -1335,7 +1446,9 @@ export default function Home() {
                             {block.rows.map((row, rowIndex) => (
                               <tr key={`${block.title}-${rowIndex}`}>
                                 {row.map((cell, cellIndex) => (
-                                  <td key={`${block.title}-${rowIndex}-${cellIndex}`}>{renderHighlightedText(cell)}</td>
+                                  <td key={`${block.title}-${rowIndex}-${cellIndex}`} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:row-${rowIndex}:cell-${cellIndex}`}>
+                                    {renderHighlightedText(cell, `${selectedConcept.id}:block-${blockIndex}:row-${rowIndex}:cell-${cellIndex}`)}
+                                  </td>
                                 ))}
                               </tr>
                             ))}
@@ -1354,7 +1467,9 @@ export default function Home() {
                         {block.steps.map((step, stepIndex) => (
                           <li key={`${block.title}-${stepIndex}`}>
                             <span>{stepIndex + 1}</span>
-                            <p>{renderHighlightedText(step)}</p>
+                            <p data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:step-${stepIndex}`}>
+                              {renderHighlightedText(step, `${selectedConcept.id}:block-${blockIndex}:step-${stepIndex}`)}
+                            </p>
                           </li>
                         ))}
                       </ol>
@@ -1367,8 +1482,10 @@ export default function Home() {
                     <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
                       <h3>{block.title}</h3>
                       <ul className="concept-checklist">
-                        {block.items.map((item) => (
-                          <li key={item}>{renderHighlightedText(item)}</li>
+                        {block.items.map((item, itemIndex) => (
+                          <li key={item} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:item-${itemIndex}`}>
+                            {renderHighlightedText(item, `${selectedConcept.id}:block-${blockIndex}:item-${itemIndex}`)}
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -1378,26 +1495,30 @@ export default function Home() {
                 return (
                   <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
                     <h3>{block.title}</h3>
-                    {block.paragraphs.map((paragraph) => (
-                      <p key={paragraph}>{renderHighlightedText(paragraph)}</p>
+                    {block.paragraphs.map((paragraph, paragraphIndex) => (
+                      <p key={paragraph} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:paragraph-${paragraphIndex}`}>
+                        {renderHighlightedText(paragraph, `${selectedConcept.id}:block-${blockIndex}:paragraph-${paragraphIndex}`)}
+                      </p>
                     ))}
                   </div>
                 );
               })}
               <h3>시험에 자주 나오는 핵심</h3>
               <ul className="concept-points">
-                {selectedConcept.keyPoints.map((point) => (
-                  <li key={point}>{renderHighlightedText(point)}</li>
+                {selectedConcept.keyPoints.map((point, pointIndex) => (
+                  <li key={point} data-highlight-field={`${selectedConcept.id}:key-${pointIndex}`}>
+                    {renderHighlightedText(point, `${selectedConcept.id}:key-${pointIndex}`)}
+                  </li>
                 ))}
               </ul>
               <div className="prompt-box">
                 <strong>시험 함정</strong>
-                <p>{renderHighlightedText(selectedConcept.examTrap)}</p>
+                <p data-highlight-field={`${selectedConcept.id}:trap`}>{renderHighlightedText(selectedConcept.examTrap, `${selectedConcept.id}:trap`)}</p>
               </div>
               {selectedConcept.oracleAngle && (
                 <div className="prompt-box oracle">
                   <strong>Oracle 관점</strong>
-                  <p>{renderHighlightedText(selectedConcept.oracleAngle)}</p>
+                  <p data-highlight-field={`${selectedConcept.id}:oracle`}>{renderHighlightedText(selectedConcept.oracleAngle, `${selectedConcept.id}:oracle`)}</p>
                 </div>
               )}
               <textarea

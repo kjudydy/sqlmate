@@ -39,6 +39,8 @@ export type LabQuestion = {
   scenario: string;
   schemaSql: string;
   seedSql: string;
+  traceStats?: string;
+  predicateInfo?: string;
   prompt: string;
   expectedSql: string;
   targetPlan: string[];
@@ -124,6 +126,8 @@ export type ConceptMark = {
     id: string;
     text: string;
     color: "yellow" | "green" | "pink";
+    fieldKey?: string;
+    occurrenceIndex?: number;
   }>;
   memo: string;
   updatedAt: string;
