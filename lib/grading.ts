@@ -54,8 +54,11 @@ export function extractPlanSignals(sql: string) {
     hasExists: /\bexists\b/.test(normalized),
     hasScalarSubquery: /\(\s*select\b/.test(normalized),
     hasWindowFunction: /\bover\s*\(/.test(normalized),
+    hasStopKey: /\blimit\b|\bfetch\s+first\b|\brownum\b/.test(normalized),
+    hasGroupBy: /\bgroup\s+by\b/.test(normalized),
     hasUnionAll: /\bunion all\b/.test(normalized),
-    hasOuterJoin: /\bleft\s+join\b|\bleft\s+outer\s+join\b|\bright\s+join\b|\bfull\s+join\b/.test(normalized)
+    hasOuterJoin: /\bleft\s+join\b|\bleft\s+outer\s+join\b|\bright\s+join\b|\bfull\s+join\b/.test(normalized),
+    hasNotExists: /\bnot\s+exists\b/.test(normalized)
   };
 }
 
@@ -105,19 +108,37 @@ export function gradeSqlSubmission(lab: LabQuestion, sql: string) {
     feedback.push("조인 방식이나 보존 집합을 의식한 답안입니다.");
   }
 
-  if (lab.topic.includes("Top-N") && signals.hasWindowFunction) {
+  if (lab.topic.includes("Top-N") && (signals.hasWindowFunction || signals.hasStopKey)) {
     score += 10;
-    feedback.push("윈도우 함수로 Top-N 처리 범위를 명확하게 잡았습니다.");
+    feedback.push("Top-N 또는 STOPKEY 계열의 부분범위 처리 의도가 보입니다.");
+  }
+
+  if (lab.topic.includes("파티션") && signals.hasDateRange) {
+    score += 10;
+    feedback.push("파티션 키로 볼 수 있는 날짜 범위를 명확히 작성했습니다. PSTART/PSTOP 축소를 기대할 수 있습니다.");
   }
 
   if (lab.topic.includes("스칼라") && signals.hasScalarSubquery) {
     score -= 8;
     feedback.push("반복 실행되는 스칼라 서브쿼리는 사전 집계 조인으로 바꿀 수 있는지 확인하세요.");
+  } else if (lab.topic.includes("스칼라") && signals.hasGroupBy) {
+    score += 8;
+    feedback.push("반복 스칼라 서브쿼리 대신 사전 집계 후 조인하는 방향이 좋습니다.");
   }
 
   if (lab.topic.includes("OR") && signals.hasUnionAll) {
     score += 8;
     feedback.push("OR 조건을 UNION ALL로 분해해 인덱스 후보를 살리는 접근이 좋습니다.");
+  }
+
+  if ((lab.topic.includes("세미") || lab.topic.includes("안티")) && (signals.hasExists || signals.hasNotExists)) {
+    score += 8;
+    feedback.push("존재 여부 중심의 세미/안티 조인 의도가 보입니다.");
+  }
+
+  if (lab.topic.includes("아우터") && signals.hasOuterJoin) {
+    score += 8;
+    feedback.push("기준 행 보존을 위한 OUTER JOIN 구조를 사용했습니다.");
   }
 
   const boundedScore = Math.max(0, Math.min(100, score));
@@ -136,6 +157,14 @@ export function simulatePlan(sql: string) {
 
   if (signals.hasWindowFunction) {
     plan.push("     -> WindowAgg");
+  }
+
+  if (signals.hasStopKey) {
+    plan.push("     -> Limit / StopKey candidate");
+  }
+
+  if (signals.hasGroupBy) {
+    plan.push("     -> HashAggregate / GroupAggregate candidate");
   }
 
   if (signals.hasUseHashHint) {

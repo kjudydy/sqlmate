@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conceptArticles, createLocalExtraQuestion, createLocalExtraQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import { conceptArticles, createLocalExtraQuestion, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 function bySubject(subjectId: SubjectId) {
@@ -128,6 +128,27 @@ describe("SQLP problem bank", () => {
       expect(concept?.studyBlocks?.length).toBeGreaterThanOrEqual(3);
       expect(concept?.studyBlocks?.some((block) => block.type === "table")).toBe(true);
     }
+  });
+
+  it("gives every concept a structured study-note layout", () => {
+    for (const concept of conceptArticles) {
+      expect(concept.studyBlocks?.length).toBeGreaterThanOrEqual(4);
+      expect(concept.studyBlocks?.some((block) => block.type === "table")).toBe(true);
+      expect(concept.studyBlocks?.some((block) => block.type === "flow")).toBe(true);
+      expect(concept.studyBlocks?.some((block) => block.type === "checklist")).toBe(true);
+    }
+  });
+
+  it("keeps SQL lab questions diverse and reconstructed-exam oriented", () => {
+    expect(labQuestions).toHaveLength(20);
+    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(20);
+    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(15);
+
+    const labText = JSON.stringify(labQuestions);
+    expect(labText).toContain("COUNT STOPKEY");
+    expect(labText).toContain("EXCHANGE PARTITION");
+    expect(labText).toContain("INDEX RANGE SCAN DESCENDING");
+    expect(labText).toContain("PSTART/PSTOP");
   });
 
   it("provides study-ready hints, explanations, and choice feedback", () => {

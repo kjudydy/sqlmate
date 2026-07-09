@@ -1945,123 +1945,655 @@ export const objectiveQuestions: ObjectiveQuestion[] = [
 
 export { conceptArticles } from "./concepts";
 
-const commonSchema = `customers(cust_id, cust_name, grade_cd, region_cd, created_at)
-orders(order_id, cust_id, order_dt, status_cd, channel_cd, amount)
-order_items(order_id, item_id, product_id, qty, sale_amt)
-products(product_id, category_cd, product_name, active_yn)
-payments(payment_id, order_id, pay_dt, pay_amt, pay_method)
-idx_orders_01(cust_id, order_dt)
-idx_orders_02(order_dt, status_cd)
-idx_items_01(product_id, order_id)
-idx_payments_01(order_id, pay_dt)`;
+type LabCase = Omit<LabQuestion, "id" | "number" | "schemaSql" | "seedSql">;
 
-const seedSql = `-- PostgreSQL 실습에서는 SELECT/WITH 쿼리만 실행합니다.
--- Oracle 힌트는 주석 형태로 작성하고, 목표 실행계획 의도를 함께 학습합니다.`;
+const sqlpLabSchema = `공통 실습 모델
 
-const labCases = [
-  ["조인 순서", "고객 기준 최근 주문 조회", "활성 고객 중 최근 30일 주문이 있는 고객만 조회한다. 고객을 먼저 줄인 뒤 주문을 Nested Loops로 탐색하는 의도를 SQL에 표현하라.", `select /*+ leading(c) use_nl(o) index(o idx_orders_01) */ c.cust_id, c.cust_name, o.order_id, o.order_dt
-from customers c
-join orders o on o.cust_id = c.cust_id
-where c.region_cd = :region_cd
-  and o.order_dt >= :from_dt`, ["CUSTOMERS region filter", "NESTED LOOPS", "ORDERS IDX_ORDERS_01 RANGE SCAN"], ["leading(c)", "use_nl(o)", "index(o idx_orders_01)"]],
-  ["인덱스 조건", "주문월 조건 SARGable 변환", "TO_CHAR(order_dt,'YYYYMM') 조건을 주문일 인덱스를 사용할 수 있는 범위 조건으로 바꿔 작성하라.", `select /*+ index(o idx_orders_02) */ o.order_id, o.order_dt, o.amount
-from orders o
-where o.order_dt >= :month_start
-  and o.order_dt < :next_month_start`, ["ORDERS IDX_ORDERS_02 RANGE SCAN", "TABLE ACCESS BY INDEX ROWID"], ["index(o idx_orders_02)", "컬럼 함수 제거"]],
-  ["해시 조인", "대량 주문상품 집계", "최근 분기 주문상품을 상품별로 집계한다. 대량 동등 조인과 해시 집계를 의도한 SQL을 작성하라.", `select /*+ leading(o) use_hash(oi) */ oi.product_id, sum(oi.sale_amt) sale_amt
-from orders o
-join order_items oi on oi.order_id = o.order_id
-where o.order_dt >= :q_start
-  and o.order_dt < :q_end
-group by oi.product_id`, ["ORDERS date range scan", "HASH JOIN", "HASH GROUP BY"], ["use_hash(oi)", "group by 집계"]],
-  ["아우터 조인", "주문 없는 고객 보존", "고객 목록을 기준으로 최근 주문 상태를 보여준다. 주문이 없는 고객도 출력되도록 조건 위치를 조정하라.", `select c.cust_id, c.cust_name, o.order_id, o.status_cd
-from customers c
-left join orders o
-  on o.cust_id = c.cust_id
- and o.order_dt >= :from_dt
- and o.status_cd = 'PAID'
-where c.region_cd = :region_cd`, ["CUSTOMERS preserved", "OUTER JOIN", "ORDERS condition in ON"], ["ON 절 조건 위치", "기준 행 보존"]],
-  ["Top-N", "카테고리별 매출 Top-N", "상품 카테고리별 매출 상위 3개 상품을 조회한다. 집계 후 순위 필터링이 가능하도록 작성하라.", `with sales as (
-  select p.category_cd, oi.product_id, sum(oi.sale_amt) sale_amt
-  from products p
-  join order_items oi on oi.product_id = p.product_id
-  group by p.category_cd, oi.product_id
+[업무 테이블]
+customers(cust_id PK, cust_name, grade_cd, region_cd, created_at)
+orders(order_id PK, cust_id FK, order_dt, status_cd, channel_cd, delivery_id, amount)
+order_items(order_id FK, item_id, product_id FK, qty, sale_amt)
+products(product_id PK, category_cd, product_name, active_yn)
+product_history(product_id, start_dt, end_dt, event_cd, unit_price)
+deliveries(delivery_id PK, delivery_status_cd)
+payments(payment_id PK, order_id FK, pay_dt, pay_amt, pay_method)
+
+[복기형 실행계획 연습 테이블]
+t1(dt, id, cd, v1)          -- 월 파티션 대상 테이블이라고 가정
+t2(dt, id, cd, v1)          -- 변경분 또는 비교 대상
+t3(id, nm)                  -- 최종 명칭 조회 테이블
+t4(id, nm)                  -- 존재 여부 확인용 테이블
+emp(empno, deptno, hire_dt, job_cd, sal, region_cd)
+emp_part(dt, empno, deptno, job_cd, sal)
+
+[주요 인덱스 후보]
+idx_orders_cust_dt(cust_id, order_dt desc)
+idx_orders_dt_status(order_dt, status_cd)
+idx_order_items_order_product(order_id, product_id)
+idx_product_history_period(product_id, start_dt, end_dt)
+idx_payments_order_dt(order_id, pay_dt)
+t1_pk(dt, id), t2_pk(dt, id), t3_pk(id), t4_pk(id)
+emp_x01(deptno, hire_dt), emp_part_x2(job_cd), emp_part_x4(empno)`;
+
+const sqlpLabSeed = `작성 규칙
+- 실행은 PostgreSQL 기준 SELECT/WITH/EXPLAIN만 허용합니다.
+- Oracle 힌트는 /*+ ... */ 주석으로 함께 적어도 됩니다.
+- DDL, DML, 세미콜론, -- 주석은 실행 안전을 위해 차단됩니다.
+- 파티션 exchange, direct path insert 같은 Oracle 전용 답안은 Oracle/SQLP 관점 해설에서 따로 정리합니다.`;
+
+const commonOracleNotes = [
+  "SQLP 실기형 답안은 결과가 먼저 맞아야 하고, 그 다음 실행계획 모양과 힌트 의도를 맞춥니다.",
+  "힌트는 쿼리 블록과 테이블 별칭이 정확해야 적용됩니다. LEADING, USE_NL, USE_HASH, INDEX, NO_MERGE의 대상 별칭을 반드시 확인하세요.",
+  "Access Predicate와 Filter Predicate를 나누어 설명하면 인덱스 효율을 훨씬 정확하게 판단할 수 있습니다."
+];
+
+const commonRubric = ["요구 결과 보존", "부분범위/집합처리 의도", "인덱스 접근 조건", "조인 순서와 방식", "Oracle 힌트 별칭 정확성"];
+
+const sqlpLabCases: LabCase[] = [
+  {
+    title: "UNION ALL 분기별 부분범위와 최종 Top-N",
+    difficulty: "실전",
+    topic: "Top-N / COUNT STOPKEY",
+    scenario: "53회 복기형처럼 TO-BE 실행계획에 각 분기 COUNT STOPKEY와 최종 COUNT STOPKEY가 보이도록 쿼리 구조를 다시 만든다.",
+    prompt:
+      "t1, t2에서 오늘 데이터만 조회하되 t4에 존재하는 id만 남긴다. 각 분기에서 먼저 10건 이하로 줄인 뒤 UNION ALL 하고, 마지막에 t3 명칭은 스칼라 서브쿼리 형태로 조회하라.",
+    expectedSql: `with branch_1 as (
+  select /*+ no_merge leading(t1 t4) use_nl(t4) index(t1 t1_pk) index(t4 t4_pk) */ 1 as tp, t1.id
+  from t1
+  join t4 on t4.id = t1.id
+  where t1.dt = current_date
+  order by t1.id
+  limit 10
 ),
-ranked as (
-  select sales.*, row_number() over(partition by category_cd order by sale_amt desc) rn
-  from sales
+branch_2 as (
+  select /*+ no_merge leading(t2 t4) use_nl(t4) index(t2 t2_pk) index(t4 t4_pk) */ 2 as tp, t2.id
+  from t2
+  join t4 on t4.id = t2.id
+  where t2.dt = current_date
+  order by t2.id
+  limit 10
+),
+unioned as (
+  select * from branch_1
+  union all
+  select * from branch_2
 )
-select * from ranked where rn <= 3`, ["HASH GROUP BY", "WINDOW SORT", "RN <= 3 FILTER"], ["window function", "inline view filter"]],
-  ["스칼라 서브쿼리", "반복 스칼라 서브쿼리 제거", "고객별 마지막 결제일을 SELECT 절 스칼라 서브쿼리로 반복 조회하던 SQL을 사전 집계 조인으로 개선하라.", `with last_pay as (
-  select o.cust_id, max(p.pay_dt) last_pay_dt
+select u.tp, (select t3.nm from t3 where t3.id = u.id) as nm
+from unioned u
+order by u.tp, nm
+limit 10`,
+    targetPlan: ["COUNT STOPKEY per branch", "UNION-ALL", "NESTED LOOPS with T4", "T3 scalar lookup after final stopkey"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "Oracle 답안에서는 각 인라인 뷰 안쪽에 rownum <= 10을 두어 분기별 COUNT STOPKEY를 만들고, UNION ALL 밖에서 다시 rownum <= 10을 둡니다.",
+      "t3를 먼저 조인하면 목표 실행계획과 달라질 수 있으므로 최종 SELECT 절 스칼라 서브쿼리로 뒤에 보이게 하는 의도가 중요합니다."
+    ],
+    hints: ["분기별 inline view를 먼저 만든다.", "각 분기 안쪽에서 정렬 후 limit/rownum으로 부분범위 처리한다.", "t3는 마지막에 이름만 조회한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "MERGE 배치를 파티션 교환 방식으로 재구성",
+    difficulty: "실전",
+    topic: "파티션 교환 / 배치 튜닝",
+    scenario: "53회 복기형의 exchange partition 핵심을 PostgreSQL 연습용 SELECT로 바꿔, 교체할 파티션의 최종 모습을 먼저 만든다.",
+    prompt:
+      "t1의 2025년 1월 파티션을 t2 변경분으로 갱신한다고 가정한다. 기존 MERGE처럼 행마다 update/delete/insert하지 말고, 교환 대상 임시 테이블에 들어갈 최종 행 집합을 SELECT로 작성하라.",
+    expectedSql: `with old_partition as (
+  select /*+ full(t1) */ dt, id, cd, v1
+  from t1
+  where dt >= date '2025-01-01'
+    and dt < date '2025-02-01'
+),
+merged_rows as (
+  select
+    coalesce(n.dt, o.dt) as dt,
+    coalesce(n.id, o.id) as id,
+    coalesce(n.cd, o.cd) as cd,
+    case when n.id is not null and o.id is not null then o.v1 + n.v1 else coalesce(n.v1, o.v1) end as v1,
+    case when n.id is not null and o.id is not null then 'MATCHED' else 'SURVIVED' end as merge_state
+  from old_partition o
+  full join t2 n
+    on n.dt = o.dt
+   and n.id = o.id
+)
+select dt, id, cd, v1
+from merged_rows
+where not (merge_state = 'MATCHED' and cd <= '100')`,
+    targetPlan: ["Build replacement rows", "PARTITION RANGE SINGLE/ALL depending predicate", "OUTER JOIN old and delta", "INSERT into exchange table in Oracle"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "Oracle 정답 방향은 t1_p202501 같은 교환용 테이블 생성, 최종 데이터 INSERT, ALTER TABLE t1 EXCHANGE PARTITION p202501 WITH TABLE t1_p202501, 임시 테이블 정리 순서입니다.",
+      "DML을 직접 수행하는 것이 아니라 교체할 파티션의 최종 상태를 한 번에 만드는 사고가 핵심입니다."
+    ],
+    hints: ["교체 대상 월을 먼저 잘라낸다.", "기존 행과 변경분을 outer join으로 결합한다.", "delete 조건은 최종 행 집합에서 제외한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "고객 최근 주문 10건 부분범위 처리",
+    difficulty: "실전",
+    topic: "Top-N / 인덱스 DESC",
+    scenario: "52회 복기형처럼 고객번호와 주문일시 인덱스를 이용해 SORT ORDER BY 없이 최근 10건만 먼저 가져온다.",
+    prompt:
+      "특정 고객의 최근 주문 10건을 먼저 줄인 뒤 주문상품, 상품이력, 배송을 차례대로 결합하라. 상품이력은 기간 조건을 포함한 outer join으로 유지한다.",
+    expectedSql: `with recent_orders as (
+  select /*+ no_merge index_desc(o idx_orders_cust_dt) */ o.order_id, o.order_dt, o.delivery_id
+  from orders o
+  where o.cust_id = 'C0000000042'
+  order by o.order_dt desc, o.order_id desc
+  limit 10
+)
+select /*+ leading(ro oi ph) use_nl(oi) use_nl(ph) index(oi idx_order_items_order_product) index(ph idx_product_history_period) */
+  ro.order_id,
+  ro.order_dt,
+  oi.qty * ph.unit_price as order_amount,
+  (select d.delivery_status_cd from deliveries d where d.delivery_id = ro.delivery_id) as delivery_status_cd
+from recent_orders ro
+join order_items oi on oi.order_id = ro.order_id
+left join product_history ph
+  on ph.product_id = oi.product_id
+ and ro.order_dt >= ph.start_dt
+ and ro.order_dt < ph.end_dt
+ and ph.event_cd = 'SQLP'`,
+    targetPlan: ["INDEX RANGE SCAN DESCENDING", "COUNT STOPKEY", "NESTED LOOPS OUTER", "상품이력 기간 인덱스"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "주문을 먼저 10건으로 줄여야 뒤쪽 조인 반복 횟수가 작아집니다. Oracle에서는 index_desc + rownum <= 10 조합이 핵심입니다.",
+      "상품이력 이벤트명 조건은 outer join 의미를 깨지 않도록 조인 조건 쪽에 두어야 합니다."
+    ],
+    hints: ["주문을 inline view로 먼저 자른다.", "정렬 방향과 인덱스 방향을 맞춘다.", "배송 상태는 스칼라 조회로 마지막에 붙여도 된다."],
+    rubric: commonRubric
+  },
+  {
+    title: "FROM 순서 제약이 있는 6테이블 조인",
+    difficulty: "실전",
+    topic: "조인 순서 / 힌트",
+    scenario: "52회 복기형의 'FROM 절 테이블 순서 유지' 조건을 반영해, 작성 순서와 실제 선행 집합을 힌트로 분리한다.",
+    prompt:
+      "FROM에는 orders a, order_items b, customers c, products d, deliveries e, payments f 순서를 유지하라. 실제 실행 의도는 최근 주문 a를 먼저 줄이고 b, d, c, e, f 순서로 조인하는 것이다.",
+    expectedSql: `select /*+ leading(a b d c e f) use_nl(b) use_nl(d) use_nl(c) use_nl(e) use_nl(f) index(a idx_orders_dt_status) */
+  a.order_id,
+  c.cust_name,
+  d.product_name,
+  e.delivery_status_cd,
+  f.pay_amt
+from orders a
+join order_items b on b.order_id = a.order_id
+join customers c on c.cust_id = a.cust_id
+join products d on d.product_id = b.product_id
+left join deliveries e on e.delivery_id = a.delivery_id
+left join payments f on f.order_id = a.order_id
+where a.order_dt >= current_date - interval '7 days'
+  and a.status_cd = 'PAID'
+order by a.order_dt desc
+limit 50`,
+    targetPlan: ["FROM order preserved", "LEADING controls join order", "NESTED LOOPS chain", "recent orders first"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "SQL 텍스트의 FROM 나열 순서와 옵티마이저 조인 순서는 다를 수 있습니다. 제약 조건을 만족하면서 힌트로 의도를 명확히 해야 합니다.",
+      "OUTER JOIN이 섞이면 힌트로도 마음대로 순서를 바꿀 수 없는 보존 관계가 있으므로 기준 테이블을 먼저 확인합니다."
+    ],
+    hints: ["FROM 별칭을 a,b,c,d,e,f로 고정한다.", "LEADING 힌트의 순서는 목표 계획을 적는다.", "outer join은 결과 보존을 깨지 않게 둔다."],
+    rubric: commonRubric
+  },
+  {
+    title: "최근 1시간 주문 Top-1000 후 상품 집계",
+    difficulty: "실전",
+    topic: "Top-N / 집계 / 조인",
+    scenario: "51회 복기형처럼 최근 주문을 먼저 1000건으로 자른 뒤 주문상품을 조인하고 상품별 합계를 구한다.",
+    prompt:
+      "최근 1시간 주문 중 최신 1000건만 대상으로 상품별 주문수량 합계를 구하라. 합계가 2 이상인 상품만 남기고 합계수량 내림차순으로 정렬하라.",
+    expectedSql: `with recent_orders as (
+  select /*+ no_merge index_desc(o idx_orders_dt_status) */ o.order_id, o.order_dt
+  from orders o
+  where o.order_dt >= current_timestamp - interval '1 hour'
+  order by o.order_dt desc, o.order_id desc
+  limit 1000
+),
+product_sum as (
+  select oi.product_id, sum(oi.qty) as total_qty, max(ro.order_dt) as last_order_dt
+  from recent_orders ro
+  join order_items oi on oi.order_id = ro.order_id
+  group by oi.product_id
+  having sum(oi.qty) >= 2
+)
+select /*+ leading(ps p) use_nl(p) */ p.product_name, ps.total_qty, ps.last_order_dt
+from product_sum ps
+join products p on p.product_id = ps.product_id
+order by ps.total_qty desc, ps.last_order_dt desc`,
+    targetPlan: ["WINDOW SORT PUSHED RANK or STOPKEY", "INDEX RANGE SCAN on order_dt", "HASH GROUP BY", "product lookup by PK"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "최근 1000건 제한이 집계 뒤로 밀리면 완전히 다른 문제가 됩니다. 부분범위 처리를 먼저 적용하는 위치가 핵심입니다.",
+      "상품명 조회는 집계 후 소량 결과에 붙이는 편이 반복 접근을 줄입니다."
+    ],
+    hints: ["최근 주문 CTE가 가장 먼저다.", "집계는 주문상품 조인 뒤 상품별로 한다.", "상품명은 마지막에 붙인다."],
+    rubric: commonRubric
+  },
+  {
+    title: "Full Scan 진단 후 선택 조건 인덱스 접근으로 전환",
+    difficulty: "중간",
+    topic: "인덱스 진단",
+    scenario: "50회 복기형처럼 실행계획에 TABLE ACCESS FULL이 보일 때 조건과 인덱스 후보를 근거로 개선안을 작성한다.",
+    prompt:
+      "emp에서 특정 부서의 최근 입사자만 조회해야 하는데 전체 스캔이 발생한다고 가정한다. deptno, hire_dt 조건을 인덱스 범위 조건으로 사용할 수 있게 쿼리를 작성하라.",
+    expectedSql: `select /*+ index(e emp_x01) */ e.empno, e.deptno, e.hire_dt, e.job_cd
+from emp e
+where e.deptno = 30
+  and e.hire_dt >= current_date - interval '90 days'
+order by e.hire_dt desc`,
+    targetPlan: ["INDEX RANGE SCAN EMP_X01", "TABLE ACCESS BY INDEX ROWID", "avoid TABLE ACCESS FULL"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "Full Scan은 항상 나쁜 것은 아니지만, 소량 선택 조건이 있고 적절한 복합 인덱스가 있으면 Range Scan을 검토합니다.",
+      "조건 컬럼과 정렬 컬럼이 같은 인덱스 순서에 있으면 정렬 비용까지 줄일 수 있습니다."
+    ],
+    hints: ["선택 조건을 WHERE에 명확히 둔다.", "인덱스 선두 컬럼 deptno를 등치로 사용한다.", "hire_dt는 범위 조건으로 둔다."],
+    rubric: commonRubric
+  },
+  {
+    title: "인덱스는 타지만 필터가 많은 계획 개선",
+    difficulty: "중간",
+    topic: "인덱스 스캔 효율",
+    scenario: "50회 복기형의 '인덱스는 있으나 1000건 탐색 후 100건만 남는' 상황을 조건 컬럼 추가 관점으로 연습한다.",
+    prompt:
+      "orders에서 주문일시 인덱스만 타고 status_cd는 필터로 많이 버려진다고 가정한다. 날짜 범위와 상태 조건이 모두 인덱스 후보가 되도록 SQL을 명확히 작성하라.",
+    expectedSql: `select /*+ index(o idx_orders_dt_status) */ o.order_id, o.order_dt, o.amount
+from orders o
+where o.order_dt >= current_date - interval '30 days'
+  and o.order_dt < current_date + interval '1 day'
+  and o.status_cd = 'PAID'`,
+    targetPlan: ["INDEX RANGE SCAN with date/status", "fewer table rowid visits", "filter predicate reduced"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "인덱스 사용 여부보다 인덱스에서 얼마나 많이 읽고 얼마나 버리는지가 중요합니다.",
+      "복합 인덱스 설계 답안에서는 조건 컬럼이 access로 쓰이는지, filter로 밀리는지까지 설명합니다."
+    ],
+    hints: ["날짜는 컬럼 함수를 쓰지 말고 범위로 쓴다.", "상태 조건을 별도 필터로 숨기지 않는다.", "필요 컬럼만 조회한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "Bytes가 큰 계획에서 필요한 컬럼만 읽기",
+    difficulty: "기본",
+    topic: "테이블 엑세스 최소화",
+    scenario: "50회 복기형처럼 인덱스 스캔 건수는 적절하지만 Bytes와 테이블 액세스 비용이 큰 상황을 줄인다.",
+    prompt:
+      "고객의 최근 주문 존재 여부와 주문번호만 필요하다. SELECT *와 불필요한 큰 컬럼 조회를 피하고 인덱스 중심으로 읽도록 작성하라.",
+    expectedSql: `select /*+ index(o idx_orders_cust_dt) */ o.order_id, o.order_dt
+from orders o
+where o.cust_id = 'C0000000042'
+  and o.order_dt >= current_date - interval '180 days'
+order by o.order_dt desc
+limit 20`,
+    targetPlan: ["INDEX RANGE SCAN DESCENDING", "reduced bytes", "fewer table columns"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "실행계획에서 Rows는 작아도 Bytes가 크면 넓은 컬럼이나 불필요한 테이블 액세스가 병목일 수 있습니다.",
+      "커버링 인덱스 후보를 설명할 때는 조회 컬럼을 무작정 다 넣기보다 DML 비용을 함께 언급합니다."
+    ],
+    hints: ["필요한 컬럼만 선택한다.", "Top-N이면 정렬 인덱스를 활용한다.", "테이블 랜덤 액세스가 필요한 컬럼인지 확인한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "OR 조건을 UNION ALL로 분해",
+    difficulty: "중간",
+    topic: "OR 조건 분해",
+    scenario: "OR 때문에 한쪽 인덱스만 쓰거나 넓게 스캔하는 SQL을 분기별 접근으로 바꾼다.",
+    prompt:
+      "orders에서 status_cd 조건 또는 channel_cd 조건이 OR로 묶여 있다. 각 조건이 독립적으로 인덱스 후보가 되도록 UNION ALL로 분해하고 중복을 방지하라.",
+    expectedSql: `select /*+ index(o idx_orders_dt_status) */ o.order_id, o.order_dt, o.amount
+from orders o
+where o.status_cd = 'PAID'
+  and o.order_dt >= current_date - interval '7 days'
+union all
+select /*+ index(o idx_orders_dt_status) */ o.order_id, o.order_dt, o.amount
+from orders o
+where o.channel_cd = 'APP'
+  and o.order_dt >= current_date - interval '7 days'
+  and o.status_cd <> 'PAID'`,
+    targetPlan: ["UNION-ALL", "branch specific index access", "duplicate guard condition"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "OR 확장은 옵티마이저가 자동으로 할 수도 있지만, 실기에서는 UNION ALL로 의도를 드러내는 답안을 요구할 수 있습니다.",
+      "UNION ALL은 중복 제거를 하지 않으므로 두 분기가 겹치지 않게 배타 조건을 넣어야 합니다."
+    ],
+    hints: ["OR의 각 항을 별도 SELECT로 분리한다.", "두 번째 분기에 중복 방지 조건을 둔다.", "UNION 대신 UNION ALL을 사용한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "반복 스칼라 서브쿼리를 사전 집계 조인으로 변경",
+    difficulty: "중간",
+    topic: "스칼라 서브쿼리 개선",
+    scenario: "고객별 마지막 결제일을 행마다 반복 조회하는 SQL을 한 번 집계한 뒤 조인하는 방식으로 바꾼다.",
+    prompt:
+      "customers 목록에 고객별 마지막 결제일과 결제금액 합계를 붙인다. SELECT 절 상관 스칼라 서브쿼리 반복 대신 payments를 먼저 집계하라.",
+    expectedSql: `with pay_summary as (
+  select o.cust_id, max(p.pay_dt) as last_pay_dt, sum(p.pay_amt) as total_pay_amt
   from orders o
   join payments p on p.order_id = o.order_id
   group by o.cust_id
 )
-select c.cust_id, c.cust_name, lp.last_pay_dt
+select c.cust_id, c.cust_name, ps.last_pay_dt, ps.total_pay_amt
 from customers c
-left join last_pay lp on lp.cust_id = c.cust_id`, ["PAYMENTS pre aggregation", "CUSTOMERS OUTER JOIN", "No repeated scalar subquery"], ["사전 집계", "반복 수행 제거"]],
-  ["세미 조인", "구매 이력 존재 고객", "특정 상품을 구매한 이력이 있는 고객만 조회한다. 중복 제거 정렬보다 존재 여부 중심으로 작성하라.", `select c.cust_id, c.cust_name
+left join pay_summary ps on ps.cust_id = c.cust_id
+where c.region_cd = 'SEOUL'`,
+    targetPlan: ["PAYMENTS pre aggregation", "HASH GROUP BY", "CUSTOMERS OUTER JOIN", "no repeated scalar execution"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "스칼라 서브쿼리는 소량이면 괜찮을 수 있지만 외부 행 수와 distinct key가 많으면 반복 비용이 커집니다.",
+      "집계 후 조인은 결과가 달라지지 않는지, outer join으로 고객 보존이 필요한지 확인해야 합니다."
+    ],
+    hints: ["payments를 orders와 조인해 cust_id별로 먼저 집계한다.", "customers는 left join으로 보존한다.", "SELECT 절 안의 반복 조회를 없앤다."],
+    rubric: commonRubric
+  },
+  {
+    title: "대량 집계는 해시 조인과 해시 그룹으로 처리",
+    difficulty: "중간",
+    topic: "해시 조인 / 집계",
+    scenario: "분기 전체 주문상품 매출을 상품군별로 집계하는 대량 SQL이다. NL 반복보다 해시 조인을 의도한다.",
+    prompt:
+      "최근 분기 주문상품 매출을 상품 카테고리별로 집계하라. 대량 범위 처리이므로 orders와 order_items, products를 해시 조인하는 의도를 힌트에 표현하라.",
+    expectedSql: `select /*+ leading(o oi p) use_hash(oi) use_hash(p) */ p.category_cd, sum(oi.sale_amt) as sale_amt
+from orders o
+join order_items oi on oi.order_id = o.order_id
+join products p on p.product_id = oi.product_id
+where o.order_dt >= date '2026-04-01'
+  and o.order_dt < date '2026-07-01'
+group by p.category_cd`,
+    targetPlan: ["HASH JOIN", "HASH GROUP BY", "large date range scan"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "대량 등가 조인은 해시 조인이 유리한 경우가 많지만, build input 크기와 PGA/TEMP 사용을 함께 봐야 합니다.",
+      "NL 조인을 무조건 피하는 것이 아니라 선행 집합 규모에 따라 판단합니다."
+    ],
+    hints: ["분기 범위 조건을 SARGable하게 쓴다.", "대량 조인은 USE_HASH를 고려한다.", "집계 컬럼만 SELECT에 둔다."],
+    rubric: commonRubric
+  },
+  {
+    title: "EXISTS로 중복 제거 정렬 피하기",
+    difficulty: "기본",
+    topic: "세미 조인",
+    scenario: "구매 이력이 있는 고객만 필요할 때 JOIN + DISTINCT 대신 EXISTS로 존재 여부만 검사한다.",
+    prompt:
+      "특정 상품을 구매한 이력이 있는 고객 목록을 조회하라. 고객이 여러 번 구매해도 한 번만 출력되어야 하며, DISTINCT 정렬 없이 작성하는 것이 목표다.",
+    expectedSql: `select c.cust_id, c.cust_name
 from customers c
 where exists (
   select 1
   from orders o
   join order_items oi on oi.order_id = o.order_id
   where o.cust_id = c.cust_id
-    and oi.product_id = :product_id
-)`, ["CUSTOMERS", "SEMI JOIN / EXISTS", "ORDER_ITEMS IDX_ITEMS_01"], ["exists", "중복 제거 회피"]],
-  ["뷰 머징 제어", "집계 후 조인 순서 보존", "주문상품을 상품별로 먼저 집계한 뒤 상품과 조인해야 한다. 집계 인라인 뷰가 병합되지 않도록 의도를 표현하라.", `select /*+ no_merge(s) use_hash(p) */ p.category_cd, s.product_id, s.sale_amt
+    and oi.product_id = 'P00042'
+)`,
+    targetPlan: ["SEMI JOIN", "no SORT UNIQUE", "ORDER_ITEMS index candidate"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "EXISTS는 존재 여부만 필요할 때 중복 행 생성을 피하는 대표적인 방식입니다.",
+      "실행계획에서는 HASH JOIN SEMI, NESTED LOOPS SEMI 등으로 변환될 수 있습니다."
+    ],
+    hints: ["고객을 기준 집합으로 둔다.", "서브쿼리는 존재 여부만 반환한다.", "DISTINCT가 필요한 조인 결과를 만들지 않는다."],
+    rubric: commonRubric
+  },
+  {
+    title: "NOT IN NULL 함정을 피한 안티 조인",
+    difficulty: "중간",
+    topic: "안티 조인 / NULL",
+    scenario: "미결제 주문을 찾을 때 NOT IN 서브쿼리에 NULL이 섞이면 결과가 사라질 수 있다. NOT EXISTS로 안전하게 작성한다.",
+    prompt:
+      "최근 30일 주문 중 결제 이력이 전혀 없는 주문을 찾으라. payments.order_id에 NULL 가능성이 있다고 보고 NOT EXISTS로 작성하라.",
+    expectedSql: `select o.order_id, o.cust_id, o.order_dt
+from orders o
+where o.order_dt >= current_date - interval '30 days'
+  and not exists (
+    select 1
+    from payments p
+    where p.order_id = o.order_id
+  )`,
+    targetPlan: ["ANTI JOIN", "date range access", "NULL safe anti condition"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "NOT IN은 서브쿼리 결과에 NULL이 포함되면 UNKNOWN으로 인해 기대와 다른 결과가 나올 수 있습니다.",
+      "SQLP 객관식과 튜닝 문제 모두 NOT EXISTS와 NULL 안전성을 자주 연결합니다."
+    ],
+    hints: ["NOT IN 대신 NOT EXISTS를 우선 고려한다.", "최근 30일 조건으로 기준 집합을 줄인다.", "서브쿼리는 조인 키만 비교한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "OUTER JOIN 조건 위치로 기준 행 보존",
+    difficulty: "기본",
+    topic: "아우터 조인",
+    scenario: "상품이력이 없어도 주문상품은 보여야 하는 요구사항이다. 오른쪽 테이블 조건을 WHERE에 두면 outer join이 깨진다.",
+    prompt:
+      "주문상품별 상품이력 금액을 조회하되, 해당 기간의 상품이력이 없어도 주문상품 행은 보존하라. 이벤트 조건과 기간 조건을 ON 절에 배치하라.",
+    expectedSql: `select oi.order_id, oi.product_id, ph.unit_price
+from order_items oi
+join orders o on o.order_id = oi.order_id
+left join product_history ph
+  on ph.product_id = oi.product_id
+ and o.order_dt >= ph.start_dt
+ and o.order_dt < ph.end_dt
+ and ph.event_cd = 'SQLP'
+where o.order_dt >= current_date - interval '7 days'`,
+    targetPlan: ["NESTED LOOPS OUTER or HASH OUTER", "preserved ORDER_ITEMS", "right table filters in join condition"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "Oracle 구식 outer join 표기에서는 c.이벤트명(+)처럼 오른쪽 조건에도 (+)가 빠지지 않아야 합니다.",
+      "WHERE에 오른쪽 테이블 조건을 두면 NULL 확장 행이 제거되어 INNER JOIN처럼 변할 수 있습니다."
+    ],
+    hints: ["보존해야 할 기준 테이블을 먼저 정한다.", "오른쪽 테이블 조건은 ON에 둔다.", "WHERE는 기준 집합 조건 위주로 둔다."],
+    rubric: commonRubric
+  },
+  {
+    title: "날짜 컬럼 함수 제거로 Range Scan 가능하게 만들기",
+    difficulty: "기본",
+    topic: "SARGable 조건",
+    scenario: "TO_CHAR(order_dt, 'YYYYMM') 같은 조건은 일반 인덱스 활용을 방해한다. 월 범위 조건으로 바꾼다.",
+    prompt:
+      "2026년 7월 주문을 조회하라. order_dt 컬럼에 함수를 씌우지 말고 시작일 이상, 다음 달 시작일 미만 범위로 작성하라.",
+    expectedSql: `select /*+ index(o idx_orders_dt_status) */ o.order_id, o.order_dt, o.status_cd
+from orders o
+where o.order_dt >= date '2026-07-01'
+  and o.order_dt < date '2026-08-01'`,
+    targetPlan: ["INDEX RANGE SCAN", "ACCESS predicate on order_dt", "no function on indexed column"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "컬럼에 함수를 적용하면 함수 기반 인덱스가 없는 한 일반 인덱스 Range Scan이 어려워집니다.",
+      "월 조건은 '해당 월 시작 이상, 다음 월 시작 미만' 패턴으로 외우면 안전합니다."
+    ],
+    hints: ["컬럼 왼쪽은 그대로 둔다.", "BETWEEN보다 반개구간이 시간값 처리에 안전하다.", "문자 변환 조건을 피한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "파티션 Pruning을 만드는 조건",
+    difficulty: "중간",
+    topic: "파티션 Pruning",
+    scenario: "50회 복기형의 local partition index가 전체 파티션을 읽는 상황을 피하기 위해 파티션 키 조건을 명확히 둔다.",
+    prompt:
+      "emp_part는 dt 기준 range partition이라고 가정한다. 특정 월과 사원번호 조건으로 필요한 파티션만 읽게 작성하라.",
+    expectedSql: `select /*+ index(e emp_part_x4) */ e.empno, e.deptno, e.sal
+from emp_part e
+where e.dt >= date '2026-07-01'
+  and e.dt < date '2026-08-01'
+  and e.empno = 7788`,
+    targetPlan: ["PARTITION RANGE SINGLE", "PSTART/PSTOP narrowed", "INDEX RANGE SCAN"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "파티션 테이블이라도 파티션 키 조건이 없거나 함수로 감싸면 PARTITION RANGE ALL이 될 수 있습니다.",
+      "실행계획에서 PSTART, PSTOP을 보고 pruning이 실제로 되었는지 확인합니다."
+    ],
+    hints: ["파티션 키 dt를 범위 조건으로 직접 사용한다.", "일자 함수로 컬럼을 감싸지 않는다.", "사원번호 조건은 인덱스 접근 후보로 둔다."],
+    rubric: commonRubric
+  },
+  {
+    title: "집계 인라인 뷰 병합 방지",
+    difficulty: "중간",
+    topic: "뷰 머징 제어",
+    scenario: "주문상품을 먼저 집계한 뒤 상품과 조인해야 중복과 조인 비용을 줄일 수 있다. 뷰 병합을 막는 의도를 표현한다.",
+    prompt:
+      "order_items를 product_id별로 먼저 집계한 결과만 products와 조인하라. 옵티마이저가 집계 뷰를 바깥 쿼리로 병합하지 않게 힌트를 적어라.",
+    expectedSql: `select /*+ no_merge(s) use_hash(p) */ p.category_cd, s.product_id, s.sale_amt
 from (
-  select product_id, sum(sale_amt) sale_amt
+  select product_id, sum(sale_amt) as sale_amt
   from order_items
   group by product_id
 ) s
-join products p on p.product_id = s.product_id`, ["ORDER_ITEMS HASH GROUP BY", "NO_MERGE inline view", "HASH JOIN PRODUCTS"], ["no_merge(s)", "use_hash(p)"]],
-  ["Top-N 페이징", "주문 목록 페이징", "최근 주문 목록에서 101~120번째 행을 조회한다. 결정적인 정렬 기준을 포함해 작성하라.", `select *
-from (
-  select q.*, row_number() over(order by q.order_dt desc, q.order_id desc) rn
-  from orders q
-  where q.order_dt >= :from_dt
-) x
-where x.rn between 101 and 120`, ["ORDERS date range", "WINDOW SORT ORDER BY", "RN BETWEEN filter"], ["deterministic order by", "row_number"]],
-  ["OR 조건 분해", "OR 조건 인덱스 활용", "상태 조건과 채널 조건이 OR로 묶여 인덱스 효율이 낮다. UNION ALL 분해를 고려해 작성하라.", `select order_id, order_dt, amount
-from orders
-where status_cd = :status_cd
-  and order_dt >= :from_dt
-union all
-select order_id, order_dt, amount
-from orders
-where channel_cd = :channel_cd
-  and order_dt >= :from_dt
-  and status_cd <> :status_cd`, ["Branch 1 index candidate", "Branch 2 index candidate", "UNION ALL no duplicate"], ["or expansion", "중복 방지 조건"]]
-] as const;
-
-const labDifficulties: Difficulty[] = ["실전", "중간", "기본"];
-
-export const labQuestions: LabQuestion[] = Array.from({ length: 20 }, (_, index) => {
-  const lab = labCases[index % labCases.length];
-  const round = Math.floor(index / labCases.length) + 1;
-  return {
-    id: `lab-${String(index + 1).padStart(2, "0")}`,
-    number: index + 1,
-    title: round === 1 ? lab[1] : `${lab[1]} 변형`,
-    difficulty: labDifficulties[index % labDifficulties.length],
-    topic: lab[0],
-    scenario: "PostgreSQL에서 실행 가능한 SELECT를 작성하되 Oracle SQLP 튜닝 관점의 힌트와 실행계획 의도를 함께 학습합니다.",
-    schemaSql: commonSchema,
-    seedSql,
-    prompt: lab[2],
-    expectedSql: lab[3],
-    targetPlan: [...lab[4]],
+join products p on p.product_id = s.product_id`,
+    targetPlan: ["NO_MERGE inline view", "HASH GROUP BY before join", "HASH JOIN PRODUCTS"],
     oracleNotes: [
-      "힌트는 쿼리 블록과 테이블 별칭이 정확해야 의도대로 적용될 수 있습니다.",
-      "목표 실행계획을 맞추더라도 결과 보존 조건을 깨뜨리면 오답입니다.",
-      "Access Predicate와 Filter Predicate를 구분해 인덱스 사용 효율을 설명해야 합니다."
+      ...commonOracleNotes,
+      "NO_MERGE는 항상 좋은 힌트가 아니라, 집계 후 소량 결과를 조인해야 하는 의도가 있을 때 사용합니다.",
+      "뷰 병합을 막으면 최적화 기회가 줄 수 있으므로 결과 건수와 중복 제거 목적을 같이 설명해야 합니다."
     ],
-    hints: [...lab[5]],
-    rubric: ["요구 결과 보존", "조건의 SARGable 작성", "조인 순서와 방식 의도", "Oracle 힌트 위치와 별칭 정확성"]
-  };
-});
+    hints: ["인라인 뷰에서 group by를 먼저 수행한다.", "바깥 쿼리 힌트에서 뷰 별칭을 지정한다.", "상품 조인은 집계 후에 한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "정렬 생략을 노린 최근 주문 페이징",
+    difficulty: "중간",
+    topic: "Top-N / 소트 튜닝",
+    scenario: "ORDER BY 정렬 비용을 줄이기 위해 주문일시 내림차순 인덱스 순서와 Top-N 조건을 맞춘다.",
+    prompt:
+      "특정 고객의 최근 주문 101~120번째 행을 조회하라. 정렬 기준은 결정적이어야 하고, 인덱스 역순 스캔을 유도하라.",
+    expectedSql: `with numbered as (
+  select /*+ index_desc(o idx_orders_cust_dt) */ o.order_id, o.order_dt, o.amount,
+         row_number() over(order by o.order_dt desc, o.order_id desc) as rn
+  from orders o
+  where o.cust_id = 'C0000000042'
+)
+select order_id, order_dt, amount
+from numbered
+where rn between 101 and 120`,
+    targetPlan: ["INDEX RANGE SCAN DESCENDING", "WINDOW SORT PUSHED RANK", "deterministic order by"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "Top-N/페이징은 정렬 기준이 유일하지 않으면 페이지가 흔들릴 수 있습니다. order_id 같은 보조 정렬키가 필요합니다.",
+      "Oracle에서는 row_number 분석 함수 또는 rownum inline view 패턴을 요구사항에 맞게 선택합니다."
+    ],
+    hints: ["고객 조건을 먼저 둔다.", "order_dt와 order_id를 함께 정렬한다.", "row_number 결과를 바깥에서 필터링한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "DB Call 최소화를 위한 집합 SQL",
+    difficulty: "중간",
+    topic: "데이터베이스 Call 최소화",
+    scenario: "고객을 루프 돌며 주문 합계를 한 명씩 조회하는 N+1 패턴을 집합 기반 SQL 하나로 바꾼다.",
+    prompt:
+      "최근 30일 동안 지역별 고객 주문금액 합계를 한 번에 구하라. 고객별 반복 SELECT가 아니라 GROUP BY 기반 집합 SQL로 작성하라.",
+    expectedSql: `select c.region_cd, c.cust_id, c.cust_name, sum(o.amount) as order_amount
+from customers c
+join orders o on o.cust_id = c.cust_id
+where o.order_dt >= current_date - interval '30 days'
+group by c.region_cd, c.cust_id, c.cust_name
+order by c.region_cd, order_amount desc`,
+    targetPlan: ["single SQL call", "JOIN then GROUP BY", "no row-by-row loop"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "짧은 SQL도 수만 번 호출되면 parse/execute/fetch call이 병목이 됩니다.",
+      "PL/SQL에서는 BULK COLLECT, FORALL도 중요하지만, 가능하면 SQL 한 문장으로 처리하는 것이 먼저입니다."
+    ],
+    hints: ["루프를 SQL로 옮긴다.", "지역/고객 기준 GROUP BY를 작성한다.", "필요한 기간 조건을 SARGable하게 둔다."],
+    rubric: commonRubric
+  },
+  {
+    title: "로깅 최소화 배치의 대상 행 분리",
+    difficulty: "실전",
+    topic: "DML 튜닝 / 로깅 최소화",
+    scenario: "50회 복기형의 nologging + append, 대량 delete 대체 전략을 SELECT 연습으로 바꿔 보존할 행 집합을 만든다.",
+    prompt:
+      "특정 파티션의 95%를 삭제해야 한다면 일반 DELETE보다 보존할 5%만 임시 테이블에 적재한 뒤 교체하는 전략을 고려한다. 보존 대상 행을 SELECT로 작성하라.",
+    expectedSql: `select /*+ full(e) */ e.dt, e.empno, e.deptno, e.job_cd, e.sal
+from emp_part e
+where e.dt >= date '2026-02-01'
+  and e.dt < date '2026-03-01'
+  and e.job_cd <> 'Y'`,
+    targetPlan: ["FULL scan target partition", "keep only survivor rows", "Oracle CTAS/APPEND/EXCHANGE/TRUNCATE strategy"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "Oracle 실제 답안은 임시 테이블 nologging 생성, /*+ append */ direct path insert, 원 파티션 truncate 또는 exchange, 재적재 순서로 설명합니다.",
+      "95% 삭제처럼 변경량이 매우 큰 경우 일반 DELETE는 undo/redo와 lock 부담이 커질 수 있습니다."
+    ],
+    hints: ["삭제할 95%가 아니라 보존할 5%를 생각한다.", "파티션 키 범위를 명확히 둔다.", "Oracle 단계는 해설에 따로 적는다."],
+    rubric: commonRubric
+  },
+  {
+    title: "인덱스 컬럼 순서 재검토용 조건 분해",
+    difficulty: "중간",
+    topic: "인덱스 설계",
+    scenario: "선택도만 보고 인덱스 순서를 정하면 틀리기 쉽다. 등치 조건, 범위 조건, 정렬 조건 순서로 판단한다.",
+    prompt:
+      "orders에서 고객번호 등치, 주문일시 범위, 주문일시 내림차순 정렬이 반복된다. 어떤 컬럼이 선두가 되어야 하는지 드러나도록 SQL을 작성하라.",
+    expectedSql: `select /*+ index(o idx_orders_cust_dt) */ o.order_id, o.order_dt, o.amount
+from orders o
+where o.cust_id = 'C0000000042'
+  and o.order_dt >= date '2026-01-01'
+  and o.order_dt < date '2026-07-01'
+order by o.order_dt desc, o.order_id desc
+limit 30`,
+    targetPlan: ["cust_id equality first", "order_dt range second", "ORDER BY covered by index order"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "복합 인덱스 컬럼 순서는 선택도만이 아니라 등치 조건, 범위 조건, 정렬 생략 가능성을 함께 봅니다.",
+      "SQLP 실기에서는 새 인덱스가 필요하면 정확한 CREATE INDEX 컬럼 순서를 제시해야 할 수 있습니다."
+    ],
+    hints: ["등치 조건을 선두로 생각한다.", "범위 조건 이후 컬럼의 액세스 효과를 구분한다.", "정렬 요구사항까지 함께 본다."],
+    rubric: commonRubric
+  },
+  {
+    title: "현재 상태와 이력 테이블 기간 조인",
+    difficulty: "중간",
+    topic: "기간 조인 / 조인",
+    scenario: "주문 시점에 유효한 상품이력을 찾는 문제다. BETWEEN 형태의 기간 조인과 outer join 보존을 함께 연습한다.",
+    prompt:
+      "주문상품의 주문시점 가격을 product_history에서 찾는다. 시작일 이상, 종료일 미만 기간 조건을 사용하고 이력이 없어도 주문상품 행은 남겨라.",
+    expectedSql: `select /*+ leading(o oi ph) use_nl(oi) use_nl(ph) index(ph idx_product_history_period) */
+  o.order_id,
+  oi.product_id,
+  ph.unit_price
+from orders o
+join order_items oi on oi.order_id = o.order_id
+left join product_history ph
+  on ph.product_id = oi.product_id
+ and o.order_dt >= ph.start_dt
+ and o.order_dt < ph.end_dt
+where o.order_dt >= current_date - interval '14 days'`,
+    targetPlan: ["NESTED LOOPS OUTER", "period index access", "date range predicate"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "기간 조인은 종료일 포함 여부 때문에 중복 매칭이 생기기 쉽습니다. 시작일 이상, 종료일 미만 규칙이 안전합니다.",
+      "기간 인덱스는 product_id와 start_dt/end_dt 조건이 access/filter 중 어디에 쓰이는지 확인해야 합니다."
+    ],
+    hints: ["주문일시를 기준 시점으로 둔다.", "기간 조건은 조인 조건에 둔다.", "이력 미존재 행을 보존하려면 left join을 유지한다."],
+    rubric: commonRubric
+  },
+  {
+    title: "실행계획 문제점 서술형 대비",
+    difficulty: "실전",
+    topic: "실행계획 진단",
+    scenario: "50회처럼 실행계획을 보고 문제점과 개선점을 서술하는 유형에 대비해, SQL에서 어떤 근거를 찾아야 하는지 연습한다.",
+    prompt:
+      "emp_part에서 local index를 사용하지만 전체 파티션을 읽는 계획이 나온다고 가정한다. 파티션 키 조건을 보강한 개선 SQL을 작성하고, 그래도 전체 파티션이면 글로벌 인덱스나 인덱스 재설계를 설명할 수 있어야 한다.",
+    expectedSql: `select /*+ index(e emp_part_x2) */ e.empno, e.deptno, e.job_cd
+from emp_part e
+where e.dt >= date '2026-07-01'
+  and e.dt < date '2026-08-01'
+  and e.job_cd = 'DBA'`,
+    targetPlan: ["PSTART/PSTOP narrowed", "LOCAL INDEX RANGE SCAN", "diagnose PARTITION RANGE ALL if not narrowed"],
+    oracleNotes: [
+      ...commonOracleNotes,
+      "PARTITION RANGE ALL이 보이면 파티션 키 조건 누락, 파티션 키 함수 변형, local index 구조가 현재 SQL에 맞지 않는지 의심합니다.",
+      "서술형 답안은 '문제점 -> 근거 -> 개선안' 순서가 좋습니다. 예: 전체 파티션 탐색 -> PSTART/PSTOP ALL -> 파티션 키 범위 조건 또는 글로벌 인덱스 검토."
+    ],
+    hints: ["PSTART/PSTOP을 줄일 조건을 둔다.", "job_cd 조건만으로는 파티션 pruning이 되지 않는다.", "개선 근거를 실행계획 용어로 설명한다."],
+    rubric: commonRubric
+  }
+];
+
+export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
+  ...lab,
+  id: `lab-${String(index + 1).padStart(2, "0")}`,
+  number: index + 1,
+  schemaSql: sqlpLabSchema,
+  seedSql: sqlpLabSeed
+}));
 
 export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   if (subjectId === "modeling") {

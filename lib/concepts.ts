@@ -1,13 +1,134 @@
-import type { ConceptArticle } from "@/lib/types";
+import type { ConceptArticle, ConceptStudyBlock } from "@/lib/types";
 
 type ConceptSeed = Omit<ConceptArticle, "category" | "title">;
 
 function concept(seed: ConceptSeed): ConceptArticle {
+  const defaultBlocks = buildDefaultStudyBlocks(seed);
+  const studyBlocks = seed.studyBlocks?.length ? completeStudyBlocks(seed.studyBlocks, defaultBlocks) : defaultBlocks;
   return {
     ...seed,
+    studyBlocks,
     category: `${seed.subjectName} > ${seed.majorTopic}`,
     title: seed.detailTopic
   };
+}
+
+function completeStudyBlocks(blocks: ConceptStudyBlock[], defaults: ConceptStudyBlock[]) {
+  const completed = [...blocks];
+  const hasType = (type: ConceptStudyBlock["type"]) => completed.some((block) => block.type === type);
+
+  for (const block of defaults) {
+    if (completed.length >= 4 && hasType("table") && hasType("flow") && hasType("checklist")) break;
+    if (!hasType(block.type)) {
+      completed.push(block);
+    }
+  }
+
+  for (const block of defaults) {
+    if (completed.length >= 4) break;
+    completed.push(block);
+  }
+
+  return completed;
+}
+
+function buildDefaultStudyBlocks(seed: ConceptSeed): ConceptStudyBlock[] {
+  const subjectGuide =
+    seed.subjectId === "modeling"
+      ? {
+          lens: "업무 규칙을 엔터티, 속성, 관계, 식별자, 정규화 수준으로 나누어 읽는다.",
+          firstQuestion: "이 데이터가 업무에서 독립적으로 관리되는 대상인지, 아니면 다른 데이터의 속성/행위인지 먼저 판단한다.",
+          secondQuestion: "식별자와 관계 선택성이 SQL 결과 건수, 조인 방식, NULL 허용 여부에 어떤 영향을 주는지 연결한다.",
+          flow: [
+            "지문에서 업무 명사와 발생 사건을 표시한다.",
+            "엔터티 후보가 식별 가능하고 여러 인스턴스를 가질 수 있는지 확인한다.",
+            "속성이 원자값인지, 반복/다중값인지, 기본/설계/파생 속성인지 분류한다.",
+            "관계의 필수/선택, 1:1/1:M/M:M, 식별/비식별 여부를 판단한다.",
+            "정규화, NULL, 본질식별자와 인조식별자가 SQL 조인과 성능에 미치는 영향을 정리한다."
+          ]
+        }
+      : seed.subjectId === "sql-basic"
+        ? {
+            lens: "SQL 문장을 작성 순서가 아니라 논리 처리 순서와 결과 집합 변화로 읽는다.",
+            firstQuestion: "FROM/JOIN에서 기준 집합이 어떻게 만들어지고 WHERE에서 어떤 행이 제거되는지 먼저 본다.",
+            secondQuestion: "GROUP BY, HAVING, SELECT, ORDER BY, Top-N 단계에서 NULL, 중복, 정렬 요구사항이 어떻게 달라지는지 확인한다.",
+            flow: [
+              "FROM과 JOIN 조건으로 최초 행 집합과 기준 테이블을 정한다.",
+              "WHERE에서 NULL, BETWEEN, IN, LIKE, AND/OR 우선순위가 행 제거에 미치는 영향을 계산한다.",
+              "GROUP BY와 HAVING이 행 단위 조건인지 그룹 단위 조건인지 나눈다.",
+              "SELECT 절 함수, CASE, 집계, DISTINCT가 최종 값과 중복 제거 범위를 어떻게 바꾸는지 본다.",
+              "ORDER BY, 윈도우 함수, Top-N, 집합연산자가 정렬과 결과 건수에 미치는 영향을 마지막에 확인한다."
+            ]
+          }
+        : {
+            lens: "실행계획 이름만 외우지 말고 결과 보존, 접근 경로, 반복 횟수, I/O 비용, 힌트 의도를 순서대로 읽는다.",
+            firstQuestion: "SQL을 바꾸더라도 요구 결과가 변하지 않는지 먼저 확인한다.",
+            secondQuestion: "그 다음 Access Predicate와 Filter Predicate, 조인 순서, 조인 방식, 정렬/TEMP, Call 횟수를 근거로 튜닝 방향을 정한다.",
+            flow: [
+              "요구 결과와 보존해야 할 행을 먼저 적는다.",
+              "선행 집합을 줄일 수 있는 조건과 인덱스 선두 컬럼을 찾는다.",
+              "인덱스 스캔 후 테이블 랜덤 액세스가 얼마나 반복되는지 본다.",
+              "NL, 소트 머지, 해시 조인의 입력 크기와 메모리/TEMP 비용을 비교한다.",
+              "힌트, 인덱스 설계, 쿼리 변환 제어가 목표 실행계획과 결과 정확성을 동시에 만족하는지 검증한다."
+            ]
+          };
+
+  const pointRows = seed.keyPoints.slice(0, 6).map((point, index) => [
+    `포인트 ${index + 1}`,
+    point,
+    index === 0
+      ? "정의형 보기로 나오기도 하지만, 대부분은 작은 사례나 SQL 결과 예측과 함께 물어본다."
+      : index === 1
+        ? "비슷한 용어를 섞어 출제하므로 반대 개념과 예외 조건을 같이 외운다."
+        : "표, SQL, 실행계획이 함께 나오면 문장 암기보다 조건 적용 후 결과가 어떻게 달라지는지 따라간다."
+  ]);
+
+  return [
+    {
+      type: "section",
+      title: "시험에서 보는 범위",
+      paragraphs: [
+        `${seed.detailTopic}은 ${seed.majorTopic} 안에서 반복 출제되는 항목이다. ${subjectGuide.lens}`,
+        seed.summary,
+        `${subjectGuide.firstQuestion} ${subjectGuide.secondQuestion}`
+      ]
+    },
+    {
+      type: "table",
+      title: "개념 지도",
+      headers: ["구분", "공부할 내용", "문제에서 확인할 것"],
+      rows: [
+        ["정의", seed.summary, "단어 하나를 맞히는 문제보다 정의를 사례에 적용하는 문제가 많다."],
+        ["기준", subjectGuide.firstQuestion, "보기의 표현이 기준을 뒤집거나 과장하는지 확인한다."],
+        ["연결", subjectGuide.secondQuestion, "모델링, SQL 결과, 실행계획 중 어디와 연결되는지 표시한다."],
+        ["함정", seed.examTrap, "부적절한 것, 틀린 것, 항상/무조건 표현을 먼저 의심한다."],
+        ["Oracle/실무", seed.oracleAngle ?? "SQLP는 Oracle 기준의 결과 해석과 튜닝 관점을 함께 묻는다.", "객관식에서도 실제 실행 결과와 성능 근거를 같이 판단한다."]
+      ]
+    },
+    {
+      type: "table",
+      title: "세부 포인트",
+      headers: ["번호", "반드시 알아야 할 내용", "기출형 변형"],
+      rows: pointRows
+    },
+    {
+      type: "flow",
+      title: "지문/SQL 판정 순서",
+      steps: subjectGuide.flow
+    },
+    {
+      type: "checklist",
+      title: "마지막 체크",
+      items: [
+        `${seed.detailTopic}의 정의, 반대 개념, 예외 조건을 한 번에 말할 수 있어야 한다.`,
+        "문제에서 '옳은 것', '부적절한 것', '결과가 같은 것', '성능상 유리한 것' 중 무엇을 묻는지 먼저 표시한다.",
+        "표나 SQL이 있으면 머릿속으로만 풀지 말고 행 수, NULL, 중복, 조인 보존 여부를 단계별로 따라간다.",
+        "실행계획이 있으면 access/filter predicate, row source 반복 횟수, 정렬/TEMP, 조인 순서를 분리해서 본다.",
+        "정답을 고른 뒤에도 왜 나머지 보기가 틀렸는지 한 문장으로 설명할 수 있어야 한다.",
+        seed.examTrap
+      ]
+    }
+  ];
 }
 
 const modelingSubject = "1과목 데이터 모델링의 이해";

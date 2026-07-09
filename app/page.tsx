@@ -198,6 +198,7 @@ export default function Home() {
   const [personalNotes, setPersonalNotes] = usePersistentState<PersonalNote[]>("sqlmate.personalNotes", emptyState.personalNotes);
   const [extraQuestions, setExtraQuestions] = usePersistentState<ObjectiveQuestion[]>("sqlmate.extraQuestions", emptyState.extraQuestions);
   const [selectedConceptId, setSelectedConceptId] = useState(conceptArticles[0]?.id ?? "");
+  const [selectedPersonalNoteId, setSelectedPersonalNoteId] = useState("");
   const [activeConceptSubject, setActiveConceptSubject] = useState<SubjectId>("modeling");
   const [activeConceptMajor, setActiveConceptMajor] = useState(
     conceptArticles.find((concept) => concept.subjectId === "modeling")?.majorTopic ?? ""
@@ -254,6 +255,7 @@ export default function Home() {
     [conceptSubjectArticles, resolvedConceptMajor]
   );
   const selectedConcept = visibleConceptArticles.find((concept) => concept.id === selectedConceptId) ?? visibleConceptArticles[0];
+  const selectedPersonalNote = personalNotes.find((note) => note.id === selectedPersonalNoteId) ?? personalNotes[0];
   const activeLab = labQuestions[activeLabIndex];
 
   const completed = Object.keys(answers).length;
@@ -540,14 +542,16 @@ export default function Home() {
   }
 
   function addPersonalNote() {
+    const id = `note-${Date.now()}`;
     const note: PersonalNote = {
-      id: `note-${Date.now()}`,
+      id,
       title: "새 개인 노트",
       body: "헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 정리하세요.",
       tags: "SQLP",
       updatedAt: nowIso()
     };
     setPersonalNotes((prev) => [note, ...prev]);
+    setSelectedPersonalNoteId(id);
   }
 
   function updatePersonalNote(noteId: string, patch: Partial<PersonalNote>) {
@@ -558,6 +562,7 @@ export default function Home() {
 
   function deletePersonalNote(noteId: string) {
     setPersonalNotes((prev) => prev.filter((note) => note.id !== noteId));
+    setSelectedPersonalNoteId((current) => (current === noteId ? "" : current));
   }
 
   function addTodo(event: FormEvent<HTMLFormElement>) {
@@ -984,12 +989,25 @@ export default function Home() {
               <p className="lead">{activeLab.scenario}</p>
 
               <div className="split-panels">
-                <div className="code-panel">
-                  <h3>스키마</h3>
+                <div className="code-panel schema-panel">
+                  <div className="code-panel-heading">
+                    <h3>스키마/인덱스</h3>
+                    <span>공통 실습 모델</span>
+                  </div>
                   <pre>{activeLab.schemaSql}</pre>
                 </div>
-                <div className="code-panel">
-                  <h3>목표 실행계획</h3>
+                <div className="code-panel schema-panel compact">
+                  <div className="code-panel-heading">
+                    <h3>작성 규칙</h3>
+                    <span>PostgreSQL 실행 + Oracle 해설</span>
+                  </div>
+                  <pre>{activeLab.seedSql}</pre>
+                </div>
+                <div className="code-panel plan-target-panel">
+                  <div className="code-panel-heading">
+                    <h3>목표 실행계획</h3>
+                    <span>답안에서 드러나야 할 의도</span>
+                  </div>
                   <ul>
                     {activeLab.targetPlan.map((item) => (
                       <li key={item}>{item}</li>
@@ -1270,38 +1288,55 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="notes-grid">
-              {personalNotes.map((note) => (
-                <article className="note-card" key={note.id}>
+            {personalNotes.length === 0 && <p className="empty">개인 노트를 만들면 로컬에 즉시 저장되고, 로그인 후에는 Supabase에 동기화됩니다.</p>}
+
+            {personalNotes.length > 0 && selectedPersonalNote && (
+              <div className="notes-workspace">
+                <aside className="note-list">
+                  {personalNotes.map((note) => (
+                    <button
+                      className={note.id === selectedPersonalNote.id ? "note-list-item active" : "note-list-item"}
+                      key={note.id}
+                      onClick={() => setSelectedPersonalNoteId(note.id)}
+                    >
+                      <strong>{note.title || "제목 없는 노트"}</strong>
+                      <span>{note.body || "내용 없음"}</span>
+                      <small>
+                        {note.tags || "태그 없음"} · {formatDateTime(note.updatedAt)}
+                      </small>
+                    </button>
+                  ))}
+                </aside>
+
+                <article className="note-editor-panel">
                   <div className="note-card-head">
                     <input
                       aria-label="노트 제목"
-                      value={note.title}
-                      onChange={(event) => updatePersonalNote(note.id, { title: event.target.value })}
+                      value={selectedPersonalNote.title}
+                      onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { title: event.target.value })}
                       placeholder="노트 제목"
                     />
-                    <button className="ghost-button icon-only" aria-label="노트 삭제" onClick={() => deletePersonalNote(note.id)}>
+                    <button className="ghost-button icon-only" aria-label="노트 삭제" onClick={() => deletePersonalNote(selectedPersonalNote.id)}>
                       <Trash2 size={16} />
                     </button>
                   </div>
                   <textarea
-                    value={note.body}
-                    onChange={(event) => updatePersonalNote(note.id, { body: event.target.value })}
+                    value={selectedPersonalNote.body}
+                    onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { body: event.target.value })}
                     placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
                   />
                   <div className="note-footer">
                     <input
                       aria-label="노트 태그"
-                      value={note.tags}
-                      onChange={(event) => updatePersonalNote(note.id, { tags: event.target.value })}
+                      value={selectedPersonalNote.tags}
+                      onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { tags: event.target.value })}
                       placeholder="태그"
                     />
-                    <span>{formatDateTime(note.updatedAt)}</span>
+                    <span>{formatDateTime(selectedPersonalNote.updatedAt)}</span>
                   </div>
                 </article>
-              ))}
-              {personalNotes.length === 0 && <p className="empty">개인 노트를 만들면 로컬에 즉시 저장되고, 로그인 후에는 Supabase에 동기화됩니다.</p>}
-            </div>
+              </div>
+            )}
           </section>
         )}
       </section>
