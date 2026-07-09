@@ -72,7 +72,44 @@ describe("SQLP problem bank", () => {
   });
 
   it("offers concept articles beyond the dashboard summary cards", () => {
-    expect(conceptArticles.length).toBeGreaterThanOrEqual(75);
+    expect(conceptArticles.length).toBeGreaterThanOrEqual(57);
+  });
+
+  it("organizes concept articles by the official SQLP subject hierarchy", () => {
+    expect(new Set(conceptArticles.map((concept) => concept.subjectId))).toEqual(new Set(["modeling", "sql-basic", "tuning"]));
+    expect(conceptArticles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subjectId: "modeling",
+          majorTopic: "데이터 모델링의 이해",
+          detailTopic: "엔터티"
+        }),
+        expect.objectContaining({
+          subjectId: "sql-basic",
+          majorTopic: "SQL 활용",
+          detailTopic: "윈도우 함수"
+        }),
+        expect.objectContaining({
+          subjectId: "tuning",
+          majorTopic: "인덱스 튜닝",
+          detailTopic: "인덱스 스캔 효율화"
+        }),
+        expect.objectContaining({
+          subjectId: "tuning",
+          majorTopic: "Lock과 트랜잭션 동시성 제어",
+          detailTopic: "동시성 제어"
+        })
+      ])
+    );
+  });
+
+  it("keeps concept bullets exam-focused without generic prompt labels", () => {
+    for (const concept of conceptArticles) {
+      expect(concept.summary.length).toBeGreaterThan(40);
+      expect(concept.keyPoints.length).toBeGreaterThanOrEqual(5);
+      expect(concept.examTrap.length).toBeGreaterThan(25);
+      expect(concept.keyPoints.some((point) => /^(핵심 정의|지문 읽기|판단 순서|SQL 연결):/.test(point))).toBe(false);
+    }
   });
 
   it("provides study-ready hints, explanations, and choice feedback", () => {

@@ -1879,6 +1879,10 @@ const modeling: SubjectConfig<ModelSpec> = {
   drafts: modelDrafts,
   article: (spec) => ({
     id: `concept-modeling-${spec.topic.replace(/\s+/g, "-")}`,
+    subjectId: "modeling",
+    subjectName: "1과목 데이터 모델링의 이해",
+    majorTopic: spec.topic,
+    detailTopic: spec.topic,
     category: `1과목 데이터 모델링 > ${spec.topic}`,
     title: spec.topic,
     summary: spec.scenario,
@@ -1896,6 +1900,10 @@ const sqlBasic: SubjectConfig<SqlSpec> = {
   drafts: sqlDrafts,
   article: (spec) => ({
     id: `concept-sql-${spec.topic.replace(/\s+/g, "-")}`,
+    subjectId: "sql-basic",
+    subjectName: "2과목 SQL 기본 및 활용",
+    majorTopic: spec.topic,
+    detailTopic: spec.topic,
     category: `2과목 SQL 기본 및 활용 > ${spec.topic}`,
     title: spec.topic,
     summary: spec.scenario,
@@ -1912,6 +1920,10 @@ const tuning: SubjectConfig<TuningSpec> = {
   drafts: tuningDrafts,
   article: (spec) => ({
     id: `concept-tuning-${spec.topic.replace(/\s+/g, "-")}`,
+    subjectId: "tuning",
+    subjectName: "3과목 SQL 고급활용 및 튜닝",
+    majorTopic: spec.topic,
+    detailTopic: spec.topic,
     category: `3과목 SQL 고급활용 및 튜닝 > ${spec.topic}`,
     title: spec.topic,
     summary: spec.scenario,
@@ -1931,11 +1943,7 @@ export const objectiveQuestions: ObjectiveQuestion[] = [
   ...buildSubject(tuning, 100)
 ];
 
-export const conceptArticles: ConceptArticle[] = [
-  ...modeling.specs.map((spec, index) => modeling.article(spec, index)),
-  ...sqlBasic.specs.map((spec, index) => sqlBasic.article(spec, index)),
-  ...tuning.specs.map((spec, index) => tuning.article(spec, index))
-];
+export { conceptArticles } from "./concepts";
 
 const commonSchema = `customers(cust_id, cust_name, grade_cd, region_cd, created_at)
 orders(order_id, cust_id, order_dt, status_cd, channel_cd, amount)

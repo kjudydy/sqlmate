@@ -49,6 +49,10 @@ export type LabQuestion = {
 
 export type ConceptArticle = {
   id: string;
+  subjectId: SubjectId;
+  subjectName: string;
+  majorTopic: string;
+  detailTopic: string;
   category: string;
   title: string;
   summary: string;

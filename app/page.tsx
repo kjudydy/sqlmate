@@ -198,6 +198,10 @@ export default function Home() {
   const [personalNotes, setPersonalNotes] = usePersistentState<PersonalNote[]>("sqlmate.personalNotes", emptyState.personalNotes);
   const [extraQuestions, setExtraQuestions] = usePersistentState<ObjectiveQuestion[]>("sqlmate.extraQuestions", emptyState.extraQuestions);
   const [selectedConceptId, setSelectedConceptId] = useState(conceptArticles[0]?.id ?? "");
+  const [activeConceptSubject, setActiveConceptSubject] = useState<SubjectId>("modeling");
+  const [activeConceptMajor, setActiveConceptMajor] = useState(
+    conceptArticles.find((concept) => concept.subjectId === "modeling")?.majorTopic ?? ""
+  );
   const [activeLabIndex, setActiveLabIndex] = useState(0);
   const [labSql, setLabSql] = useState("");
   const [labResult, setLabResult] = useState<ReturnType<typeof gradeSqlSubmission> | null>(null);
@@ -224,7 +228,32 @@ export default function Home() {
   );
   const currentQuestion = subjectQuestions[clampIndex(questionIndex, subjectQuestions.length)];
   const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
-  const selectedConcept = conceptArticles.find((concept) => concept.id === selectedConceptId) ?? conceptArticles[0];
+  const conceptSubjectTabs = useMemo(
+    () =>
+      [
+        { id: "modeling" as SubjectId, label: "1과목", title: "데이터 모델링" },
+        { id: "sql-basic" as SubjectId, label: "2과목", title: "SQL 기본/활용" },
+        { id: "tuning" as SubjectId, label: "3과목", title: "튜닝" }
+      ].map((subject) => ({
+        ...subject,
+        count: conceptArticles.filter((concept) => concept.subjectId === subject.id).length
+      })),
+    []
+  );
+  const conceptSubjectArticles = useMemo(
+    () => conceptArticles.filter((concept) => concept.subjectId === activeConceptSubject),
+    [activeConceptSubject]
+  );
+  const conceptMajorTopics = useMemo(
+    () => Array.from(new Set(conceptSubjectArticles.map((concept) => concept.majorTopic))),
+    [conceptSubjectArticles]
+  );
+  const resolvedConceptMajor = conceptMajorTopics.includes(activeConceptMajor) ? activeConceptMajor : (conceptMajorTopics[0] ?? "");
+  const visibleConceptArticles = useMemo(
+    () => conceptSubjectArticles.filter((concept) => concept.majorTopic === resolvedConceptMajor),
+    [conceptSubjectArticles, resolvedConceptMajor]
+  );
+  const selectedConcept = visibleConceptArticles.find((concept) => concept.id === selectedConceptId) ?? visibleConceptArticles[0];
   const activeLab = labQuestions[activeLabIndex];
 
   const completed = Object.keys(answers).length;
@@ -493,6 +522,21 @@ export default function Home() {
         updatedAt: nowIso()
       }
     }));
+  }
+
+  function selectConceptSubject(subjectId: SubjectId) {
+    const firstConcept = conceptArticles.find((concept) => concept.subjectId === subjectId);
+    setActiveConceptSubject(subjectId);
+    setActiveConceptMajor(firstConcept?.majorTopic ?? "");
+    setSelectedConceptId(firstConcept?.id ?? "");
+  }
+
+  function selectConceptMajor(majorTopic: string) {
+    const firstConcept = conceptArticles.find(
+      (concept) => concept.subjectId === activeConceptSubject && concept.majorTopic === majorTopic
+    );
+    setActiveConceptMajor(majorTopic);
+    setSelectedConceptId(firstConcept?.id ?? "");
   }
 
   function addPersonalNote() {
@@ -1055,15 +1099,48 @@ export default function Home() {
 
         {section === "concepts" && selectedConcept && (
           <div className="concept-layout">
-            <section className="subject-panel">
-              {conceptArticles.map((concept) => (
+            <section className="concept-toc">
+              <div className="concept-subject-tabs">
+                {conceptSubjectTabs.map((subject) => (
+                  <button
+                    key={subject.id}
+                    className={subject.id === activeConceptSubject ? "concept-subject active" : "concept-subject"}
+                    onClick={() => selectConceptSubject(subject.id)}
+                  >
+                    <span>{subject.label}</span>
+                    <strong>{subject.title}</strong>
+                    <small>{subject.count}개 세부항목</small>
+                  </button>
+                ))}
+              </div>
+
+              <div className="concept-major-list">
+                <p className="eyebrow">주요항목</p>
+                {conceptMajorTopics.map((majorTopic) => (
+                  <button
+                    key={majorTopic}
+                    className={majorTopic === resolvedConceptMajor ? "major-topic active" : "major-topic"}
+                    onClick={() => selectConceptMajor(majorTopic)}
+                  >
+                    {majorTopic}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="concept-detail-list">
+              <div className="panel-mini-heading">
+                <p className="eyebrow">세부항목</p>
+                <strong>{resolvedConceptMajor}</strong>
+              </div>
+              {visibleConceptArticles.map((concept) => (
                 <button
                   key={concept.id}
-                  className={concept.id === selectedConcept.id ? "subject-tab active" : "subject-tab"}
+                  className={concept.id === selectedConcept.id ? "concept-detail active" : "concept-detail"}
                   onClick={() => setSelectedConceptId(concept.id)}
                 >
-                  {concept.category}
                   <strong>{concept.title}</strong>
+                  <span>{concept.summary}</span>
                 </button>
               ))}
             </section>
@@ -1071,7 +1148,9 @@ export default function Home() {
             <section className={conceptMarks[selectedConcept.id]?.highlighted ? "concept-article highlighted" : "concept-article"}>
               <div className="panel-heading">
                 <div>
-                  <p className="eyebrow">{selectedConcept.category}</p>
+                  <p className="eyebrow">
+                    {selectedConcept.subjectName} / {selectedConcept.majorTopic}
+                  </p>
                   <h2>{selectedConcept.title}</h2>
                 </div>
                 <button
@@ -1087,6 +1166,7 @@ export default function Home() {
                 </button>
               </div>
               <p className="lead">{selectedConcept.summary}</p>
+              <h3>시험에 자주 나오는 핵심</h3>
               <ul className="concept-points">
                 {selectedConcept.keyPoints.map((point) => (
                   <li key={point}>{point}</li>
