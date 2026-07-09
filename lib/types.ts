@@ -47,6 +47,29 @@ export type LabQuestion = {
   rubric: string[];
 };
 
+export type ConceptStudyBlock =
+  | {
+      type: "section";
+      title: string;
+      paragraphs: string[];
+    }
+  | {
+      type: "table";
+      title: string;
+      headers: string[];
+      rows: string[][];
+    }
+  | {
+      type: "flow";
+      title: string;
+      steps: string[];
+    }
+  | {
+      type: "checklist";
+      title: string;
+      items: string[];
+    };
+
 export type ConceptArticle = {
   id: string;
   subjectId: SubjectId;
@@ -56,6 +79,7 @@ export type ConceptArticle = {
   category: string;
   title: string;
   summary: string;
+  studyBlocks?: ConceptStudyBlock[];
   keyPoints: string[];
   examTrap: string;
   oracleAngle?: string;

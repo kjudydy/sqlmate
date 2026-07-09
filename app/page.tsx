@@ -1166,6 +1166,73 @@ export default function Home() {
                 </button>
               </div>
               <p className="lead">{selectedConcept.summary}</p>
+              {selectedConcept.studyBlocks?.map((block, blockIndex) => {
+                if (block.type === "table") {
+                  return (
+                    <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
+                      <h3>{block.title}</h3>
+                      <div className="concept-table-wrap">
+                        <table className="concept-table">
+                          <thead>
+                            <tr>
+                              {block.headers.map((header) => (
+                                <th key={header}>{header}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {block.rows.map((row, rowIndex) => (
+                              <tr key={`${block.title}-${rowIndex}`}>
+                                {row.map((cell, cellIndex) => (
+                                  <td key={`${block.title}-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (block.type === "flow") {
+                  return (
+                    <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
+                      <h3>{block.title}</h3>
+                      <ol className="concept-flow">
+                        {block.steps.map((step, stepIndex) => (
+                          <li key={`${block.title}-${stepIndex}`}>
+                            <span>{stepIndex + 1}</span>
+                            <p>{step}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  );
+                }
+
+                if (block.type === "checklist") {
+                  return (
+                    <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
+                      <h3>{block.title}</h3>
+                      <ul className="concept-checklist">
+                        {block.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
+                    <h3>{block.title}</h3>
+                    {block.paragraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                  </div>
+                );
+              })}
               <h3>시험에 자주 나오는 핵심</h3>
               <ul className="concept-points">
                 {selectedConcept.keyPoints.map((point) => (

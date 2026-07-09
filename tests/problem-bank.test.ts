@@ -112,6 +112,24 @@ describe("SQLP problem bank", () => {
     }
   });
 
+  it("adds rich study blocks for broad guide chapters", () => {
+    const dataModeling = conceptArticles.find((concept) => concept.id === "modeling-data-model");
+    expect(dataModeling?.studyBlocks?.length).toBeGreaterThanOrEqual(7);
+    expect(dataModeling?.studyBlocks?.some((block) => block.type === "table")).toBe(true);
+    expect(dataModeling?.studyBlocks?.some((block) => block.type === "flow")).toBe(true);
+    expect(JSON.stringify(dataModeling?.studyBlocks)).toContain("데이터베이스 3단계 구조");
+    expect(JSON.stringify(dataModeling?.studyBlocks)).toContain("논리적 독립성");
+    expect(JSON.stringify(dataModeling?.studyBlocks)).toContain("좋은 데이터 모델");
+  });
+
+  it("keeps the first modeling chapter detailed enough for guide-based study", () => {
+    for (const conceptId of ["modeling-data-model", "modeling-entity", "modeling-attribute", "modeling-relationship", "modeling-identifier"]) {
+      const concept = conceptArticles.find((article) => article.id === conceptId);
+      expect(concept?.studyBlocks?.length).toBeGreaterThanOrEqual(3);
+      expect(concept?.studyBlocks?.some((block) => block.type === "table")).toBe(true);
+    }
+  });
+
   it("provides study-ready hints, explanations, and choice feedback", () => {
     for (const question of objectiveQuestions) {
       expect(question.hint).toContain("출제 포인트");
