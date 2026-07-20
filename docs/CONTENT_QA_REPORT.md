@@ -49,3 +49,17 @@ This QA report applies to the restored UI branch based on `e32814c`.
 | Curriculum document created | PASS | See `docs/CONCEPT_CURRICULUM.md`. |
 | Full SQLP coverage | REVIEW REQUIRED | The curriculum is mapped; individual concept depth should continue improving without changing IA. |
 
+## 2026-07-20 Content Quality Pass
+
+| Item | Result | Notes |
+| --- | --- | --- |
+| Preserve restored UI | PASS | Changes are limited to problem-solving internals, concept content, and SQL practice internals. Sidebar, dashboard, note flow, and menu hierarchy were not redesigned. |
+| Reference access recorded | PASS | See `docs/REFERENCE_SITE_ANALYSIS.md`. Inaccessible Notion/Naver links are marked as inaccessible, not used as if read. |
+| First 10 questions per subject remain objective | PASS | Added a reviewed 30-question seed set. Every seed question uses 4 click choices and no 필기 SQL textarea/input answer. |
+| Choice-specific explanations | PASS | Reviewed seed questions include per-choice explanations instead of relying only on generic generated wrong-answer text. |
+| Related concept links | PASS | Reviewed seed questions link to concept IDs where the corresponding concept exists. |
+| SQL writing isolated to lab | PASS | No new 필기 SQL input was added. SQL 작성 remains in SQL 실습 only. |
+| Concept page depth | PASS | Strengthened `WHERE 절`, `인덱스 스캔 효율화`, `SQL 트레이스`, and `쿼리 변환` with textbook-style sections and comparison tables. |
+| SQL lab hint visibility | PASS | Existing lab hints are now visible in the SQL practice detail screen as 단계별 힌트. |
+| Exact-copy risk | PASS | New content is original. Reference sources were used for topic/trap/flow analysis only. |
+| Actual Oracle execution | REVIEW REQUIRED | Still no actual Oracle sandbox. Oracle plans and Trace are educational examples/simulations, not executed Oracle results. |

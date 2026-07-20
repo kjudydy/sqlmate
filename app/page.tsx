@@ -729,6 +729,17 @@ export default function Home() {
     setConceptNavCollapsed(false);
   }
 
+  function openRelatedConcept(conceptId: string) {
+    const concept = conceptArticles.find((article) => article.id === conceptId);
+    if (!concept) return;
+
+    setSection("concepts");
+    setActiveConceptSubject(concept.subjectId);
+    setActiveConceptMajor(concept.majorTopic);
+    setSelectedConceptId(concept.id);
+    setConceptNavCollapsed(true);
+  }
+
   function addPersonalNote() {
     const id = `note-${Date.now()}`;
     const note: PersonalNote = {
@@ -1127,6 +1138,12 @@ export default function Home() {
                       </p>
                     ))}
                   </div>
+                  {currentQuestion.relatedConceptId && (
+                    <button className="ghost-button" onClick={() => openRelatedConcept(currentQuestion.relatedConceptId!)}>
+                      <BookOpen size={17} />
+                      관련 개념정리 보기
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1249,6 +1266,18 @@ export default function Home() {
               <div className="prompt-box">
                 <strong>문제</strong>
                 <p>{activeLab.prompt}</p>
+              </div>
+
+              <div className="hint-box lab-hint-box">
+                <Lightbulb size={18} />
+                <div>
+                  <strong>단계별 힌트</strong>
+                  <ol>
+                    {activeLab.hints.map((hint) => (
+                      <li key={hint}>{hint}</li>
+                    ))}
+                  </ol>
+                </div>
               </div>
 
               <textarea

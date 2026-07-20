@@ -25,6 +25,7 @@ export type ObjectiveQuestion = {
   };
   choices: Choice[];
   answer: ChoiceId;
+  relatedConceptId?: string;
   hint: string;
   explanation: string;
   whyWrong: Record<ChoiceId, string>;

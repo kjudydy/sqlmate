@@ -62,3 +62,11 @@
 
 The PDF is user-provided study material. SQLMate should not paste full original text or screenshots into the app. It should convert the observed patterns into original explanations, original objective questions, and original practice scenarios.
 
+## 2026-07-20 Reference Pass
+
+- `https://yunamom.tistory.com/394` was accessible and used to analyze one-question reconstruction flow, SQL result inference, NULL/date/string traps, and choice-based explanation style.
+- `https://sqldyangpa.com/` was accessible and used to analyze focused practice flow, subject navigation, repeated quiz UX, and immediate-solving patterns.
+- `https://velog.io/@yooha9621/series/SQLP%ED%95%84%EA%B8%B0%EC%97%B0%EC%8A%B5` was accessible and used to cross-check 3과목 coverage such as index tuning, join tuning, optimizer, SQL analysis, advanced tuning, lock, and transaction.
+- The user-provided Notion link was not accessible in this run. No Notion-only content is claimed as read.
+- The Naver blog direct page was not accessible in this run. No Naver-only content is claimed as read.
+- New reviewed seed questions are original SQLMate content and do not copy source problems, answer text, or tables.

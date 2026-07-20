@@ -645,6 +645,49 @@ const conceptSeeds: ConceptSeed[] = [
     detailTopic: "WHERE 절",
     summary:
       "WHERE 절은 행을 필터링한다. 비교, BETWEEN, IN, LIKE, IS NULL, 논리 연산자 우선순위와 NULL의 3값 논리가 핵심이다.",
+    studyBlocks: [
+      {
+        type: "section",
+        title: "WHERE 절을 읽는 순서",
+        paragraphs: [
+          "WHERE 절은 SQL 결과를 가장 먼저 크게 바꾸는 조건 영역이다. 시험에서는 조건 자체가 어렵다기보다 NULL, AND/OR 우선순위, OUTER JOIN 후행 테이블 조건, NOT IN 서브쿼리 NULL처럼 행이 사라지는 이유를 묻는다.",
+          "문제를 풀 때는 각 행에 대해 조건을 TRUE, FALSE, UNKNOWN으로 표시한다. WHERE는 TRUE만 통과시키므로 UNKNOWN은 FALSE처럼 제거된다는 점을 반드시 기억한다.",
+          "튜닝 문제에서는 WHERE 조건이 인덱스 access predicate가 되는지, 읽은 뒤 filter predicate가 되는지도 함께 본다. 같은 조건이라도 컬럼을 함수로 감싸면 결과는 같아도 access 효율이 달라질 수 있다."
+        ]
+      },
+      {
+        type: "table",
+        title: "WHERE 절 단권화 풀이 공식",
+        headers: ["확인 순서", "판단 기준", "대표 함정"],
+        rows: [
+          ["1. NULL 여부", "= NULL, <> NULL, NOT IN 서브쿼리 NULL, NVL/COALESCE 사용 여부를 먼저 본다.", "NULL은 값이 아니라 UNKNOWN을 만들 수 있다."],
+          ["2. 괄호와 우선순위", "AND가 OR보다 먼저 평가되므로 괄호 없는 조건은 실제 묶임을 다시 쓴다.", "A OR B AND C는 (A OR B) AND C가 아니다."],
+          ["3. 행 조건과 그룹 조건", "WHERE는 그룹화 전 행을 줄이고 HAVING은 그룹화 후 그룹을 줄인다.", "WHERE AVG(...) 같은 선택지는 제거한다."],
+          ["4. 인덱스 관점", "컬럼 자체 비교인지, 함수/연산/부정으로 변형했는지 확인한다.", "TO_CHAR(date_col) 조건은 결과는 맞아도 일반 인덱스 access가 어려울 수 있다."]
+        ]
+      },
+      {
+        type: "table",
+        title: "NULL 조건 비교표",
+        headers: ["조건", "NULL 행 평가", "시험 포인트"],
+        rows: [
+          ["col = 'A'", "UNKNOWN", "NULL은 어떤 값과도 같다고 판정되지 않는다."],
+          ["col <> 'A'", "UNKNOWN", "'A가 아니니까 NULL도 통과'가 아니다."],
+          ["col IS NULL", "TRUE", "NULL 판정은 IS NULL/IS NOT NULL을 사용한다."],
+          ["col NOT IN (1, 2, NULL)", "UNKNOWN 가능", "목록 또는 서브쿼리에 NULL이 섞이면 결과가 비어 보일 수 있다."]
+        ]
+      },
+      {
+        type: "checklist",
+        title: "기출형 체크",
+        items: [
+          "각 조건을 행별 TRUE/FALSE/UNKNOWN으로 표시할 수 있다.",
+          "NOT IN과 NOT EXISTS의 NULL 처리 차이를 설명할 수 있다.",
+          "OUTER JOIN 후행 테이블 조건을 WHERE에 두었을 때 보존 행이 사라지는 이유를 설명할 수 있다.",
+          "날짜 월 조건을 반개구간으로 바꾸는 이유를 결과 정확성과 인덱스 효율 양쪽에서 설명할 수 있다."
+        ]
+      }
+    ],
     keyPoints: [
       "AND가 OR보다 우선순위가 높으므로 복합 조건은 괄호로 의도를 명확히 한다.",
       "BETWEEN은 양 끝 값을 포함하고, NOT BETWEEN은 범위 밖을 의미한다.",
@@ -1065,6 +1108,49 @@ const conceptSeeds: ConceptSeed[] = [
     detailTopic: "SQL 트레이스",
     summary:
       "SQL 트레이스는 실제 수행 시간, 대기 이벤트, 파싱/실행/페치 통계를 확인하는 도구다. 실행계획보다 더 현실적인 병목 분석 근거를 제공한다.",
+    studyBlocks: [
+      {
+        type: "section",
+        title: "Trace를 보는 이유",
+        paragraphs: [
+          "예상 실행계획은 옵티마이저의 예측이고, SQL Trace/TKPROF는 실제 수행 중 어느 call에서 CPU, elapsed time, logical read, physical read가 발생했는지 보여준다. SQLP 실습형에서는 실행계획 모양만 보고 답하지 말고 실제 통계와 함께 병목을 말해야 한다.",
+          "TKPROF의 call 표는 Parse, Execute, Fetch로 나뉜다. SELECT는 Fetch 단계에 읽기 비용이 몰리는 경우가 많고, DML은 Execute 단계가 커질 수 있다. parse count가 작다고 전체 SQL이 빠르다는 뜻은 아니다.",
+          "query는 consistent get, current는 current get, disk는 physical read로 이해한다. rows 대비 query가 과도하면 인덱스 스캔 효율, 조인 반복, 테이블 랜덤 액세스, fetch call 크기를 의심한다."
+        ]
+      },
+      {
+        type: "table",
+        title: "SQL 트레이스 단권화 풀이 공식",
+        headers: ["항목", "읽는 법", "오답 함정"],
+        rows: [
+          ["Parse", "하드/소프트 파싱, 라이브러리 캐시 탐색, 권한 체크 비용", "Parse가 1이면 병목이 없다는 뜻이 아니다."],
+          ["Execute", "DML 수행, 바인드 실행, 일부 SELECT의 실행 단계 비용", "SELECT라고 Execute가 항상 0은 아니다."],
+          ["Fetch", "SELECT 결과 반환과 row source 읽기 비용", "fetch count가 크면 DB call/네트워크 왕복도 같이 본다."],
+          ["query/current/disk", "logical read, current read, physical read 근거", "elapsed만 보고 I/O 병목을 단정하지 않는다."]
+        ]
+      },
+      {
+        type: "table",
+        title: "Trace 수치 해석 예",
+        headers: ["패턴", "가능한 원인", "확인할 계획"],
+        rows: [
+          ["rows는 적은데 query가 매우 큼", "많이 읽고 테이블에서 대부분 버림", "INDEX RANGE SCAN Rows와 TABLE ACCESS Buffers"],
+          ["fetch count가 rows와 비슷하게 큼", "배열 fetch 크기 작음 또는 한 건씩 반복", "애플리케이션 fetch size, DB Call 최소화"],
+          ["disk가 높고 query도 높음", "버퍼 캐시 미적중 또는 대량 읽기", "Full Scan, 파티션 pruning, TEMP spill"],
+          ["execute count가 매우 큼", "루프 안 반복 SQL 또는 row-by-row DML", "집합 처리, bulk bind, MERGE/CTAS 대안"]
+        ]
+      },
+      {
+        type: "checklist",
+        title: "실전 해설에 반드시 쓸 말",
+        items: [
+          "어느 call(Parse/Execute/Fetch)에 시간이 몰렸는지 먼저 적는다.",
+          "Rows 대비 CR/query, PR/disk, Starts/Loop가 과한 지점을 병목 근거로 든다.",
+          "실행계획의 특정 오퍼레이션과 Trace 수치를 연결해 설명한다.",
+          "개선안은 SQL Rewrite, 인덱스, 조인 방식, fetch/call 감소 중 무엇을 겨냥하는지 분명히 쓴다."
+        ]
+      }
+    ],
     keyPoints: [
       "Trace/TKPROF 결과에서 parse, execute, fetch 단계별 CPU, elapsed, disk, query, current 수치를 본다.",
       "fetch 횟수와 반환 행 수는 애플리케이션 Call 비용과 연결된다.",
@@ -1145,6 +1231,60 @@ const conceptSeeds: ConceptSeed[] = [
     detailTopic: "인덱스 스캔 효율화",
     summary:
       "인덱스 스캔 효율은 필요한 범위만 정확히 스캔하는지에 달려 있다. 선두 컬럼, 등치 조건, 범위 조건, 함수 사용 여부가 핵심이다.",
+    studyBlocks: [
+      {
+        type: "section",
+        title: "스캔 효율의 본질",
+        paragraphs: [
+          "인덱스를 사용했다는 사실만으로 빠른 SQL이라고 판단하면 안 된다. SQLP에서는 인덱스가 만들어낸 ROWID 수, 테이블 액세스 후 버려진 행 수, access/filter predicate 분리, 선두 컬럼과 범위 조건 위치를 함께 묻는다.",
+          "B-tree 인덱스는 루트에서 리프까지 수직 탐색한 뒤 리프 블록을 수평 탐색한다. 선두 컬럼 등치 조건은 시작점과 끝점을 좁히지만, 선두 컬럼이 없거나 범위 조건이 앞에서 열리면 뒤 컬럼 조건은 스캔 범위를 크게 줄이지 못하고 filter로 밀릴 수 있다.",
+          "실습형 문제에서는 'INDEX RANGE SCAN이 있는데 느리다'는 상황이 자주 나온다. 이때는 인덱스 스캔 Rows와 테이블 액세스 A-Rows 차이를 보고, 필터 컬럼을 결합 인덱스에 넣을지, SQL 조건을 SARGable하게 바꿀지 판단한다."
+        ]
+      },
+      {
+        type: "table",
+        title: "인덱스 스캔 효율화 단권화 풀이 공식",
+        headers: ["확인 순서", "볼 항목", "판단"],
+        rows: [
+          ["1. 인덱스 컬럼 순서", "선두 컬럼에 등치 조건이 있는가?", "선두 컬럼이 없으면 Skip Scan 또는 넓은 Range Scan 가능성을 본다."],
+          ["2. 조건 형태", "등치, 범위, LIKE, 함수, 부정 조건 여부", "등치 조건 뒤 범위 조건까지가 주로 access 범위를 줄인다."],
+          ["3. Predicate 위치", "Predicate Information의 access/filter", "WHERE에 있는 컬럼이 모두 access 조건이라는 착각을 제거한다."],
+          ["4. 테이블 방문량", "INDEX A-Rows와 TABLE A-Rows, Buffers 차이", "많이 찾고 많이 버리면 결합 인덱스 또는 커버링을 검토한다."]
+        ]
+      },
+      {
+        type: "table",
+        title: "조건 형태별 인덱스 효율",
+        headers: ["조건 예", "효율 판단", "개선 방향"],
+        rows: [
+          ["cust_id = :b1 and order_dt >= :b2", "선두 등치 + 후속 범위라 효율적일 가능성이 높다.", "ORDER BY까지 맞으면 Top-N에 유리하다."],
+          ["order_dt >= :b1 only on (cust_id, order_dt)", "선두 컬럼이 없어 넓은 탐색 또는 Skip Scan 후보가 된다.", "SQL 패턴에 맞는 별도 인덱스 필요성을 검토한다."],
+          ["to_char(order_dt,'YYYYMM') = :b1", "일반 인덱스 access가 어렵다.", "반개구간 날짜 조건 또는 함수 기반 인덱스를 검토한다."],
+          ["status_cd <> 'CANCEL'", "부정 조건은 선택 범위가 넓을 수 있다.", "다른 선택 조건과 조합하거나 Full Scan 손익분기점을 본다."]
+        ]
+      },
+      {
+        type: "flow",
+        title: "실행계획에서 읽는 흐름",
+        steps: [
+          "INDEX RANGE SCAN 단계 Rows/Starts/Buffers를 확인한다.",
+          "Predicate Information에서 어떤 조건이 access인지 확인한다.",
+          "TABLE ACCESS BY INDEX ROWID 단계 A-Rows와 Buffers를 비교한다.",
+          "filter로 밀린 조건이 선택도가 높은지 판단한다.",
+          "인덱스 컬럼 순서, 조건식 변환, 커버링 여부를 개선안으로 제시한다."
+        ]
+      },
+      {
+        type: "checklist",
+        title: "실기 답안 체크",
+        items: [
+          "인덱스 힌트만 쓰지 말고 왜 그 인덱스가 access 조건을 줄이는지 설명한다.",
+          "날짜, 문자, 숫자 컬럼에 함수를 적용한 조건은 SARGable한 형태로 바꿔본다.",
+          "선택도가 낮은 대량 범위에서는 Full Scan이 더 나을 수 있음을 열어둔다.",
+          "결합 인덱스 제안 시 등치, 범위, 정렬, 조회 컬럼, DML 비용을 함께 고려한다."
+        ]
+      }
+    ],
     keyPoints: [
       "복합 인덱스는 선두 컬럼 조건이 있어야 효율적으로 Range Scan하기 쉽다.",
       "등치 조건은 인덱스 탐색 범위를 크게 줄이고, 범위 조건 이후 컬럼은 액세스 범위 축소 효과가 제한될 수 있다.",
@@ -1325,6 +1465,50 @@ const conceptSeeds: ConceptSeed[] = [
     detailTopic: "쿼리 변환",
     summary:
       "쿼리 변환은 옵티마이저가 같은 결과를 내는 더 효율적인 형태로 SQL을 바꾸는 과정이다. 뷰 병합, 서브쿼리 언네스팅, 조건절 이행이 핵심이다.",
+    studyBlocks: [
+      {
+        type: "section",
+        title: "쿼리 변환의 기준",
+        paragraphs: [
+          "쿼리 변환은 SQL 문장을 개발자가 쓴 모양 그대로 실행하지 않고, 결과가 같다고 판단되는 다른 형태로 바꾸어 최적화 기회를 넓히는 과정이다. SQLP에서는 변환이 일어나야 빠른 경우와, 변환을 막아야 목표 실행계획이 유지되는 경우를 모두 묻는다.",
+          "View Merging은 인라인 뷰를 바깥 쿼리와 합쳐 조인 순서와 predicate 이동 가능성을 넓힌다. 그러나 집계, Top-N, rownum, distinct처럼 뷰 내부 처리 순서가 의미를 갖는 경우에는 병합이 결과나 성능 의도를 바꿀 수 있다.",
+          "Subquery Unnesting은 서브쿼리를 세미 조인, 안티 조인, 일반 조인 등으로 변환한다. NOT IN과 NULL, OUTER JOIN 보존 관계처럼 결과 보존 조건이 흔들리는 경우는 함정이 된다."
+        ]
+      },
+      {
+        type: "table",
+        title: "쿼리 변환 단권화 풀이 공식",
+        headers: ["변환", "유리한 경우", "막아야 할 수 있는 경우"],
+        rows: [
+          ["View Merging", "뷰 바깥 조건을 안쪽 테이블까지 밀어 조인 순서를 넓힐 때", "Top-N, 집계 후 조인, rownum 순서가 의미 있을 때"],
+          ["Predicate Pushing", "선택 조건을 조기 적용해 입력 집합을 줄일 때", "OUTER JOIN 보존 행이나 집계 전후 의미가 달라질 때"],
+          ["Subquery Unnesting", "EXISTS/IN을 세미 조인으로 바꿔 반복 실행을 줄일 때", "NULL 처리, 상관 조건, 집계 서브쿼리 의미가 복잡할 때"],
+          ["OR Expansion", "OR 조건을 UNION ALL 분기로 나눠 각 인덱스를 쓰게 할 때", "분기 중복 제거 조건을 빠뜨리면 결과가 중복될 때"]
+        ]
+      },
+      {
+        type: "flow",
+        title: "실습 문제 판단 순서",
+        steps: [
+          "먼저 SQL 결과를 보존해야 하는 경계를 찾는다.",
+          "인라인 뷰 안의 GROUP BY, DISTINCT, ORDER BY, ROWNUM이 의미를 갖는지 확인한다.",
+          "조건을 밀어 넣거나 병합했을 때 행 수와 중복이 변하는지 본다.",
+          "목표 실행계획이 변환 허용인지 변환 차단인지 판단한다.",
+          "NO_MERGE, MERGE, PUSH_PRED, NO_UNNEST, UNNEST 등 힌트가 필요한 위치와 별칭을 정한다."
+        ]
+      },
+      {
+        type: "checklist",
+        title: "기출 함정 체크",
+        items: [
+          "SQL 텍스트 순서대로 실행된다고 단정하지 않는다.",
+          "같은 결과가 보장되는 변환인지 먼저 검증한다.",
+          "OUTER JOIN에서 후행 테이블 조건을 밀어 넣거나 WHERE로 내릴 때 보존 행이 사라지는지 확인한다.",
+          "UNION ALL 분기에는 중복 방지 조건이 필요한지 확인한다.",
+          "힌트는 쿼리 블록 이름과 별칭까지 맞아야 의도가 드러난다."
+        ]
+      }
+    ],
     keyPoints: [
       "뷰 병합은 인라인 뷰를 바깥 쿼리와 합쳐 더 넓은 최적화 기회를 만든다.",
       "서브쿼리 언네스팅은 서브쿼리를 조인 형태로 변환한다.",

@@ -161,3 +161,9 @@ This curriculum keeps the existing `개념정리` top-level menu and organizes c
 - Concept documents should be improved inside this hierarchy rather than by creating new top-level technical menus.
 - Related practice questions should link back to the closest detailed concept whenever the UI adds concept links.
 
+## 2026-07-20 Reinforced Documents
+
+- 2과목 SQL 기본 및 활용 > SQL 기본 > `WHERE 절`: NULL 3값 논리, NOT IN, OUTER JOIN 조건 위치, SARGable 조건까지 문제풀이형으로 보강.
+- 3과목 SQL 고급활용 및 튜닝 > 인덱스 튜닝 > `인덱스 스캔 효율화`: B-tree 수직/수평 탐색, access/filter predicate, 결합 인덱스 조건 순서, 테이블 방문량 판단까지 보강.
+- 3과목 SQL 고급활용 및 튜닝 > SQL 분석 도구 > `SQL 트레이스`: Parse/Execute/Fetch, query/current/disk, rows 대비 CR/PR 해석, 실행계획과 Trace 연결 방식 보강.
+- 3과목 SQL 고급활용 및 튜닝 > SQL Rewrite and Transformation > `쿼리 변환`: View Merging, Predicate Pushing, Subquery Unnesting, OR Expansion의 허용/차단 기준 보강.
