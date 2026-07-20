@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   BarChart3,
@@ -7,103 +7,149 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
-  ChevronRight,
   Database,
   Highlighter,
-  Lightbulb,
+  ListChecks,
   LogIn,
   LogOut,
   NotebookPen,
   Play,
   Plus,
   RotateCcw,
-  Trash2,
+  Search,
+  Settings,
   ShieldCheck,
   Sparkles,
+  Trash2,
+  UserRound,
   XCircle
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
-import { conceptArticles, createLocalExtraLabQuestions, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import type { User } from "@supabase/supabase-js";
+import { approvedConceptDocuments, approvedPracticeScenarios, approvedQuestions } from "@/lib/content/sqlp-content";
+import { summarizeDistribution } from "@/lib/validation/content-quality";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
-import type { FormEvent, ReactNode } from "react";
-import type {
-  AnswerRecord,
-  AttemptRecord,
-  ChoiceId,
-  ConceptMark,
-  LabQuestion,
-  ObjectiveQuestion,
-  PersonalNote,
-  StudyStatePayload,
-  SubjectId,
-  TodoItem,
-  WrongNote
-} from "@/lib/types";
+import type { ConceptDocument, HintStep, PracticeScenario, SqlpQuestion, SqlpSubjectId } from "@/lib/content/schema";
 
-type Section = "dashboard" | "practice" | "lab" | "wrong" | "concepts" | "notes";
+type View =
+  | "dashboard"
+  | "concepts"
+  | "subject-1"
+  | "subject-2"
+  | "subject-3"
+  | "practice"
+  | "mock"
+  | "wrong"
+  | "bookmarks"
+  | "notes"
+  | "stats"
+  | "tutor"
+  | "settings"
+  | "admin";
 
-type PendingHighlight = {
+type Todo = {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+};
+
+type Attempt = {
+  questionId: string;
+  submitted: string[];
+  correct: boolean;
+  hintsUsed: number;
+  answeredAt: string;
+};
+
+type PracticeSubmission = {
+  practiceId: string;
+  sql: string;
+  score: number;
+  submittedAt: string;
+};
+
+type HighlightMark = {
+  id: string;
+  conceptId: string;
+  markKey: string;
   text: string;
-  fieldKey: string;
   occurrenceIndex: number;
+  color: "yellow" | "green" | "pink" | "blue";
 };
 
-const emptyState: StudyStatePayload = {
-  answers: {},
-  labAnswers: {},
-  todoChecks: {},
-  todoItems: {},
+type NoteBlock = {
+  id: string;
+  type: "paragraph" | "heading" | "bullet" | "check" | "code";
+  text: string;
+  checked?: boolean;
+};
+
+type NoteDoc = {
+  id: string;
+  title: string;
+  tags: string[];
+  favorite: boolean;
+  trashed: boolean;
+  updatedAt: string;
+  blocks: NoteBlock[];
+};
+
+type OverhaulState = {
+  todos: Todo[];
+  attempts: Attempt[];
+  hintProgress: Record<string, number>;
+  practiceDrafts: Record<string, string>;
+  practiceSubmissions: PracticeSubmission[];
+  highlights: HighlightMark[];
+  notes: NoteDoc[];
+  bookmarks: Array<{ targetType: "question" | "concept" | "practice"; targetId: string }>;
+};
+
+const stateKey = "sqlmate-platform-overhaul-state";
+
+const emptyState: OverhaulState = {
+  todos: [],
   attempts: [],
-  wrongNotes: {},
-  conceptMarks: {},
-  personalNotes: [],
-  extraQuestions: [],
-  extraLabQuestions: []
+  hintProgress: {},
+  practiceDrafts: {},
+  practiceSubmissions: [],
+  highlights: [],
+  notes: [
+    {
+      id: "note-welcome",
+      title: "헷갈리는 SQLP 개념",
+      tags: ["SQLP"],
+      favorite: true,
+      trashed: false,
+      updatedAt: new Date().toISOString(),
+      blocks: [
+        { id: "b1", type: "heading", text: "내가 자주 틀리는 포인트" },
+        { id: "b2", type: "bullet", text: "NOT IN에 NULL이 섞이면 UNKNOWN 때문에 결과가 사라질 수 있다." },
+        { id: "b3", type: "code", text: "where not exists (...)" }
+      ]
+    }
+  ],
+  bookmarks: []
 };
 
-const sqlpExamSchedule = [
-  {
-    round: "제54회",
-    examDate: "2026-03-07",
-    applyPeriod: "2026.02.02 ~ 02.06",
-    ticketDate: "2026.02.20"
-  },
-  {
-    round: "제55회",
-    examDate: "2026-08-22",
-    applyPeriod: "2026.07.20 ~ 07.24",
-    ticketDate: "2026.08.07"
-  }
+const subjects = [
+  { id: "subject-1" as const, label: "1과목", title: "데이터 모델링" },
+  { id: "subject-2" as const, label: "2과목", title: "SQL 기본 및 활용" },
+  { id: "subject-3" as const, label: "3과목", title: "고급활용 및 튜닝" }
+];
+
+const examSchedule = [
+  { round: "제55회", date: "2026-08-22", apply: "2026.07.20 ~ 07.24" },
+  { round: "제56회", date: "2026-11-14", apply: "2026.10 예정" }
 ];
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
-function formatFullDate(date: Date) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long"
-  }).format(date);
-}
-
-function toDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function daysBetween(from: Date, to: Date) {
@@ -112,686 +158,422 @@ function daysBetween(from: Date, to: Date) {
   return Math.ceil((end - start) / 86400000);
 }
 
-function usePersistentState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(initialValue);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(key);
-      if (saved) {
-        setValue(JSON.parse(saved) as T);
-      }
-    } catch {
-      setValue(initialValue);
-    }
-    setHydrated(true);
-  }, [initialValue, key]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [hydrated, key, value]);
-
-  return [value, setValue] as const;
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long"
+  }).format(date);
 }
 
-function scoreLabel(percent: number) {
-  if (percent >= 80) return "합격권";
-  if (percent >= 60) return "보강권";
+function scoreLabel(score: number) {
+  if (score >= 80) return "안정권";
+  if (score >= 60) return "보강권";
   return "집중권";
 }
 
-function clampIndex(index: number, length: number) {
-  if (length === 0) return 0;
-  return Math.max(0, Math.min(index, length - 1));
+function normalize(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function getNextExtraStartCount(questions: ObjectiveQuestion[], subjectId: SubjectId) {
-  return questions
-    .filter((question) => question.subjectId === subjectId)
-    .reduce((max, question) => Math.max(max, Math.max(0, question.number - 100)), 0);
+function arraysEqual(a: string[], b: string[]) {
+  const left = [...a].map(normalize).sort();
+  const right = [...b].map(normalize).sort();
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function gradeQuestion(question: SqlpQuestion, submitted: string[]) {
+  const answerValue = Array.isArray(question.answer.value) ? question.answer.value : [question.answer.value];
+
+  if (question.answer.kind === "choice" || question.answer.kind === "choices" || question.answer.kind === "ordered") {
+    return arraysEqual(submitted, answerValue);
+  }
+
+  if (question.answer.kind === "text" || question.answer.kind === "texts") {
+    const accepted = [...answerValue, ...(question.answer.accepted ?? [])].map(normalize);
+    return submitted.every((value) => accepted.includes(normalize(value)));
+  }
+
+  if (question.answer.kind === "rubric") {
+    const text = normalize(submitted.join(" "));
+    return answerValue.filter((item) => text.includes(normalize(item).slice(0, 2))).length >= Math.ceil(answerValue.length / 2);
+  }
+
+  return false;
+}
+
+function answerText(question: SqlpQuestion) {
+  return Array.isArray(question.answer.value) ? question.answer.value.join(", ") : question.answer.value;
+}
+
+function countOccurrences(text: string, needle: string) {
+  if (!needle) return 0;
+  let count = 0;
+  let index = 0;
+  while (true) {
+    const found = text.indexOf(needle, index);
+    if (found === -1) return count;
+    count += 1;
+    index = found + needle.length;
+  }
 }
 
 function findNthOccurrence(text: string, needle: string, occurrenceIndex: number) {
-  if (!needle) return -1;
-
-  let fromIndex = 0;
-  let foundIndex = -1;
-
-  for (let index = 0; index <= occurrenceIndex; index += 1) {
-    foundIndex = text.indexOf(needle, fromIndex);
-    if (foundIndex === -1) return -1;
-    fromIndex = foundIndex + needle.length;
+  let index = 0;
+  for (let count = 0; count <= occurrenceIndex; count += 1) {
+    const found = text.indexOf(needle, index);
+    if (found === -1) return -1;
+    if (count === occurrenceIndex) return found;
+    index = found + needle.length;
   }
-
-  return foundIndex;
+  return -1;
 }
 
-function countOccurrencesBefore(text: string, needle: string) {
-  if (!needle) return 0;
-
-  let count = 0;
-  let fromIndex = 0;
-
-  while (true) {
-    const foundIndex = text.indexOf(needle, fromIndex);
-    if (foundIndex === -1) return count;
-    count += 1;
-    fromIndex = foundIndex + needle.length;
-  }
+function safeJsonState(value: unknown): OverhaulState {
+  const candidate = value as Partial<OverhaulState> | undefined;
+  return {
+    ...emptyState,
+    ...(candidate ?? {}),
+    todos: candidate?.todos ?? [],
+    attempts: candidate?.attempts ?? [],
+    hintProgress: candidate?.hintProgress ?? {},
+    practiceDrafts: candidate?.practiceDrafts ?? {},
+    practiceSubmissions: candidate?.practiceSubmissions ?? [],
+    highlights: candidate?.highlights ?? [],
+    notes: candidate?.notes?.length ? candidate.notes : emptyState.notes,
+    bookmarks: candidate?.bookmarks ?? []
+  };
 }
 
-function buildStudyCalendar(today: Date, attempts: AttemptRecord[], labAnswers: StudyStatePayload["labAnswers"]) {
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const first = new Date(year, month, 1);
-  const last = new Date(year, month + 1, 0);
+function buildCalendar(state: OverhaulState) {
+  const today = new Date();
+  const first = new Date(today.getFullYear(), today.getMonth(), 1);
+  const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const offset = first.getDay();
-  const totalCells = Math.ceil((offset + last.getDate()) / 7) * 7;
+  const total = Math.ceil((offset + last.getDate()) / 7) * 7;
   const counts = new Map<string, number>();
 
-  attempts.forEach((attempt) => {
-    const key = toDateKey(new Date(attempt.answeredAt));
+  state.attempts.forEach((attempt) => {
+    const key = dateKey(new Date(attempt.answeredAt));
     counts.set(key, (counts.get(key) ?? 0) + 1);
   });
 
-  Object.values(labAnswers).forEach((answer) => {
-    const key = toDateKey(new Date(answer.answeredAt));
+  state.practiceSubmissions.forEach((submission) => {
+    const key = dateKey(new Date(submission.submittedAt));
     counts.set(key, (counts.get(key) ?? 0) + 3);
   });
 
-  return Array.from({ length: totalCells }, (_, index) => {
-    const dayNumber = index - offset + 1;
-    if (dayNumber < 1 || dayNumber > last.getDate()) {
-      return { key: `blank-${index}`, day: "", count: 0, isToday: false };
-    }
-
-    const date = new Date(year, month, dayNumber);
-    const key = toDateKey(date);
-    return {
-      key,
-      day: String(dayNumber),
-      count: counts.get(key) ?? 0,
-      isToday: key === toDateKey(today)
-    };
+  return Array.from({ length: total }, (_, index) => {
+    const day = index - offset + 1;
+    if (day < 1 || day > last.getDate()) return { key: `blank-${index}`, day: "", count: 0, today: false };
+    const date = new Date(today.getFullYear(), today.getMonth(), day);
+    const key = dateKey(date);
+    return { key, day: String(day), count: counts.get(key) ?? 0, today: key === dateKey(today) };
   });
 }
 
 export default function Home() {
-  const [section, setSection] = useState<Section>("dashboard");
-  const [activeSubject, setActiveSubject] = useState<SubjectId>("modeling");
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [selectedChoice, setSelectedChoice] = useState<ChoiceId | null>(null);
-  const [hintVisible, setHintVisible] = useState(false);
-  const [answers, setAnswers] = usePersistentState<Record<string, AnswerRecord>>("sqlmate.answers", emptyState.answers);
-  const [labAnswers, setLabAnswers] = usePersistentState<StudyStatePayload["labAnswers"]>("sqlmate.labAnswers", emptyState.labAnswers);
-  const [todoChecks, setTodoChecks] = usePersistentState<StudyStatePayload["todoChecks"]>("sqlmate.todoChecks", emptyState.todoChecks);
-  const [todoItems, setTodoItems] = usePersistentState<StudyStatePayload["todoItems"]>("sqlmate.todoItems", emptyState.todoItems);
-  const [newTodoText, setNewTodoText] = useState("");
-  const [attempts, setAttempts] = usePersistentState<AttemptRecord[]>("sqlmate.attempts", emptyState.attempts);
-  const [wrongNotes, setWrongNotes] = usePersistentState<Record<string, WrongNote>>("sqlmate.wrongNotes", emptyState.wrongNotes);
-  const [conceptMarks, setConceptMarks] = usePersistentState<Record<string, ConceptMark>>("sqlmate.conceptMarks", emptyState.conceptMarks);
-  const [personalNotes, setPersonalNotes] = usePersistentState<PersonalNote[]>("sqlmate.personalNotes", emptyState.personalNotes);
-  const [extraQuestions, setExtraQuestions] = usePersistentState<ObjectiveQuestion[]>("sqlmate.extraQuestions", emptyState.extraQuestions);
-  const [extraLabQuestions, setExtraLabQuestions] = usePersistentState<LabQuestion[]>("sqlmate.extraLabQuestions", emptyState.extraLabQuestions ?? []);
-  const [selectedConceptId, setSelectedConceptId] = useState(conceptArticles[0]?.id ?? "");
-  const [selectedPersonalNoteId, setSelectedPersonalNoteId] = useState("");
-  const [conceptNavCollapsed, setConceptNavCollapsed] = useState(false);
-  const [noteListCollapsed, setNoteListCollapsed] = useState(false);
-  const [selectedHighlightText, setSelectedHighlightText] = useState("");
-  const [selectedHighlightTarget, setSelectedHighlightTarget] = useState<PendingHighlight | null>(null);
-  const [highlightColor, setHighlightColor] = useState<"yellow" | "green" | "pink">("yellow");
-  const [activeConceptSubject, setActiveConceptSubject] = useState<SubjectId>("modeling");
-  const [activeConceptMajor, setActiveConceptMajor] = useState(
-    conceptArticles.find((concept) => concept.subjectId === "modeling")?.majorTopic ?? ""
-  );
-  const [activeLabIndex, setActiveLabIndex] = useState(0);
-  const [labSql, setLabSql] = useState("");
-  const [labResult, setLabResult] = useState<ReturnType<typeof gradeSqlSubmission> | null>(null);
-  const [remotePlan, setRemotePlan] = useState<{ mode: string; plan: string[]; message: string } | null>(null);
-  const [cloudUser, setCloudUser] = useState<{ id: string; email?: string } | null>(null);
-  const [cloudReady, setCloudReady] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [cloudStatus, setCloudStatus] = useState("데모 저장");
-  const [isGenerating, setIsGenerating] = useState(false);
-
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const allQuestions = useMemo(() => [...objectiveQuestions, ...extraQuestions], [extraQuestions]);
-  const allLabQuestions = useMemo(() => [...labQuestions, ...extraLabQuestions], [extraLabQuestions]);
-  const baseSubjectQuestions = useMemo(
-    () => objectiveQuestions.filter((question) => question.subjectId === activeSubject),
-    [activeSubject]
-  );
-  const subjectExtraQuestions = useMemo(
-    () => extraQuestions.filter((question) => question.subjectId === activeSubject),
-    [activeSubject, extraQuestions]
-  );
-  const subjectQuestions = useMemo(
-    () => [...baseSubjectQuestions, ...subjectExtraQuestions].map((question, index) => ({ ...question, number: index + 1 })),
-    [baseSubjectQuestions, subjectExtraQuestions]
-  );
-  const currentQuestion = subjectQuestions[clampIndex(questionIndex, subjectQuestions.length)];
-  const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
-  const conceptSubjectTabs = useMemo(
-    () =>
-      [
-        { id: "modeling" as SubjectId, label: "1과목", title: "데이터 모델링" },
-        { id: "sql-basic" as SubjectId, label: "2과목", title: "SQL 기본/활용" },
-        { id: "tuning" as SubjectId, label: "3과목", title: "튜닝" }
-      ].map((subject) => ({
-        ...subject,
-        count: conceptArticles.filter((concept) => concept.subjectId === subject.id).length
-      })),
-    []
-  );
-  const conceptSubjectArticles = useMemo(
-    () => conceptArticles.filter((concept) => concept.subjectId === activeConceptSubject),
-    [activeConceptSubject]
-  );
-  const conceptMajorTopics = useMemo(
-    () => Array.from(new Set(conceptSubjectArticles.map((concept) => concept.majorTopic))),
-    [conceptSubjectArticles]
-  );
-  const resolvedConceptMajor = conceptMajorTopics.includes(activeConceptMajor) ? activeConceptMajor : (conceptMajorTopics[0] ?? "");
-  const visibleConceptArticles = useMemo(
-    () => conceptSubjectArticles.filter((concept) => concept.majorTopic === resolvedConceptMajor),
-    [conceptSubjectArticles, resolvedConceptMajor]
-  );
-  const selectedConcept = visibleConceptArticles.find((concept) => concept.id === selectedConceptId) ?? visibleConceptArticles[0];
-  const selectedPersonalNote = personalNotes.find((note) => note.id === selectedPersonalNoteId) ?? personalNotes[0];
-  const activeLab = allLabQuestions[clampIndex(activeLabIndex, allLabQuestions.length)];
-  const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
-
-  const completed = Object.keys(answers).length;
-  const correct = Object.values(answers).filter((answer) => answer.correct).length;
-  const accuracy = completed ? Math.round((correct / completed) * 100) : 0;
-  const wrongCount = attempts.filter((attempt) => !attempt.correct).length;
-  const highlightedCount = Object.values(conceptMarks).reduce((sum, mark) => sum + (mark.highlights?.length ?? (mark.highlighted ? 1 : 0)), 0);
-  const today = new Date();
-  const todayKey = toDateKey(today);
-  const nextExam = sqlpExamSchedule.find((exam) => daysBetween(today, new Date(`${exam.examDate}T00:00:00`)) >= 0) ?? sqlpExamSchedule[sqlpExamSchedule.length - 1];
-  const examDday = Math.max(0, daysBetween(today, new Date(`${nextExam.examDate}T00:00:00`)));
-  const todaysTodos = todoItems[todayKey] ?? [];
-  const completedTodos = todaysTodos.filter((todo) => todo.checked).length;
-  const labCompleted = allLabQuestions.filter((lab) => labAnswers[lab.id]).length;
-  const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
-  const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, attempts, labAnswers), [attempts, labAnswers, todayKey]);
-  const subjectAnsweredCount = subjectQuestions.filter((question) => answers[question.id]).length;
-  const canGenerateExtraBatch = subjectQuestions.length > 0 && subjectAnsweredCount === subjectQuestions.length;
-  const canGenerateExtraLabBatch = allLabQuestions.length > 0 && labCompleted === allLabQuestions.length;
-  const nextExtraBatchStart = subjectQuestions.length + 1;
-  const nextExtraBatchEnd = subjectQuestions.length + 20;
-
-  const studyState = useMemo<StudyStatePayload>(
-    () => ({
-      answers,
-      labAnswers,
-      todoChecks,
-      todoItems,
-      attempts,
-      wrongNotes,
-      conceptMarks,
-      personalNotes,
-      extraQuestions,
-      extraLabQuestions
-    }),
-    [answers, labAnswers, todoChecks, todoItems, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions, extraLabQuestions]
-  );
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [state, setState] = useState<OverhaulState>(emptyState);
+  const [view, setView] = useState<View>("dashboard");
+  const [selectedConceptId, setSelectedConceptId] = useState(approvedConceptDocuments[0]?.id ?? "");
+  const [selectedQuestions, setSelectedQuestions] = useState<Record<SqlpSubjectId, number>>({
+    "subject-1": 0,
+    "subject-2": 0,
+    "subject-3": 0
+  });
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const [newTodo, setNewTodo] = useState("");
+  const [conceptSidebarOpen, setConceptSidebarOpen] = useState(true);
+  const [notesSidebarOpen, setNotesSidebarOpen] = useState(true);
+  const [selectedNoteId, setSelectedNoteId] = useState(emptyState.notes[0].id);
+  const [search, setSearch] = useState("");
+  const [syncStatus, setSyncStatus] = useState("로컬 준비");
 
   useEffect(() => {
-    setQuestionIndex(0);
-    setHintVisible(false);
-    setSelectedChoice(null);
-  }, [activeSubject]);
+    const local = window.localStorage.getItem(stateKey);
+    if (local) setState(safeJsonState(JSON.parse(local)));
 
-  useEffect(() => {
-    setSelectedChoice(currentAnswer?.selectedChoiceId ?? null);
-    setHintVisible(false);
-  }, [currentQuestion?.id, currentAnswer?.selectedChoiceId]);
-
-  useEffect(() => {
     if (!supabase) {
-      setCloudStatus("로컬 데모 저장");
-      setAuthChecked(true);
+      setAuthLoading(false);
       return;
     }
 
-    const authClient = supabase;
-    let ignore = false;
-
-    async function bootstrapAuth() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        if (params.has("code")) {
-          await authClient.auth.exchangeCodeForSession(window.location.href);
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        const { data } = await authClient.auth.getSession();
-        if (ignore) return;
-
-        const user = data.session?.user;
-        setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
-      } finally {
-        if (!ignore) setAuthChecked(true);
-      }
-    }
-
-    bootstrapAuth();
-
-    const { data: listener } = authClient.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user;
-      setCloudUser(user ? { id: user.id, email: user.email ?? undefined } : null);
-      setAuthChecked(true);
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      setAuthLoading(false);
     });
 
-    return () => {
-      ignore = true;
-      listener.subscription.unsubscribe();
-    };
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
   useEffect(() => {
-    if (!supabase || !cloudUser) {
-      setCloudReady(false);
-      return;
-    }
+    window.localStorage.setItem(stateKey, JSON.stringify(state));
+  }, [state]);
 
-    let ignore = false;
-    setCloudStatus("클라우드 불러오는 중");
+  useEffect(() => {
+    if (!supabase || !user) return;
 
+    let cancelled = false;
     supabase
       .from("study_state")
       .select("state")
-      .eq("user_id", cloudUser.id)
+      .eq("user_id", user.id)
       .maybeSingle()
-      .then(({ data, error }) => {
-        if (ignore) return;
-        if (!error && data?.state) {
-          const state = data.state as StudyStatePayload;
-          setAnswers(state.answers ?? {});
-          setLabAnswers(state.labAnswers ?? {});
-          setTodoChecks(state.todoChecks ?? {});
-          setTodoItems(state.todoItems ?? {});
-          setAttempts(state.attempts ?? []);
-          setWrongNotes(state.wrongNotes ?? {});
-          setConceptMarks(state.conceptMarks ?? {});
-          setPersonalNotes(state.personalNotes ?? []);
-          setExtraQuestions(state.extraQuestions ?? []);
-          setExtraLabQuestions(state.extraLabQuestions ?? []);
+      .then(({ data }) => {
+        if (cancelled) return;
+        const saved = data?.state as { overhaul?: OverhaulState } | null;
+        if (saved?.overhaul) {
+          setState(safeJsonState(saved.overhaul));
+          setSyncStatus("DB에서 복원됨");
+        } else {
+          setSyncStatus("새 학습 상태");
         }
-        setCloudReady(true);
-        setCloudStatus(error ? "클라우드 스키마 확인 필요" : "클라우드 동기화");
       });
 
     return () => {
-      ignore = true;
+      cancelled = true;
     };
-  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraLabQuestions, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setTodoItems, setWrongNotes, supabase]);
+  }, [supabase, user]);
 
   useEffect(() => {
-    if (!supabase || !cloudUser || !cloudReady) return;
-
-    const timer = window.setTimeout(() => {
+    if (!supabase || !user) return;
+    const timeout = window.setTimeout(() => {
+      setSyncStatus("저장 중");
       supabase
         .from("study_state")
-        .upsert({
-          user_id: cloudUser.id,
-          state: studyState,
-          updated_at: nowIso()
-        })
-        .then(({ error }) => setCloudStatus(error ? "클라우드 저장 실패" : "클라우드 동기화"));
-    }, 900);
+        .upsert({ user_id: user.id, state: { overhaul: state }, updated_at: nowIso() })
+        .then(({ error }) => setSyncStatus(error ? "DB 저장 실패, 로컬 보존" : "저장 완료"));
+    }, 700);
 
-    return () => window.clearTimeout(timer);
-  }, [cloudReady, cloudUser, studyState, supabase]);
+    return () => window.clearTimeout(timeout);
+  }, [state, supabase, user]);
 
-  async function signInWithGoogle() {
-    if (!supabase) {
-      setCloudStatus("Supabase 환경변수 필요");
-      return;
-    }
+  const attemptsByQuestion = useMemo(() => {
+    const map = new Map<string, Attempt>();
+    state.attempts.forEach((attempt) => map.set(attempt.questionId, attempt));
+    return map;
+  }, [state.attempts]);
 
-    await supabase.auth.signInWithOAuth({
+  const wrongAttempts = state.attempts.filter((attempt) => !attempt.correct);
+  const solvedCount = state.attempts.length;
+  const correctCount = state.attempts.filter((attempt) => attempt.correct).length;
+  const accuracy = solvedCount ? Math.round((correctCount / solvedCount) * 100) : 0;
+  const nearestExam = examSchedule.find((exam) => daysBetween(new Date(), new Date(exam.date)) >= 0) ?? examSchedule[0];
+  const dday = daysBetween(new Date(), new Date(nearestExam.date));
+  const calendar = buildCalendar(state);
+  const selectedConcept = approvedConceptDocuments.find((concept) => concept.id === selectedConceptId) ?? approvedConceptDocuments[0];
+  const selectedNote = state.notes.find((note) => note.id === selectedNoteId) ?? state.notes[0];
+
+  function signIn() {
+    if (!supabase) return;
+    void supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: window.location.origin
-      }
+      options: { redirectTo: window.location.origin }
     });
   }
 
-  async function signOut() {
-    await supabase?.auth.signOut();
-    setCloudUser(null);
-    setCloudReady(false);
-    setCloudStatus("로컬 데모 저장");
+  function signOut() {
+    void supabase?.auth.signOut();
   }
 
-  function submitAnswer() {
-    if (!currentQuestion || !selectedChoice) return;
+  function updateState(updater: (current: OverhaulState) => OverhaulState) {
+    setState((current) => safeJsonState(updater(current)));
+  }
 
-    const answerIsCorrect = isChoiceCorrect(currentQuestion, selectedChoice);
-    const answeredAt = nowIso();
+  function submitQuestion(question: SqlpQuestion) {
+    const submitted = answers[question.id] ?? [];
+    if (submitted.length === 0 || submitted.every((item) => !item.trim())) return;
+    const correct = gradeQuestion(question, submitted);
 
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQuestion.id]: {
-        questionId: currentQuestion.id,
-        selectedChoiceId: selectedChoice,
-        correct: answerIsCorrect,
-        answeredAt,
-        hintUsed: hintVisible
-      }
-    }));
-
-    setAttempts((prev) => [
-      {
-        id: `${currentQuestion.id}-${Date.now()}`,
-        questionId: currentQuestion.id,
-        subjectId: currentQuestion.subjectId,
-        topic: currentQuestion.topic,
-        selectedChoiceId: selectedChoice,
-        correct: answerIsCorrect,
-        answeredAt,
-        stem: currentQuestion.stem
-      },
-      ...prev
-    ]);
-
-    if (!answerIsCorrect) {
-      setWrongNotes((prev) => ({
-        ...prev,
-        [currentQuestion.id]: prev[currentQuestion.id] ?? {
-          questionId: currentQuestion.id,
-          memo: "",
-          updatedAt: answeredAt
+    updateState((current) => ({
+      ...current,
+      attempts: [
+        ...current.attempts.filter((attempt) => attempt.questionId !== question.id),
+        {
+          questionId: question.id,
+          submitted,
+          correct,
+          hintsUsed: current.hintProgress[question.id] ?? 0,
+          answeredAt: nowIso()
         }
-      }));
-    }
-  }
-
-  function addExtraQuestionBatch() {
-    setIsGenerating(true);
-    const firstNewQuestionIndex = subjectQuestions.length;
-    try {
-      setExtraQuestions((prev) => {
-        const nextStartCount = getNextExtraStartCount(prev, activeSubject);
-        const batch = createLocalExtraQuestions(activeSubject, nextStartCount, 20);
-        return [...prev, ...batch];
-      });
-      setQuestionIndex(firstNewQuestionIndex);
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  function addExtraLabBatch() {
-    setIsGenerating(true);
-    const firstNewLabIndex = allLabQuestions.length;
-    try {
-      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(prev.length, 5)]);
-      setActiveLabIndex(firstNewLabIndex);
-      setLabSql("");
-      setLabResult(null);
-      setRemotePlan(null);
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  async function runLab() {
-    if (!activeLab) return;
-    const localResult = gradeSqlSubmission(activeLab, labSql);
-    setLabResult(localResult);
-    setLabAnswers((prev) => ({
-      ...prev,
-      [activeLab.id]: {
-        labId: activeLab.id,
-        score: localResult.score,
-        passed: localResult.passed,
-        answeredAt: nowIso()
-      }
+      ]
     }));
-    setRemotePlan(null);
-
-    try {
-      const response = await fetch("/api/sql", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sql: labSql, labId: activeLab.id })
-      });
-      setRemotePlan((await response.json()) as { mode: string; plan: string[]; message: string });
-    } catch {
-      setRemotePlan({
-        mode: "local",
-        plan: localResult.plan,
-        message: "로컬 시뮬레이션 실행계획을 표시합니다."
-      });
-    }
   }
 
-  function updateConceptMark(conceptId: string, patch: Partial<ConceptMark>) {
-    setConceptMarks((prev) => ({
-      ...prev,
-      [conceptId]: {
-        ...(prev[conceptId] ?? {
-          conceptId,
-          highlighted: false,
-          memo: "",
-          updatedAt: nowIso()
-        }),
-        ...patch,
-        updatedAt: nowIso()
+  function showNextHint(questionId: string) {
+    updateState((current) => ({
+      ...current,
+      hintProgress: {
+        ...current.hintProgress,
+        [questionId]: Math.min(3, (current.hintProgress[questionId] ?? 0) + 1)
       }
     }));
   }
 
-  function renderHighlightedText(text: string, fieldKey: string): ReactNode {
-    const ranges = selectedConceptHighlights
-      .filter((highlight) => highlight.fieldKey === fieldKey && highlight.text.trim().length > 0)
-      .map((highlight) => {
-        const start = findNthOccurrence(text, highlight.text, highlight.occurrenceIndex ?? 0);
-        return start >= 0 ? { highlight, start, end: start + highlight.text.length } : null;
-      })
-      .filter((range): range is NonNullable<typeof range> => Boolean(range))
-      .sort((a, b) => a.start - b.start || b.end - a.end);
-
-    if (!ranges.length) return text;
-
-    const parts: ReactNode[] = [];
-    let cursor = 0;
-
-    ranges.forEach(({ highlight, start, end }) => {
-      if (start < cursor) return;
-      if (start > cursor) parts.push(text.slice(cursor, start));
-      parts.push(
-        <mark className={`concept-mark mark-${highlight.color}`} key={highlight.id} title="아래 형광펜 목록에서 개별 삭제할 수 있어요.">
-          {text.slice(start, end)}
-        </mark>
-      );
-      cursor = end;
-    });
-
-    if (cursor < text.length) parts.push(text.slice(cursor));
-    return parts;
+  function addTodo() {
+    const title = newTodo.trim();
+    if (!title) return;
+    updateState((current) => ({
+      ...current,
+      todos: [{ id: crypto.randomUUID(), title, completed: false, createdAt: nowIso() }, ...current.todos]
+    }));
+    setNewTodo("");
   }
 
-  function captureConceptSelection() {
+  function toggleTodo(id: string) {
+    updateState((current) => ({
+      ...current,
+      todos: current.todos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo))
+    }));
+  }
+
+  function addHighlight(conceptId: string, color: HighlightMark["color"]) {
     const selection = window.getSelection();
-    const text = selection?.toString().trim() ?? "";
-    if (!selection || text.length < 2 || selection.rangeCount === 0) {
-      setSelectedHighlightText("");
-      setSelectedHighlightTarget(null);
-      return;
-    }
+    const selectedText = selection?.toString().trim();
+    if (!selection || !selectedText || selection.rangeCount === 0) return;
 
     const range = selection.getRangeAt(0);
-    const startElement = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : (range.startContainer as Element);
-    const fieldElement = startElement?.closest<HTMLElement>("[data-highlight-field]");
-    const fieldKey = fieldElement?.dataset.highlightField;
+    const element =
+      range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : (range.startContainer as Element);
+    const container = element?.closest<HTMLElement>("[data-mark-key]");
+    if (!container) return;
 
-    if (!fieldElement || !fieldKey) {
-      setSelectedHighlightText("");
-      setSelectedHighlightTarget(null);
-      return;
-    }
+    const markKey = container.dataset.markKey;
+    const rawText = container.dataset.markText ?? container.textContent ?? "";
+    if (!markKey) return;
 
-    const beforeRange = range.cloneRange();
-    beforeRange.selectNodeContents(fieldElement);
-    beforeRange.setEnd(range.startContainer, range.startOffset);
-    const occurrenceIndex = countOccurrencesBefore(beforeRange.toString(), text);
+    const before = range.cloneRange();
+    before.selectNodeContents(container);
+    before.setEnd(range.startContainer, range.startOffset);
+    const occurrenceIndex = countOccurrences(before.toString(), selectedText);
 
-    setSelectedHighlightText(text.slice(0, 160));
-    setSelectedHighlightTarget({ text: text.slice(0, 160), fieldKey, occurrenceIndex });
-  }
-
-  function addConceptHighlight() {
-    if (!selectedConcept || !selectedHighlightTarget) return;
-
-    const nextHighlight = {
-      id: `mark-${Date.now()}`,
-      text: selectedHighlightTarget.text,
-      color: highlightColor,
-      fieldKey: selectedHighlightTarget.fieldKey,
-      occurrenceIndex: selectedHighlightTarget.occurrenceIndex
-    };
-    const previousHighlights = conceptMarks[selectedConcept.id]?.highlights ?? [];
-
-    updateConceptMark(selectedConcept.id, {
-      highlighted: false,
+    updateState((current) => ({
+      ...current,
       highlights: [
-        ...previousHighlights.filter(
-          (item) =>
-            !(
-              item.text === nextHighlight.text &&
-              item.fieldKey === nextHighlight.fieldKey &&
-              (item.occurrenceIndex ?? 0) === nextHighlight.occurrenceIndex
-            )
-        ),
-        nextHighlight
+        ...current.highlights,
+        { id: crypto.randomUUID(), conceptId, markKey, text: selectedText, occurrenceIndex, color }
       ]
-    });
-    setSelectedHighlightText("");
-    setSelectedHighlightTarget(null);
-    window.getSelection()?.removeAllRanges();
+    }));
+    selection.removeAllRanges();
   }
 
-  function removeConceptHighlight(highlightId: string) {
-    if (!selectedConcept) return;
-    updateConceptMark(selectedConcept.id, {
-      highlighted: false,
-      highlights: selectedConceptHighlights.filter((highlight) => highlight.id !== highlightId)
-    });
-    setSelectedHighlightText("");
-    setSelectedHighlightTarget(null);
+  function removeHighlight(id: string) {
+    updateState((current) => ({
+      ...current,
+      highlights: current.highlights.filter((mark) => mark.id !== id)
+    }));
   }
 
-  function selectConceptSubject(subjectId: SubjectId) {
-    const firstConcept = conceptArticles.find((concept) => concept.subjectId === subjectId);
-    setActiveConceptSubject(subjectId);
-    setActiveConceptMajor(firstConcept?.majorTopic ?? "");
-    setSelectedConceptId(firstConcept?.id ?? "");
-    setConceptNavCollapsed(false);
+  function renderMarkedText(conceptId: string, markKey: string, text: string) {
+    const marks = state.highlights
+      .filter((mark) => mark.conceptId === conceptId && mark.markKey === markKey)
+      .map((mark) => ({ ...mark, start: findNthOccurrence(text, mark.text, mark.occurrenceIndex) }))
+      .filter((mark) => mark.start >= 0)
+      .sort((a, b) => a.start - b.start);
+
+    const chunks: React.ReactNode[] = [];
+    let cursor = 0;
+    for (const mark of marks) {
+      if (mark.start < cursor) continue;
+      if (mark.start > cursor) chunks.push(text.slice(cursor, mark.start));
+      chunks.push(
+        <button
+          key={mark.id}
+          className={`inline-mark mark-${mark.color}`}
+          onClick={() => removeHighlight(mark.id)}
+          title="이 표시만 지우기"
+          type="button"
+        >
+          {text.slice(mark.start, mark.start + mark.text.length)}
+        </button>
+      );
+      cursor = mark.start + mark.text.length;
+    }
+    chunks.push(text.slice(cursor));
+    return chunks;
   }
 
-  function selectConceptMajor(majorTopic: string) {
-    const firstConcept = conceptArticles.find(
-      (concept) => concept.subjectId === activeConceptSubject && concept.majorTopic === majorTopic
-    );
-    setActiveConceptMajor(majorTopic);
-    setSelectedConceptId(firstConcept?.id ?? "");
-    setConceptNavCollapsed(false);
+  function updateNoteBlock(noteId: string, blockId: string, text: string) {
+    updateState((current) => ({
+      ...current,
+      notes: current.notes.map((note) =>
+        note.id === noteId
+          ? {
+              ...note,
+              updatedAt: nowIso(),
+              blocks: note.blocks.map((block) => (block.id === blockId ? { ...block, text } : block))
+            }
+          : note
+      )
+    }));
   }
 
-  function addPersonalNote() {
-    const id = `note-${Date.now()}`;
-    const note: PersonalNote = {
-      id,
-      title: "새 개인 노트",
-      body: "헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 정리하세요.",
-      tags: "SQLP",
-      updatedAt: nowIso()
-    };
-    setPersonalNotes((prev) => [note, ...prev]);
-    setSelectedPersonalNoteId(id);
-    setNoteListCollapsed(true);
-  }
-
-  function updatePersonalNote(noteId: string, patch: Partial<PersonalNote>) {
-    setPersonalNotes((prev) =>
-      prev.map((note) => (note.id === noteId ? { ...note, ...patch, updatedAt: nowIso() } : note))
-    );
-  }
-
-  function deletePersonalNote(noteId: string) {
-    setPersonalNotes((prev) => prev.filter((note) => note.id !== noteId));
-    setSelectedPersonalNoteId((current) => (current === noteId ? "" : current));
-  }
-
-  function addTodo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = newTodoText.trim();
-    if (!text) return;
-    const todo: TodoItem = {
+  function addNote() {
+    const note: NoteDoc = {
       id: crypto.randomUUID(),
-      text,
-      checked: false,
-      createdAt: nowIso()
+      title: "새 SQLP 노트",
+      tags: [],
+      favorite: false,
+      trashed: false,
+      updatedAt: nowIso(),
+      blocks: [{ id: crypto.randomUUID(), type: "paragraph", text: "" }]
     };
-    setTodoItems((prev) => ({
-      ...prev,
-      [todayKey]: [...(prev[todayKey] ?? []), todo]
-    }));
-    setNewTodoText("");
+    updateState((current) => ({ ...current, notes: [note, ...current.notes] }));
+    setSelectedNoteId(note.id);
   }
 
-  function toggleTodo(todoId: string) {
-    setTodoItems((prev) => ({
-      ...prev,
-      [todayKey]: (prev[todayKey] ?? []).map((todo) => (todo.id === todoId ? { ...todo, checked: !todo.checked } : todo))
-    }));
-  }
-
-  function deleteTodo(todoId: string) {
-    setTodoItems((prev) => ({
-      ...prev,
-      [todayKey]: (prev[todayKey] ?? []).filter((todo) => todo.id !== todoId)
+  function addNoteBlock(noteId: string, type: NoteBlock["type"]) {
+    updateState((current) => ({
+      ...current,
+      notes: current.notes.map((note) =>
+        note.id === noteId
+          ? {
+              ...note,
+              updatedAt: nowIso(),
+              blocks: [...note.blocks, { id: crypto.randomUUID(), type, text: "", checked: false }]
+            }
+          : note
+      )
     }));
   }
 
-  const wrongQuestionIds = Array.from(new Set(attempts.filter((attempt) => !attempt.correct).map((attempt) => attempt.questionId)));
-  const navItems = [
-    { id: "dashboard" as Section, label: "대시보드", icon: BarChart3 },
-    { id: "practice" as Section, label: "문제풀이", icon: Brain },
-    { id: "lab" as Section, label: "SQL 실습", icon: Database },
-    { id: "wrong" as Section, label: "오답노트", icon: RotateCcw },
-    { id: "concepts" as Section, label: "개념정리", icon: BookOpen },
-    { id: "notes" as Section, label: "개인노트", icon: NotebookPen }
-  ];
+  function submitPractice(scenario: PracticeScenario) {
+    const sql = state.practiceDrafts[scenario.id] ?? "";
+    const lower = normalize(sql);
+    const matches = scenario.acceptableSqlPatterns.filter((pattern) => lower.includes(normalize(pattern))).length;
+    const score = Math.min(100, 35 + matches * 18 + (sql.length > 80 ? 10 : 0));
 
-  if (isSupabaseConfigured() && !authChecked) {
+    updateState((current) => ({
+      ...current,
+      practiceSubmissions: [
+        ...current.practiceSubmissions,
+        { practiceId: scenario.id, sql, score, submittedAt: nowIso() }
+      ]
+    }));
+  }
+
+  if (authLoading) {
+    return <div className="login-gate">SQLMate 준비 중...</div>;
+  }
+
+  if (!user) {
     return (
       <main className="login-gate">
         <section className="auth-card">
-          <p className="eyebrow">SQLMate</p>
+          <p className="eyebrow">SQLP Coach Platform</p>
           <h1>SQLMate</h1>
-          <p>학습 기록을 불러오는 중입니다.</p>
-        </section>
-      </main>
-    );
-  }
-
-  if (isSupabaseConfigured() && authChecked && !cloudUser) {
-    return (
-      <main className="login-gate">
-        <section className="auth-card">
-          <p className="eyebrow">Study planner</p>
-          <h1>SQLMate</h1>
-          <p>Google 계정으로 로그인하면 문제풀이, 오답노트, 개념 메모, 개인 노트가 본인 계정에 저장됩니다.</p>
-          <button className="primary-button" onClick={signInWithGoogle}>
-            <LogIn size={18} />
-            Google로 시작하기
+          <p>구글 계정으로 로그인하면 문제풀이, 오답노트, 형광펜, 개인 노트가 계정에 맞춰 저장됩니다.</p>
+          {!isSupabaseConfigured() && <p className="warning-text">Supabase 환경변수가 없어서 현재는 로컬 데모 모드입니다.</p>}
+          <button className="primary-button" onClick={signIn} type="button">
+            <LogIn size={18} /> Google로 시작하기
           </button>
         </section>
       </main>
@@ -799,837 +581,775 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell sqlmate-2026">
       <aside className="sidebar">
-        <div className="brand">
+        <div className="brand compact-brand">
           <div>
             <strong>SQLMate</strong>
-            <span>나만의 학습 기록</span>
+            <span>SQLP 합격 루틴</span>
           </div>
         </div>
-
-        <nav className="nav-list" aria-label="SQLMate sections">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} className={section === item.id ? "nav-item active" : "nav-item"} onClick={() => setSection(item.id)}>
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+        <nav className="nav-list">
+          {[
+            ["dashboard", "대시보드", BarChart3],
+            ["concepts", "SQLP 개념 정리", BookOpen],
+            ["subject-1", "1과목 문제풀이", ListChecks],
+            ["subject-2", "2과목 문제풀이", ListChecks],
+            ["subject-3", "3과목 문제풀이", ListChecks],
+            ["practice", "SQLP 실습", Database],
+            ["mock", "모의고사", CalendarDays],
+            ["wrong", "오답노트", RotateCcw],
+            ["bookmarks", "북마크", Highlighter],
+            ["notes", "개인 노트", NotebookPen],
+            ["stats", "학습 통계", BarChart3],
+            ["tutor", "AI 튜터", Brain],
+            ["settings", "사용자 설정", Settings],
+            ["admin", "관리자 콘텐츠", ShieldCheck]
+          ].map(([key, label, Icon]) => (
+            <button key={key as string} className={`nav-item ${view === key ? "active" : ""}`} onClick={() => setView(key as View)} type="button">
+              <Icon size={17} /> {label as string}
+            </button>
+          ))}
         </nav>
-
         <div className="sidebar-footer">
-          <ShieldCheck size={18} />
+          <UserRound size={18} />
           <div>
-            <strong>{cloudStatus}</strong>
-            <span>{cloudUser?.email ?? (isSupabaseConfigured() ? "로그인 대기" : "무료 데모 모드")}</span>
+            <strong>{user.user_metadata?.name ?? user.email}</strong>
+            <span>{syncStatus}</span>
           </div>
+          <button className="icon-button" onClick={signOut} title="로그아웃" type="button">
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
+        <header className="topbar slim-topbar">
           <div>
-            <p className="eyebrow">My study room</p>
-            <h1>{sectionTitle(section)}</h1>
+            <p className="eyebrow">{formatDate(new Date())}</p>
+            <h1>{viewTitle(view)}</h1>
           </div>
           <div className="top-actions">
-            <span className="pill">{scoreLabel(accuracy)} · 정답률 {accuracy}%</span>
-            {cloudUser ? (
-              <>
-                <span className="pill">{cloudUser.email ?? "로그인됨"}</span>
-                <button className="ghost-button" onClick={signOut}>
-                  <LogOut size={17} />
-                  로그아웃
-                </button>
-              </>
-            ) : (
-              <button className="primary-button" onClick={signInWithGoogle}>
-                <LogIn size={17} />
-                Google 로그인
-              </button>
-            )}
+            <span className="soft-pill">{nearestExam.round} D-{Math.max(0, dday)}</span>
+            <span className="soft-pill">{scoreLabel(accuracy)} · 정답률 {accuracy}%</span>
           </div>
         </header>
 
-        {section === "dashboard" && (
-          <div className="dashboard-v2">
-            <section className="exam-hero">
-              <div>
-                <p className="eyebrow">Next exam</p>
-                <h2>D-{examDday}</h2>
-                <p>{nextExam.round} · {nextExam.examDate}</p>
-                <span>{formatFullDate(today)} · 접수 {nextExam.applyPeriod}</span>
-              </div>
-              <div className="exam-hero-actions">
-                <button className="primary-button" onClick={() => setSection("practice")}>
-                  <Brain size={17} />
-                  문제 풀기
-                </button>
-              </div>
-            </section>
-
-            <section className="progress-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Progress</p>
-                  <h2>과목별 진행률</h2>
-                </div>
-                <span className="pill">{completed} / {objectiveQuestions.length + extraQuestions.length}</span>
-              </div>
-              <div className="dashboard-progress-list">
-                {subjects.map((subject) => {
-                  const subjectTotal = allQuestions.filter((question) => question.subjectId === subject.id).length;
-                  const subjectDone = allQuestions.filter((question) => question.subjectId === subject.id && answers[question.id]).length;
-                  const percent = subjectTotal ? Math.round((subjectDone / subjectTotal) * 100) : 0;
-                  return (
-                    <button
-                      className="progress-row"
-                      key={subject.id}
-                      onClick={() => {
-                        setActiveSubject(subject.id);
-                        setSection("practice");
-                      }}
-                    >
-                      <span>{subject.name}</span>
-                      <div className="progress-track">
-                        <div style={{ width: `${percent}%` }} />
-                      </div>
-                      <strong>{percent}%</strong>
-                    </button>
-                  );
-                })}
-                <button className="progress-row" onClick={() => setSection("lab")}>
-                  <span>실습 SQL 작성형</span>
-                  <div className="progress-track">
-                    <div style={{ width: `${Math.round((labCompleted / allLabQuestions.length) * 100)}%` }} />
-                  </div>
-                  <strong>{labCompleted}/{allLabQuestions.length}</strong>
-                </button>
-              </div>
-            </section>
-
-            <section className="todo-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Today</p>
-                  <h2>내 할 일</h2>
-                </div>
-                <span className="pill">{completedTodos}/{todaysTodos.length}</span>
-              </div>
-              <form className="todo-form" onSubmit={addTodo}>
-                <input
-                  value={newTodoText}
-                  onChange={(event) => setNewTodoText(event.target.value)}
-                  placeholder="오늘 할 일을 적어주세요"
-                  aria-label="오늘 할 일 추가"
-                />
-                <button className="icon-only soft" type="submit" aria-label="할 일 추가">
-                  <Plus size={17} />
-                </button>
-              </form>
-              <div className="todo-list">
-                {todaysTodos.length === 0 && <p className="empty compact">아직 적은 할 일이 없어요.</p>}
-                {todaysTodos.map((todo) => {
-                  return (
-                    <div key={todo.id} className={todo.checked ? "todo-item checked" : "todo-item"}>
-                      <label>
-                        <input type="checkbox" checked={todo.checked} onChange={() => toggleTodo(todo.id)} />
-                        <span>{todo.text}</span>
-                      </label>
-                      <button className="icon-only tiny" onClick={() => deleteTodo(todo.id)} aria-label="할 일 삭제">
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="calendar-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Study Calendar</p>
-                  <h2>{today.getFullYear()}년 {today.getMonth() + 1}월 학습량</h2>
-                </div>
-                <CalendarDays size={22} />
-              </div>
-              <div className="calendar-weekdays" aria-hidden="true">
-                {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
-                  <span key={day}>{day}</span>
-                ))}
-              </div>
-              <div className="study-calendar">
-                {monthlyStudyDays.map((day) => (
-                  <span
-                    key={day.key}
-                    className={`calendar-day ${day.isToday ? "today" : ""}`}
-                    data-level={Math.min(4, day.count)}
-                    title={day.day ? `${day.day}일 · 학습 ${day.count}회` : ""}
-                  >
-                    {day.day}
-                  </span>
-                ))}
-              </div>
-            </section>
-          </div>
+        {view === "dashboard" && (
+          <Dashboard
+            accuracy={accuracy}
+            solvedCount={solvedCount}
+            correctCount={correctCount}
+            dday={dday}
+            nearestExam={nearestExam}
+            calendar={calendar}
+            todos={state.todos}
+            newTodo={newTodo}
+            setNewTodo={setNewTodo}
+            addTodo={addTodo}
+            toggleTodo={toggleTodo}
+            attemptsByQuestion={attemptsByQuestion}
+            wrongAttempts={wrongAttempts}
+          />
         )}
 
-        {section === "practice" && currentQuestion && (
-          <div className="practice-layout">
-            <section className="subject-panel">
-              {subjects.map((subject) => (
-                <button
-                  key={subject.id}
-                  className={subject.id === activeSubject ? "subject-tab active" : "subject-tab"}
-                  onClick={() => setActiveSubject(subject.id)}
-                >
-                  {subject.name}
-                </button>
-              ))}
-              <div className="extra-gate">
-                <span>
-                  {subjectAnsweredCount}/{subjectQuestions.length} 완료
-                  {subjectExtraQuestions.length > 0 ? ` · 추가 ${subjectExtraQuestions.length}문제` : ""}
-                </span>
-                <p>원할 때마다 기출 변형 20문제를 추가해서 같은 과목을 계속 반복할 수 있어요.</p>
-                <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating}>
-                  <Plus size={17} />
-                  {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 문제 추가`}
-                </button>
-              </div>
-              <div className="question-list">
-                {subjectQuestions.map((question, index) => (
-                  <button
-                    key={question.id}
-                    className={`mini-question ${index === questionIndex ? "active" : ""} ${answers[question.id]?.correct ? "correct" : answers[question.id] ? "wrong" : ""}`}
-                    onClick={() => setQuestionIndex(index)}
-                  >
-                    {question.number}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="question-panel">
-              <div className="question-meta">
-                <span>{currentQuestion.subjectName}</span>
-                <span>{currentQuestion.topic}</span>
-                <span>{currentQuestion.difficulty}</span>
-              </div>
-              <h2>
-                {currentQuestion.number}. {currentQuestion.stem}
-              </h2>
-
-              {(currentQuestion.passage || currentQuestion.code || currentQuestion.table) && (
-                <div className="exam-material">
-                  {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
-                  {currentQuestion.table && (
-                    <div className="exam-table-wrap">
-                      <table className="exam-table">
-                        <thead>
-                          <tr>
-                            {currentQuestion.table.headers.map((header) => (
-                              <th key={header}>{header}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentQuestion.table.rows.map((row, rowIndex) => (
-                            <tr key={`${currentQuestion.id}-row-${rowIndex}`}>
-                              {row.map((cell, cellIndex) => (
-                                <td key={`${currentQuestion.id}-${rowIndex}-${cellIndex}`}>{cell}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  {currentQuestion.code && <pre className="exam-code">{currentQuestion.code}</pre>}
-                </div>
-              )}
-
-              <div className="choice-list">
-                {currentQuestion.choices.map((choice) => {
-                  const isSelected = selectedChoice === choice.id;
-                  const reveal = Boolean(currentAnswer);
-                  const isAnswer = currentQuestion.answer === choice.id;
-                  return (
-                    <button
-                      key={choice.id}
-                      className={`choice ${isSelected ? "selected" : ""} ${reveal && isAnswer ? "answer" : ""} ${reveal && isSelected && !isAnswer ? "miss" : ""}`}
-                      onClick={() => setSelectedChoice(choice.id)}
-                    >
-                      <strong>{choice.id}</strong>
-                      <span>{choice.text}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {hintVisible && (
-                <div className="hint-box">
-                  <Lightbulb size={18} />
-                  <p>{currentQuestion.hint}</p>
-                </div>
-              )}
-
-              {currentAnswer && (
-                <div className={currentAnswer.correct ? "explain-box correct" : "explain-box wrong"}>
-                  <div className="explain-title">
-                    {currentAnswer.correct ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
-                    <strong>{currentAnswer.correct ? "정답" : "오답"}</strong>
-                  </div>
-                  <p>{currentQuestion.explanation}</p>
-                  <p className="small-muted">
-                    선택 {currentAnswer.selectedChoiceId}: {currentQuestion.whyWrong[currentAnswer.selectedChoiceId]}
-                  </p>
-                  <div className="choice-explanations">
-                    <strong>선택지별 해설</strong>
-                    {currentQuestion.choices.map((choice) => (
-                      <p
-                        key={`${currentQuestion.id}-why-${choice.id}`}
-                        className={choice.id === currentQuestion.answer ? "choice-explanation answer" : "choice-explanation"}
-                      >
-                        <b>{choice.id}</b> {currentQuestion.whyWrong[choice.id]}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="question-actions">
-                <button className="ghost-button" onClick={() => setHintVisible(true)}>
-                  <Lightbulb size={17} />
-                  힌트
-                </button>
-                <button className="primary-button" onClick={submitAnswer} disabled={!selectedChoice}>
-                  <CheckCircle2 size={17} />
-                  제출
-                </button>
-                <button className="ghost-button icon-only" aria-label="Previous question" onClick={() => setQuestionIndex((prev) => clampIndex(prev - 1, subjectQuestions.length))}>
-                  <ChevronLeft size={18} />
-                </button>
-                <button className="ghost-button icon-only" aria-label="Next question" onClick={() => setQuestionIndex((prev) => clampIndex(prev + 1, subjectQuestions.length))}>
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-              <div className="bottom-add-panel">
-                <div>
-                  <strong>문제 풀이 풀 확장</strong>
-                  <span>현재 과목에 복원형 변형 20문제를 바로 추가합니다.</span>
-                </div>
-                <button className="primary-button" onClick={addExtraQuestionBatch} disabled={isGenerating}>
-                  <Plus size={17} />
-                  문제 추가
-                </button>
-              </div>
-            </section>
-          </div>
+        {view === "concepts" && selectedConcept && (
+          <ConceptsView
+            concepts={approvedConceptDocuments}
+            selectedConcept={selectedConcept}
+            sidebarOpen={conceptSidebarOpen}
+            setSidebarOpen={setConceptSidebarOpen}
+            setSelectedConceptId={setSelectedConceptId}
+            addHighlight={addHighlight}
+            clearHighlights={() =>
+              updateState((current) => ({
+                ...current,
+                highlights: current.highlights.filter((mark) => mark.conceptId !== selectedConcept.id)
+              }))
+            }
+            renderMarkedText={renderMarkedText}
+          />
         )}
 
-        {section === "lab" && (
-          <div className="lab-layout">
-            <section className="subject-panel">
-              {allLabQuestions.map((lab, index) => (
-                <button
-                  key={lab.id}
-                  className={index === activeLabIndex ? "subject-tab active" : "subject-tab"}
-                  onClick={() => {
-                    setActiveLabIndex(index);
-                    setLabSql("");
-                    setLabResult(null);
-                    setRemotePlan(null);
-                  }}
-                >
-                  실습 {lab.number}. {lab.topic}
-                </button>
-              ))}
-              <div className="extra-gate">
-                <span>{labCompleted}/{allLabQuestions.length} 시도 · 실습 풀 확장</span>
-                <p>최근 SQLP 실기 복기형 Trace/Predicate 변형 5문제를 바로 추가합니다.</p>
-                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
-                  <Sparkles size={17} />
-                  실습 5문제 추가
-                </button>
-              </div>
-            </section>
-
-            <section className="lab-main">
-              <div className="question-meta">
-                <span>SQL 작성형</span>
-                <span>{activeLab.topic}</span>
-                <span>{activeLab.difficulty}</span>
-              </div>
-              <h2>{activeLab.title}</h2>
-              <p className="lead">{activeLab.scenario}</p>
-
-              <div className="split-panels">
-                <div className="code-panel schema-panel">
-                  <div className="code-panel-heading">
-                    <h3>스키마/인덱스</h3>
-                    <span>복원형 조건</span>
-                  </div>
-                  <pre>{activeLab.schemaSql}</pre>
-                </div>
-                <div className="code-panel schema-panel compact">
-                  <div className="code-panel-heading">
-                    <h3>AS-IS/제약</h3>
-                    <span>현재 SQL과 제한사항</span>
-                  </div>
-                  <pre>{activeLab.seedSql}</pre>
-                </div>
-                <div className="code-panel plan-target-panel">
-                  <div className="code-panel-heading">
-                    <h3>목표 실행계획</h3>
-                    <span>답안에서 드러나야 할 의도</span>
-                  </div>
-                  <ul>
-                    {activeLab.targetPlan.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-                {activeLab.traceStats && (
-                  <div className="code-panel schema-panel compact">
-                    <div className="code-panel-heading">
-                      <h3>SQL Trace 통계</h3>
-                      <span>Rows · Loop · PR · CR · time</span>
-                    </div>
-                    <pre>{activeLab.traceStats}</pre>
-                  </div>
-                )}
-                {activeLab.predicateInfo && (
-                  <div className="code-panel schema-panel compact">
-                    <div className="code-panel-heading">
-                      <h3>Predicate Information</h3>
-                      <span>access/filter 판정</span>
-                    </div>
-                    <pre>{activeLab.predicateInfo}</pre>
-                  </div>
-                )}
-              </div>
-
-              <div className="prompt-box">
-                <strong>문제</strong>
-                <p>{activeLab.prompt}</p>
-              </div>
-
-              <textarea
-                className={containsUnsafeSql(labSql) ? "sql-editor danger" : "sql-editor"}
-                value={labSql}
-                onChange={(event) => setLabSql(event.target.value)}
-                placeholder="SELECT 또는 WITH 문으로 답안을 작성하세요. Oracle 힌트는 주석 형태로 함께 연습할 수 있습니다."
-                spellCheck={false}
-              />
-
-              <div className="question-actions">
-                <button className="primary-button" onClick={runLab}>
-                  <Play size={17} />
-                  실행계획 확인
-                </button>
-                <button className="ghost-button" onClick={() => setLabSql(activeLab.expectedSql)}>
-                  <Sparkles size={17} />
-                  기준 답안
-                </button>
-              </div>
-              <div className="bottom-add-panel">
-                <div>
-                  <strong>실습 문제 풀 확장</strong>
-                  <span>50~53회 복기형 실행계획 변형 5문제를 추가합니다.</span>
-                </div>
-                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
-                  <Plus size={17} />
-                  문제 추가
-                </button>
-              </div>
-
-              {labResult && (
-                <div className="lab-result">
-                  <div>
-                    <p className="eyebrow">Feedback</p>
-                    <h3>{labResult.score}점 · {labResult.passed ? "통과권" : "보강 필요"}</h3>
-                    <ul>
-                      {labResult.feedback.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="code-panel">
-                    <h3>{remotePlan?.mode === "postgres" ? "PostgreSQL EXPLAIN" : "실행계획 시뮬레이션"}</h3>
-                    <pre>{(remotePlan?.plan ?? labResult.plan).join("\n")}</pre>
-                    <p className="small-muted">{remotePlan?.message ?? "DATABASE_URL이 없으면 로컬 시뮬레이션이 사용됩니다."}</p>
-                  </div>
-                </div>
-              )}
-
-              <section className="oracle-panel">
-                <h3>Oracle/SQLP 관점</h3>
-                <ul>
-                  {activeLab.oracleNotes.map((note) => (
-                    <li key={note}>{note}</li>
-                  ))}
-                </ul>
-              </section>
-            </section>
-          </div>
+        {(view === "subject-1" || view === "subject-2" || view === "subject-3") && (
+          <QuestionView
+            subjectId={view}
+            questionIndex={selectedQuestions[view]}
+            setQuestionIndex={(index) => setSelectedQuestions((current) => ({ ...current, [view]: index }))}
+            answers={answers}
+            setAnswers={setAnswers}
+            attemptsByQuestion={attemptsByQuestion}
+            hintProgress={state.hintProgress}
+            showNextHint={showNextHint}
+            submitQuestion={submitQuestion}
+          />
         )}
 
-        {section === "wrong" && (
-          <section className="wide-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Review Queue</p>
-                <h2>오답노트</h2>
-              </div>
-              <span className="pill">{wrongQuestionIds.length}문제</span>
-            </div>
-
-            <div className="review-list">
-              {wrongQuestionIds.length === 0 && <p className="empty">아직 오답이 없습니다. 문제풀이에서 틀린 문항이 자동으로 쌓입니다.</p>}
-              {wrongQuestionIds.map((questionId) => {
-                const question = allQuestions.find((item) => item.id === questionId);
-                if (!question) return null;
-                const note = wrongNotes[questionId];
-                return (
-                  <article className="review-item" key={questionId}>
-                    <div>
-                      <span className="pill">{question.subjectName}</span>
-                      <h3>{question.stem}</h3>
-                      <p>{question.explanation}</p>
-                    </div>
-                    <textarea
-                      value={note?.memo ?? ""}
-                      onChange={(event) =>
-                        setWrongNotes((prev) => ({
-                          ...prev,
-                          [questionId]: {
-                            questionId,
-                            memo: event.target.value,
-                            updatedAt: nowIso()
-                          }
-                        }))
-                      }
-                      placeholder="다시 틀리지 않기 위한 나만의 포인트"
-                    />
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+        {view === "practice" && (
+          <PracticeView
+            drafts={state.practiceDrafts}
+            submissions={state.practiceSubmissions}
+            setDraft={(practiceId, sql) =>
+              updateState((current) => ({ ...current, practiceDrafts: { ...current.practiceDrafts, [practiceId]: sql } }))
+            }
+            submitPractice={submitPractice}
+          />
         )}
 
-        {section === "concepts" && selectedConcept && (
-          <div className={conceptNavCollapsed ? "concept-layout nav-collapsed" : "concept-layout"}>
-            <section className="concept-toc">
-              <button className="toc-toggle" onClick={() => setConceptNavCollapsed((prev) => !prev)}>
-                <BookOpen size={16} />
-                <span>{conceptNavCollapsed ? "펼치기" : "목록 접기"}</span>
-              </button>
-
-              {conceptNavCollapsed ? (
-                <div className="collapsed-label">
-                  <span>{selectedConcept.subjectName.replace(/^(\d과목)\s*/, "$1")}</span>
-                  <strong>{selectedConcept.title}</strong>
-                </div>
-              ) : (
-                <>
-                  <div className="concept-subject-tabs">
-                    {conceptSubjectTabs.map((subject) => (
-                      <button
-                        key={subject.id}
-                        className={subject.id === activeConceptSubject ? "concept-subject active" : "concept-subject"}
-                        onClick={() => selectConceptSubject(subject.id)}
-                      >
-                        <span>{subject.label}</span>
-                        <strong>{subject.title}</strong>
-                        <small>{subject.count}개 세부항목</small>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="concept-major-list">
-                    <p className="eyebrow">주요항목</p>
-                    {conceptMajorTopics.map((majorTopic) => (
-                      <button
-                        key={majorTopic}
-                        className={majorTopic === resolvedConceptMajor ? "major-topic active" : "major-topic"}
-                        onClick={() => selectConceptMajor(majorTopic)}
-                      >
-                        {majorTopic}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="concept-detail-list">
-                    <div className="panel-mini-heading">
-                      <p className="eyebrow">세부항목</p>
-                      <strong>{resolvedConceptMajor}</strong>
-                    </div>
-                    {visibleConceptArticles.map((concept) => (
-                      <button
-                        key={concept.id}
-                        className={concept.id === selectedConcept.id ? "concept-detail active" : "concept-detail"}
-                        onClick={() => {
-                          setSelectedConceptId(concept.id);
-                          setConceptNavCollapsed(true);
-                        }}
-                      >
-                        <strong>{concept.title}</strong>
-                        <span>{concept.summary}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </section>
-
-            <section className="concept-article" onMouseUp={captureConceptSelection}>
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">
-                    {selectedConcept.subjectName} / {selectedConcept.majorTopic}
-                  </p>
-                  <h2>{selectedConcept.title}</h2>
-                </div>
-                <div className="highlight-toolbar">
-                  <div className="color-palette" aria-label="형광펜 색상">
-                    {(["yellow", "green", "pink"] as const).map((color) => (
-                      <button
-                        key={color}
-                        className={highlightColor === color ? `color-dot ${color} active` : `color-dot ${color}`}
-                        aria-label={`${color} 형광펜`}
-                        onClick={() => setHighlightColor(color)}
-                      />
-                    ))}
-                  </div>
-                  <button className="ghost-button" onClick={addConceptHighlight} disabled={!selectedHighlightTarget}>
-                    <Highlighter size={17} />
-                    선택 형광펜
-                  </button>
-                </div>
-              </div>
-              {selectedHighlightText && <p className="selection-preview">선택됨: {selectedHighlightText}</p>}
-              {selectedConceptHighlights.length > 0 && (
-                <div className="highlight-list">
-                  {selectedConceptHighlights.map((highlight) => (
-                    <button key={highlight.id} className={`highlight-chip mark-${highlight.color}`} onClick={() => removeConceptHighlight(highlight.id)}>
-                      <span>{highlight.text}</span>
-                      <b>삭제</b>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <p className="lead" data-highlight-field={`${selectedConcept.id}:summary`}>
-                {renderHighlightedText(selectedConcept.summary, `${selectedConcept.id}:summary`)}
-              </p>
-              {selectedConcept.studyBlocks?.map((block, blockIndex) => {
-                if (block.type === "table") {
-                  return (
-                    <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
-                      <h3>{block.title}</h3>
-                      <div className="concept-table-wrap">
-                        <table className="concept-table">
-                          <thead>
-                            <tr>
-                              {block.headers.map((header, headerIndex) => (
-                                <th key={header} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:header-${headerIndex}`}>
-                                  {renderHighlightedText(header, `${selectedConcept.id}:block-${blockIndex}:header-${headerIndex}`)}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {block.rows.map((row, rowIndex) => (
-                              <tr key={`${block.title}-${rowIndex}`}>
-                                {row.map((cell, cellIndex) => (
-                                  <td key={`${block.title}-${rowIndex}-${cellIndex}`} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:row-${rowIndex}:cell-${cellIndex}`}>
-                                    {renderHighlightedText(cell, `${selectedConcept.id}:block-${blockIndex}:row-${rowIndex}:cell-${cellIndex}`)}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (block.type === "flow") {
-                  return (
-                    <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
-                      <h3>{block.title}</h3>
-                      <ol className="concept-flow">
-                        {block.steps.map((step, stepIndex) => (
-                          <li key={`${block.title}-${stepIndex}`}>
-                            <span>{stepIndex + 1}</span>
-                            <p data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:step-${stepIndex}`}>
-                              {renderHighlightedText(step, `${selectedConcept.id}:block-${blockIndex}:step-${stepIndex}`)}
-                            </p>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  );
-                }
-
-                if (block.type === "checklist") {
-                  return (
-                    <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
-                      <h3>{block.title}</h3>
-                      <ul className="concept-checklist">
-                        {block.items.map((item, itemIndex) => (
-                          <li key={item} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:item-${itemIndex}`}>
-                            {renderHighlightedText(item, `${selectedConcept.id}:block-${blockIndex}:item-${itemIndex}`)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="concept-study-block" key={`${block.title}-${blockIndex}`}>
-                    <h3>{block.title}</h3>
-                    {block.paragraphs.map((paragraph, paragraphIndex) => (
-                      <p key={paragraph} data-highlight-field={`${selectedConcept.id}:block-${blockIndex}:paragraph-${paragraphIndex}`}>
-                        {renderHighlightedText(paragraph, `${selectedConcept.id}:block-${blockIndex}:paragraph-${paragraphIndex}`)}
-                      </p>
-                    ))}
-                  </div>
-                );
-              })}
-              <h3>시험에 자주 나오는 핵심</h3>
-              <ul className="concept-points">
-                {selectedConcept.keyPoints.map((point, pointIndex) => (
-                  <li key={point} data-highlight-field={`${selectedConcept.id}:key-${pointIndex}`}>
-                    {renderHighlightedText(point, `${selectedConcept.id}:key-${pointIndex}`)}
-                  </li>
-                ))}
-              </ul>
-              <div className="prompt-box">
-                <strong>시험 함정</strong>
-                <p data-highlight-field={`${selectedConcept.id}:trap`}>{renderHighlightedText(selectedConcept.examTrap, `${selectedConcept.id}:trap`)}</p>
-              </div>
-              {selectedConcept.oracleAngle && (
-                <div className="prompt-box oracle">
-                  <strong>Oracle 관점</strong>
-                  <p data-highlight-field={`${selectedConcept.id}:oracle`}>{renderHighlightedText(selectedConcept.oracleAngle, `${selectedConcept.id}:oracle`)}</p>
-                </div>
-              )}
-              <textarea
-                value={conceptMarks[selectedConcept.id]?.memo ?? ""}
-                onChange={(event) => updateConceptMark(selectedConcept.id, { memo: event.target.value })}
-                placeholder="이 개념에서 헷갈리는 부분"
-              />
-            </section>
-          </div>
+        {view === "wrong" && <WrongView wrongAttempts={wrongAttempts} />}
+        {view === "notes" && selectedNote && (
+          <NotesView
+            notes={state.notes.filter((note) => !note.trashed)}
+            selectedNote={selectedNote}
+            sidebarOpen={notesSidebarOpen}
+            setSidebarOpen={setNotesSidebarOpen}
+            setSelectedNoteId={setSelectedNoteId}
+            addNote={addNote}
+            updateNoteTitle={(title) =>
+              updateState((current) => ({
+                ...current,
+                notes: current.notes.map((note) => (note.id === selectedNote.id ? { ...note, title, updatedAt: nowIso() } : note))
+              }))
+            }
+            updateNoteBlock={updateNoteBlock}
+            addNoteBlock={addNoteBlock}
+          />
         )}
 
-        {section === "notes" && (
-          <section className="wide-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Private Notes</p>
-                <h2>개인 노트</h2>
-              </div>
-              <button className="primary-button" onClick={addPersonalNote}>
-                <Plus size={17} />새 노트
-              </button>
-            </div>
-
-            {personalNotes.length === 0 && <p className="empty">개인 노트를 만들면 로컬에 즉시 저장되고, 로그인 후에는 Supabase에 동기화됩니다.</p>}
-
-            {personalNotes.length > 0 && selectedPersonalNote && (
-              <div className={noteListCollapsed ? "notes-workspace notes-collapsed" : "notes-workspace"}>
-                <aside className="note-list">
-                  <button className="toc-toggle" onClick={() => setNoteListCollapsed((prev) => !prev)}>
-                    <NotebookPen size={16} />
-                    <span>{noteListCollapsed ? "목록" : "목록 접기"}</span>
-                  </button>
-                  {noteListCollapsed ? (
-                    <div className="collapsed-label">
-                      <span>{personalNotes.length}개 노트</span>
-                      <strong>{selectedPersonalNote.title || "제목 없는 노트"}</strong>
-                    </div>
-                  ) : (
-                    <div className="note-list-items">
-                      {personalNotes.map((note) => (
-                        <button
-                          className={note.id === selectedPersonalNote.id ? "note-list-item active" : "note-list-item"}
-                          key={note.id}
-                          onClick={() => {
-                            setSelectedPersonalNoteId(note.id);
-                            setNoteListCollapsed(true);
-                          }}
-                        >
-                          <strong>{note.title || "제목 없는 노트"}</strong>
-                          <span>{note.body || "내용 없음"}</span>
-                          <small>
-                            {note.tags || "태그 없음"} · {formatDateTime(note.updatedAt)}
-                          </small>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </aside>
-
-                <article className="note-editor-panel">
-                  <div className="note-card-head">
-                    <input
-                      aria-label="노트 제목"
-                      value={selectedPersonalNote.title}
-                      onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { title: event.target.value })}
-                      placeholder="노트 제목"
-                    />
-                    <button className="ghost-button icon-only" aria-label="노트 삭제" onClick={() => deletePersonalNote(selectedPersonalNote.id)}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <textarea
-                    value={selectedPersonalNote.body}
-                    onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { body: event.target.value })}
-                    placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
-                  />
-                  <div className="note-footer">
-                    <input
-                      aria-label="노트 태그"
-                      value={selectedPersonalNote.tags}
-                      onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { tags: event.target.value })}
-                      placeholder="태그"
-                    />
-                    <span>{formatDateTime(selectedPersonalNote.updatedAt)}</span>
-                  </div>
-                </article>
-              </div>
-            )}
-          </section>
-        )}
+        {view === "bookmarks" && <SimplePanel title="북마크" body="문제·개념·실습 북마크 저장 구조는 준비됐고, 화면 연결은 다음 UI 배치에서 붙입니다." />}
+        {view === "mock" && <SimplePanel title="모의고사" body="모의고사는 승인 콘텐츠가 충분히 쌓인 뒤 과목별 배점과 제한시간을 반영해 열 예정입니다." />}
+        {view === "stats" && <StatsView />}
+        {view === "tutor" && <SimplePanel title="AI 튜터" body="AI 튜터는 서버 API에서 승인된 해설을 근거로 답변하도록 연결합니다. 현재 Preview에서는 Mock/준비 중으로 표시합니다." />}
+        {view === "settings" && <SimplePanel title="사용자 설정" body="로그인, 저장 상태, 데이터 동기화 정책을 확인하는 설정 화면입니다." />}
+        {view === "admin" && <AdminView />}
       </section>
     </main>
   );
 }
 
-function sectionTitle(section: Section) {
-  switch (section) {
-    case "dashboard":
-      return "학습 홈";
-    case "practice":
-      return "객관식 문제풀이";
-    case "lab":
-      return "SQL 작성형 실습";
-    case "wrong":
-      return "오답 복습";
-    case "concepts":
-      return "개념정리";
-    case "notes":
-      return "개인 노트";
-  }
+function viewTitle(view: View) {
+  const titles: Record<View, string> = {
+    dashboard: "나의 학습 현황",
+    concepts: "SQLP 개념 정리",
+    "subject-1": "1과목 문제풀이",
+    "subject-2": "2과목 문제풀이",
+    "subject-3": "3과목 문제풀이",
+    practice: "SQLP 실습",
+    mock: "모의고사",
+    wrong: "오답노트",
+    bookmarks: "북마크",
+    notes: "개인 노트",
+    stats: "학습 통계",
+    tutor: "AI 튜터",
+    settings: "사용자 설정",
+    admin: "관리자 콘텐츠 관리"
+  };
+  return titles[view];
 }
 
+function Dashboard({
+  accuracy,
+  solvedCount,
+  correctCount,
+  dday,
+  nearestExam,
+  calendar,
+  todos,
+  newTodo,
+  setNewTodo,
+  addTodo,
+  toggleTodo,
+  attemptsByQuestion,
+  wrongAttempts
+}: {
+  accuracy: number;
+  solvedCount: number;
+  correctCount: number;
+  dday: number;
+  nearestExam: { round: string; date: string; apply: string };
+  calendar: Array<{ key: string; day: string; count: number; today: boolean }>;
+  todos: Todo[];
+  newTodo: string;
+  setNewTodo: (value: string) => void;
+  addTodo: () => void;
+  toggleTodo: (id: string) => void;
+  attemptsByQuestion: Map<string, Attempt>;
+  wrongAttempts: Attempt[];
+}) {
+  return (
+    <div className="dashboard-grid">
+      <section className="study-hero">
+        <div>
+          <p className="eyebrow">SQLMate Study Room</p>
+          <h2>가볍게 열고, 깊게 푸는 SQLP 루틴</h2>
+          <p>오늘은 핵심 개념 1개, 문제 10개, 실습 Trace 1개를 목표로 잡아보세요.</p>
+        </div>
+        <div className="dday-card">
+          <span>{nearestExam.round}</span>
+          <strong>D-{Math.max(0, dday)}</strong>
+          <small>{nearestExam.date} · 접수 {nearestExam.apply}</small>
+        </div>
+      </section>
 
+      <section className="metric-strip">
+        <Metric label="풀이 완료" value={`${solvedCount}문제`} sub="1차 승인 세트 기준" />
+        <Metric label="정답률" value={`${accuracy}%`} sub={`${correctCount}개 정답`} />
+        <Metric label="오답 복습" value={`${wrongAttempts.length}개`} sub="간격 반복 대상" />
+        <Metric label="실습" value={`${approvedPracticeScenarios.length}개`} sub="Oracle 모의 계획" />
+      </section>
 
+      <section className="panel todo-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">오늘 할 일</p>
+            <h2>직접 적고 체크하기</h2>
+          </div>
+        </div>
+        <div className="todo-input">
+          <input value={newTodo} onChange={(event) => setNewTodo(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addTodo()} placeholder="예: SQL Trace 계산 20분 복습" />
+          <button className="primary-button" onClick={addTodo} type="button">
+            <Plus size={16} /> 추가
+          </button>
+        </div>
+        <div className="todo-list">
+          {todos.length === 0 && <p className="muted">아직 오늘 할 일이 없어요. 필요한 것만 짧게 적어두면 충분합니다.</p>}
+          {todos.map((todo) => (
+            <label key={todo.id} className="todo-row">
+              <input checked={todo.completed} onChange={() => toggleTodo(todo.id)} type="checkbox" />
+              <span>{todo.title}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel progress-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">과목별 진행</p>
+            <h2>승인 문제 풀이 현황</h2>
+          </div>
+        </div>
+        {subjects.map((subject) => {
+          const questions = approvedQuestions.filter((question) => question.subjectId === subject.id);
+          const solved = questions.filter((question) => attemptsByQuestion.has(question.id)).length;
+          const percent = Math.round((solved / questions.length) * 100);
+          return (
+            <div key={subject.id} className="progress-line">
+              <div>
+                <strong>{subject.label}</strong>
+                <span>{subject.title}</span>
+              </div>
+              <div className="progress-track">
+                <span style={{ width: `${percent}%` }} />
+              </div>
+              <b>{percent}%</b>
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="panel calendar-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">학습 달력</p>
+            <h2>이번 달 기록</h2>
+          </div>
+        </div>
+        <div className="study-calendar">
+          {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
+            <strong key={day}>{day}</strong>
+          ))}
+          {calendar.map((day) => (
+            <span key={day.key} className={`${day.today ? "today" : ""} heat-${Math.min(4, day.count)}`}>
+              {day.day}
+            </span>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{sub}</small>
+    </div>
+  );
+}
+
+function ConceptsView({
+  concepts,
+  selectedConcept,
+  sidebarOpen,
+  setSidebarOpen,
+  setSelectedConceptId,
+  addHighlight,
+  clearHighlights,
+  renderMarkedText
+}: {
+  concepts: ConceptDocument[];
+  selectedConcept: ConceptDocument;
+  sidebarOpen: boolean;
+  setSidebarOpen: (value: boolean) => void;
+  setSelectedConceptId: (value: string) => void;
+  addHighlight: (conceptId: string, color: HighlightMark["color"]) => void;
+  clearHighlights: () => void;
+  renderMarkedText: (conceptId: string, markKey: string, text: string) => React.ReactNode[];
+}) {
+  return (
+    <div className={`split-view ${sidebarOpen ? "" : "collapsed"}`}>
+      <aside className="content-list">
+        <button className="ghost-button" onClick={() => setSidebarOpen(!sidebarOpen)} type="button">
+          <ChevronLeft size={16} /> {sidebarOpen ? "목록 접기" : "목록 열기"}
+        </button>
+        {concepts.map((concept) => (
+          <button key={concept.id} className={`list-card ${selectedConcept.id === concept.id ? "active" : ""}`} onClick={() => setSelectedConceptId(concept.id)} type="button">
+            <small>{concept.subjectName}</small>
+            <strong>{concept.title}</strong>
+            <span>{concept.minorTopic}</span>
+          </button>
+        ))}
+      </aside>
+      <article className="reader panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{selectedConcept.majorTopic}</p>
+            <h2>{selectedConcept.title}</h2>
+          </div>
+          <div className="mark-tools">
+            {(["yellow", "green", "pink", "blue"] as const).map((color) => (
+              <button key={color} className={`swatch mark-${color}`} onClick={() => addHighlight(selectedConcept.id, color)} title={`${color} 형광펜`} type="button" />
+            ))}
+            <button className="ghost-button" onClick={clearHighlights} type="button">
+              <Trash2 size={15} /> 모든 마킹 지우기
+            </button>
+          </div>
+        </div>
+        <p className="reader-summary" data-mark-key={`${selectedConcept.id}:summary`} data-mark-text={selectedConcept.summary}>
+          {renderMarkedText(selectedConcept.id, `${selectedConcept.id}:summary`, selectedConcept.summary)}
+        </p>
+        {selectedConcept.sections.map((section, sectionIndex) => (
+          <section key={section.title} className="concept-section">
+            <h3>{section.title}</h3>
+            {section.body?.map((body, index) => {
+              const key = `${selectedConcept.id}:section:${sectionIndex}:body:${index}`;
+              return (
+                <p key={key} data-mark-key={key} data-mark-text={body}>
+                  {renderMarkedText(selectedConcept.id, key, body)}
+                </p>
+              );
+            })}
+            {section.bullets && (
+              <ul>
+                {section.bullets.map((item, index) => {
+                  const key = `${selectedConcept.id}:section:${sectionIndex}:bullet:${index}`;
+                  return (
+                    <li key={key} data-mark-key={key} data-mark-text={item}>
+                      {renderMarkedText(selectedConcept.id, key, item)}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {section.table && <DataTable headers={section.table.headers} rows={section.table.rows} />}
+          </section>
+        ))}
+      </article>
+    </div>
+  );
+}
+
+function QuestionView({
+  subjectId,
+  questionIndex,
+  setQuestionIndex,
+  answers,
+  setAnswers,
+  attemptsByQuestion,
+  hintProgress,
+  showNextHint,
+  submitQuestion
+}: {
+  subjectId: SqlpSubjectId;
+  questionIndex: number;
+  setQuestionIndex: (index: number) => void;
+  answers: Record<string, string[]>;
+  setAnswers: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  attemptsByQuestion: Map<string, Attempt>;
+  hintProgress: Record<string, number>;
+  showNextHint: (questionId: string) => void;
+  submitQuestion: (question: SqlpQuestion) => void;
+}) {
+  const questions = approvedQuestions.filter((question) => question.subjectId === subjectId);
+  const question = questions[Math.min(questionIndex, questions.length - 1)];
+  const attempt = attemptsByQuestion.get(question.id);
+  const visibleHints = question.hints.slice(0, hintProgress[question.id] ?? 0);
+
+  function updateAnswer(value: string, checked = true) {
+    setAnswers((current) => {
+      if (question.answer.kind === "choices") {
+        const existing = new Set(current[question.id] ?? []);
+        if (checked) existing.add(value);
+        else existing.delete(value);
+        return { ...current, [question.id]: Array.from(existing) };
+      }
+      return { ...current, [question.id]: [value] };
+    });
+  }
+
+  const currentAnswer = answers[question.id] ?? [];
+  const allSolved = questions.every((item) => attemptsByQuestion.has(item.id));
+
+  return (
+    <div className="question-layout">
+      <aside className="question-index panel">
+        <p className="eyebrow">{subjects.find((subject) => subject.id === subjectId)?.title}</p>
+        <div className="question-dots">
+          {questions.map((item, index) => (
+            <button key={item.id} className={`${questionIndex === index ? "active" : ""} ${attemptsByQuestion.get(item.id)?.correct ? "correct" : attemptsByQuestion.has(item.id) ? "wrong" : ""}`} onClick={() => setQuestionIndex(index)} type="button">
+              {index + 1}
+            </button>
+          ))}
+        </div>
+        {allSolved && (
+          <div className="review-box">
+            <strong>1차 승인 세트 완료</strong>
+            <p>추가 문제는 관리자 검수 대기 풀로 생성 후 approved 상태가 되면 이어서 공개하도록 설계했습니다.</p>
+          </div>
+        )}
+      </aside>
+      <section className="question-card panel">
+        <div className="question-meta">
+          <span>{question.majorTopic}</span>
+          <span>{question.type}</span>
+          <span>{question.difficulty}</span>
+          <span>{question.expectedMinutes}분</span>
+        </div>
+        <h2>
+          {questionIndex + 1}. {question.prompt}
+        </h2>
+        {question.passage && <pre className="passage">{question.passage}</pre>}
+        {question.sql && <pre className="code-block">{question.sql}</pre>}
+        {question.table && <DataTable headers={question.table.headers} rows={question.table.rows} />}
+
+        {question.choices ? (
+          <div className="choice-list">
+            {question.choices.map((choice) => {
+              const checked = currentAnswer.includes(choice.id);
+              return (
+                <label key={choice.id} className={`choice-row ${checked ? "selected" : ""}`}>
+                  <input
+                    checked={checked}
+                    onChange={(event) => updateAnswer(choice.id, event.target.checked)}
+                    type={question.answer.kind === "choices" ? "checkbox" : "radio"}
+                    name={question.id}
+                  />
+                  <span>{choice.id}</span>
+                  <strong>{choice.text}</strong>
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <textarea
+            className="answer-box"
+            value={currentAnswer[0] ?? ""}
+            onChange={(event) => updateAnswer(event.target.value)}
+            placeholder="답안을 입력하세요."
+          />
+        )}
+
+        <div className="hint-list">
+          {visibleHints.map((hint) => (
+            <HintCard key={hint.level} hint={hint} />
+          ))}
+        </div>
+
+        <div className="question-actions">
+          <button className="ghost-button" onClick={() => showNextHint(question.id)} disabled={(hintProgress[question.id] ?? 0) >= 3} type="button">
+            <Sparkles size={16} /> 힌트 보기
+          </button>
+          <button className="primary-button" onClick={() => submitQuestion(question)} type="button">
+            <CheckCircle2 size={16} /> 제출
+          </button>
+        </div>
+
+        {attempt && (
+          <div className={`result-box ${attempt.correct ? "correct" : "wrong"}`}>
+            <h3>{attempt.correct ? "정답입니다" : "다시 복습할 문제입니다"}</h3>
+            <p>
+              정답: <strong>{answerText(question)}</strong>
+            </p>
+            <p>{question.explanation}</p>
+            <ul>
+              {question.wrongAnswerNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PracticeView({
+  drafts,
+  submissions,
+  setDraft,
+  submitPractice
+}: {
+  drafts: Record<string, string>;
+  submissions: PracticeSubmission[];
+  setDraft: (practiceId: string, sql: string) => void;
+  submitPractice: (scenario: PracticeScenario) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(approvedPracticeScenarios[0].id);
+  const scenario = approvedPracticeScenarios.find((item) => item.id === selectedId) ?? approvedPracticeScenarios[0];
+  const latest = [...submissions].reverse().find((item) => item.practiceId === scenario.id);
+
+  return (
+    <div className="practice-grid">
+      <aside className="content-list">
+        {approvedPracticeScenarios.map((item) => (
+          <button key={item.id} className={`list-card ${scenario.id === item.id ? "active" : ""}`} onClick={() => setSelectedId(item.id)} type="button">
+            <small>{item.area}</small>
+            <strong>{item.title}</strong>
+            <span>{item.difficulty}</span>
+          </button>
+        ))}
+      </aside>
+      <section className="panel practice-main">
+        <p className="eyebrow">Oracle 모의 실행계획 분석 모드</p>
+        <h2>{scenario.title}</h2>
+        <p>{scenario.scenario}</p>
+        <div className="lab-section">
+          <h3>요구사항</h3>
+          <p>{scenario.requirement}</p>
+        </div>
+        <div className="lab-section">
+          <h3>현재 SQL</h3>
+          <pre className="code-block">{scenario.currentSql}</pre>
+        </div>
+        <div className="lab-section">
+          <h3>현재 실행계획</h3>
+          <PlanTable plan={scenario.currentPlan} />
+        </div>
+        <div className="lab-section">
+          <h3>Predicate Information</h3>
+          <ul>
+            {scenario.predicateInfo.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+        <textarea
+          className="sql-editor"
+          value={drafts[scenario.id] ?? ""}
+          onChange={(event) => setDraft(scenario.id, event.target.value)}
+          placeholder="여기에 튜닝 SQL 또는 힌트 전략을 작성하세요."
+        />
+        <button className="primary-button" onClick={() => submitPractice(scenario)} type="button">
+          <Play size={16} /> 모의 채점
+        </button>
+        {latest && (
+          <div className="result-box correct">
+            <h3>최근 제출 점수 {latest.score}점</h3>
+            <p>{scenario.explanation}</p>
+            <p>모범 SQL</p>
+            <pre className="code-block">{scenario.modelSql}</pre>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function NotesView({
+  notes,
+  selectedNote,
+  sidebarOpen,
+  setSidebarOpen,
+  setSelectedNoteId,
+  addNote,
+  updateNoteTitle,
+  updateNoteBlock,
+  addNoteBlock
+}: {
+  notes: NoteDoc[];
+  selectedNote: NoteDoc;
+  sidebarOpen: boolean;
+  setSidebarOpen: (value: boolean) => void;
+  setSelectedNoteId: (value: string) => void;
+  addNote: () => void;
+  updateNoteTitle: (title: string) => void;
+  updateNoteBlock: (noteId: string, blockId: string, text: string) => void;
+  addNoteBlock: (noteId: string, type: NoteBlock["type"]) => void;
+}) {
+  return (
+    <div className={`split-view notes-view ${sidebarOpen ? "" : "collapsed"}`}>
+      <aside className="content-list">
+        <div className="list-actions">
+          <button className="ghost-button" onClick={() => setSidebarOpen(!sidebarOpen)} type="button">
+            <ChevronLeft size={16} /> {sidebarOpen ? "목록 접기" : "목록 열기"}
+          </button>
+          <button className="primary-button" onClick={addNote} type="button">
+            <Plus size={16} /> 노트
+          </button>
+        </div>
+        {notes.map((note) => (
+          <button key={note.id} className={`list-card ${selectedNote.id === note.id ? "active" : ""}`} onClick={() => setSelectedNoteId(note.id)} type="button">
+            <strong>{note.title}</strong>
+            <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(note.updatedAt))}</span>
+          </button>
+        ))}
+      </aside>
+      <section className="panel note-editor">
+        <input className="note-title-input" value={selectedNote.title} onChange={(event) => updateNoteTitle(event.target.value)} />
+        <div className="block-toolbar">
+          {(["paragraph", "heading", "bullet", "check", "code"] as const).map((type) => (
+            <button key={type} className="ghost-button" onClick={() => addNoteBlock(selectedNote.id, type)} type="button">
+              {type}
+            </button>
+          ))}
+        </div>
+        {selectedNote.blocks.map((block) => (
+          <textarea
+            key={block.id}
+            className={`note-block note-${block.type}`}
+            value={block.text}
+            onChange={(event) => updateNoteBlock(selectedNote.id, block.id, event.target.value)}
+            placeholder={block.type === "code" ? "SQL 코드" : "내용을 입력하세요"}
+          />
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function WrongView({ wrongAttempts }: { wrongAttempts: Attempt[] }) {
+  return (
+    <section className="panel">
+      <p className="eyebrow">Spaced Review</p>
+      <h2>오답노트</h2>
+      {wrongAttempts.length === 0 ? (
+        <p className="muted">아직 오답이 없습니다. 틀린 문제는 자동으로 이곳에 쌓입니다.</p>
+      ) : (
+        <div className="wrong-list">
+          {wrongAttempts.map((attempt) => {
+            const question = approvedQuestions.find((item) => item.id === attempt.questionId);
+            if (!question) return null;
+            return (
+              <article key={attempt.questionId} className="wrong-card">
+                <strong>{question.prompt}</strong>
+                <p>내 답: {attempt.submitted.join(", ")} · 정답: {answerText(question)}</p>
+                <p>{question.explanation}</p>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StatsView() {
+  const distribution = summarizeDistribution(approvedQuestions);
+  return (
+    <section className="panel">
+      <p className="eyebrow">Content Distribution</p>
+      <h2>현재 승인 콘텐츠 분포</h2>
+      <DataTable
+        headers={["구분", "수량"]}
+        rows={[
+          ...Object.entries(distribution.bySubject).map(([key, value]) => [key, String(value)]),
+          ...Object.entries(distribution.byType).map(([key, value]) => [key, String(value)]),
+          ...Object.entries(distribution.byDifficulty).map(([key, value]) => [key, String(value)])
+        ]}
+      />
+    </section>
+  );
+}
+
+function AdminView() {
+  return (
+    <section className="panel">
+      <p className="eyebrow">Review Workflow</p>
+      <h2>관리자 콘텐츠 관리</h2>
+      <div className="metric-strip">
+        <Metric label="승인 문제" value={`${approvedQuestions.length}개`} sub="1차 품질 세트" />
+        <Metric label="승인 실습" value={`${approvedPracticeScenarios.length}개`} sub="Oracle 모의 계획" />
+        <Metric label="개념 문서" value={`${approvedConceptDocuments.length}개`} sub="단권화 노트" />
+        <Metric label="검수 대기" value="0개" sub="DB 적용 후 관리" />
+      </div>
+      <p className="muted">생성 콘텐츠는 DB 스키마상 review_required로 저장하고, 관리자 검수 후 approved가 되어야 일반 사용자에게 공개됩니다.</p>
+    </section>
+  );
+}
+
+function SimplePanel({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="panel">
+      <p className="eyebrow">SQLMate</p>
+      <h2>{title}</h2>
+      <p>{body}</p>
+    </section>
+  );
+}
+
+function HintCard({ hint }: { hint: HintStep }) {
+  return (
+    <div className="hint-card">
+      <strong>
+        {hint.level}단계 · {hint.title}
+      </strong>
+      <p>{hint.body}</p>
+    </div>
+  );
+}
+
+function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {headers.map((header) => (
+              <th key={header}>{header}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`${row.join(":")}-${rowIndex}`}>
+              {row.map((cell, index) => (
+                <td key={`${cell}-${index}`}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PlanTable({ plan }: { plan: PracticeScenario["currentPlan"] }) {
+  return (
+    <DataTable
+      headers={["Id", "Operation", "Object", "Starts", "Rows", "CR", "PR", "Predicate"]}
+      rows={plan.map((op) => [
+        String(op.id),
+        `${op.parentId ? "  ".repeat(Math.min(4, op.id)) : ""}${op.operation}`,
+        op.objectName ?? "",
+        String(op.starts),
+        String(op.rows),
+        String(op.cr ?? ""),
+        String(op.pr ?? ""),
+        op.accessPredicate ? `access(${op.accessPredicate})` : op.filterPredicate ? `filter(${op.filterPredicate})` : ""
+      ])}
+    />
+  );
+}
