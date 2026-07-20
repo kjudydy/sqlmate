@@ -7,6 +7,7 @@
 - Added normalized SQLP platform schema migration draft with RLS policies.
 - Added first approved quality seed content model: concept documents, 30 written questions, and 3 SQLP practice scenarios.
 - Added automated content quality validation tests for required fields, type distribution, concept links, hints, and trace/plan grounding.
+- Pushed `feature/sqlp-platform-overhaul` and created Vercel Preview deployment.
 
 ## Earlier
 

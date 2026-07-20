@@ -12,4 +12,4 @@
 - [x] Preserve current account persistence through existing `study_state` JSON while migration awaits review/application.
 - [ ] Implement admin content management UI.
 - [ ] Run full validation after UI rebuild.
-- [ ] Push branch and deploy Vercel Preview.
+- [x] Push branch and deploy Vercel Preview.
