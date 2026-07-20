@@ -1,169 +1,131 @@
-# SQLMate Concept Curriculum
+# Concept Curriculum
 
-This curriculum keeps the existing `개념정리` top-level menu and organizes content by SQLP subject, then major topic, then detailed concept.
+Date: 2026-07-20
+
+원칙: SQLMate의 최상위 개념정리 구조는 현재처럼 `1과목`, `2과목`, `3과목`을 유지한다. Optimizer, Index, Join 같은 기술어를 최상위 메뉴로 분리하지 않는다.
 
 ## 1과목 데이터 모델링의 이해
 
 ### 데이터 모델링의 이해
 
-- 데이터 모델링의 정의, 목적, 특징
-- 모델링의 세 가지 관점: 데이터, 프로세스, 상관
-- 데이터 모델링의 중요성: 파급효과, 간결한 표현, 데이터 품질
-- 데이터 모델링 유의점: 중복, 비유연성, 비일관성
-- 개념/논리/물리 데이터 모델링
-- 데이터베이스 3단계 구조: 외부/개념/내부 스키마
-- 논리적 독립성과 물리적 독립성
-- 좋은 데이터 모델의 조건
+- 모델링의 정의와 특징: 추상화, 단순화, 명확화
+- 모델링의 세 가지 관점: 데이터 관점, 프로세스 관점, 데이터와 프로세스 상관 관점
+- 데이터 모델링 3단계: 개념, 논리, 물리 모델링
+- 데이터베이스 3단계 구조: 외부, 개념, 내부 스키마
+- 데이터 독립성: 논리적 독립성, 물리적 독립성
+- 좋은 데이터 모델의 조건: 중복 배제, 비유연성 제거, 비일관성 방지
 
-### 엔터티
+### 엔터티와 속성
 
-- 엔터티 정의와 성립 조건
-- 업무 엔터티와 집합성
+- 엔터티 정의, 인스턴스, 엔터티 후보 판단
 - 유형/개념/사건 엔터티
-- 기본/중심/행위 엔터티
-- 엔터티 명명 기준과 기출 함정
+- 기본, 중심, 행위 엔터티
+- 속성 정의, 원자성, 다중값, 반복 속성
+- 기본 속성, 설계 속성, 파생 속성
+- 도메인과 속성값 검증
+- NULL 허용과 SQL 결과 영향
 
-### 속성
+### 관계와 식별자
 
-- 속성 정의와 원자성
-- 기본/설계/파생 속성
-- 단일값/다중값 속성
-- 도메인과 NULL
-- 속성 분해와 반복 속성 제거
-
-### 관계
-
-- 관계 정의, 관계명, 관계차수, 선택성
+- 관계 정의, 관계명, 관계 차수, 선택성
+- 1:1, 1:M, M:M 관계 판단
 - 식별 관계와 비식별 관계
-- 1:1, 1:M, M:N 관계 해소
-- 필수/선택 관계와 외래키 NULL
-- ERD 해석 문제 풀이 순서
+- 주식별자 도출 기준: 유일성, 최소성, 불변성, 존재성
+- 본질 식별자와 인조 식별자
+- 관계 선택성이 조인 건수와 인덱스 설계에 미치는 영향
 
-### 식별자
+### 성능 데이터 모델링
 
-- 주식별자 특성: 유일성, 최소성, 불변성, 존재성
-- 본질식별자, 인조식별자, 보조식별자, 외부식별자
-- 식별자 도출 기준
-- 복합식별자와 성능 영향
-
-### 정규화와 반정규화
-
-- 1NF, 2NF, 3NF, BCNF
-- 함수 종속과 부분/이행 종속
-- 정규화의 장점과 조인 증가 비용
-- 반정규화 대상과 절차
-- 중복 컬럼, 파생 컬럼, 이력 테이블, 집계 테이블
+- 정규화 목적과 이상 현상
+- 1정규형, 2정규형, 3정규형, BCNF
+- 반정규화 판단 기준과 위험
+- 이력 모델, 집계 모델, 중복 컬럼
+- 트랜잭션 모델링과 데이터 생명주기
 
 ## 2과목 SQL 기본 및 활용
 
 ### SQL 기본
 
 - SELECT 논리 처리 순서
-- WHERE 조건, NULL, 3-valued logic
+- WHERE, NULL, 3값 논리
 - 비교 연산자, BETWEEN, IN, LIKE
-- 단일행 함수: 문자, 숫자, 날짜, 변환, NULL 함수
-- CASE, DECODE, NVL, COALESCE, NULLIF
-- ORDER BY와 alias/position
-- DML, TCL, DDL, DCL 기본
+- 날짜/문자/숫자 함수
+- CASE, NVL, COALESCE, NULLIF
+- GROUP BY, HAVING, 집계 함수
+- ORDER BY와 정렬 기준
+- DDL, DML, TCL, 제약조건
 
 ### SQL 활용
 
-- 집계 함수, GROUP BY, HAVING
-- ROLLUP, CUBE, GROUPING SETS, GROUPING
-- JOIN: INNER, OUTER, CROSS, NATURAL, USING
-- Oracle old outer join `(+)` condition placement
-- 서브쿼리: single-row, multi-row, correlated, scalar
-- EXISTS/NOT EXISTS, IN/NOT IN and NULL
-- 집합 연산: UNION, UNION ALL, INTERSECT, MINUS
-- 윈도우 함수: rank, dense_rank, row_number, aggregate window
-- 계층형 질의 and recursive thinking
-- Top-N and paging
+- 표준 조인과 Oracle 조인
+- INNER, OUTER, CROSS, NATURAL JOIN
+- OUTER JOIN 조건 위치
+- 서브쿼리: 단일행, 다중행, 상관, 스칼라
+- EXISTS, IN, NOT EXISTS, NOT IN과 NULL
+- 집합 연산자
+- 계층형 질의
+- 윈도우 함수
+- ROLLUP, CUBE, GROUPING SETS
+- Top-N과 페이징
 
 ## 3과목 SQL 고급활용 및 튜닝
 
-### SQL 처리 구조
+### 옵티마이저와 실행계획
 
-- Parse, Bind, Execute, Fetch
-- Hard parse and soft parse
-- Cursor, library cache, shared pool
-- SGA, PGA, buffer cache overview
-- DB Call and array fetch
-- SQL Trace and TKPROF metrics
-
-### 옵티마이저
-
-- RBO/CBO distinction
-- Query transformation
-- Statistics, selectivity, cardinality, cost
-- Access path, join order, join method
-- Hint syntax and scope
+- SQL 처리 과정: Parse, Bind, Execute, Fetch
+- Hard Parse와 Soft Parse
+- Library Cache와 Cursor 공유
+- CBO, 통계정보, Histogram, Dynamic Sampling
+- Selectivity, Cardinality, Cost
+- Access Path, Join Order, Join Method
+- DBMS_XPLAN과 실제 row source 통계
 
 ### 인덱스 튜닝
 
-- B-tree index structure
-- Index range scan, unique scan, full scan, fast full scan, skip scan
-- Composite index column order
-- Index scan efficiency
-- Table random access minimization
-- Clustering factor
-- Index range scan blockers: column transformation, leading wildcard, implicit conversion, `IS NULL`
-- Access Predicate vs Filter Predicate
+- B-Tree 구조: root, branch, leaf block
+- 수직 탐색과 수평 탐색
+- ROWID와 테이블 랜덤 액세스
+- Unique, Range, Full, Fast Full, Skip Scan
+- 결합 인덱스와 선두 컬럼
+- 등치 조건, 범위 조건, 정렬 조건
+- 클러스터링 팩터
+- 인덱스 손익분기점
+- 인덱스 스캔 효율화
+- 테이블 액세스 최소화
 
 ### 조인 튜닝
 
-- Nested Loops Join
-- Sort Merge Join
-- Hash Join
-- Semi/anti join
-- Outer join preservation
-- Join order and driving row source
-- `leading`, `use_nl`, `use_hash`, `swap_join_inputs`
+- NL Join: 선행 집합, 후행 인덱스, 반복 횟수
+- Sort Merge Join: 정렬 비용, 조인 조건
+- Hash Join: Build Input, Probe Input, 메모리와 TEMP
+- Semi Join, Anti Join, Outer Join
+- 조인 순서와 힌트
+- 대량 조인과 부분범위 처리
 
-### SQL Rewrite and Transformation
+### Query Transformation
 
-- Subquery unnesting and `no_unnest`
-- View merging and `no_merge`
-- Predicate pushing and `push_pred`
-- OR expansion and `OR_EXPAND` / `USE_CONCAT`
-- Scalar subquery cache
-- UNION ALL branch pruning and Top-N
+- View Merging
+- Predicate Pushing / Pullup
+- Subquery Unnesting
+- OR Expansion
+- Join Elimination
+- Partition Pruning
+- Group By Placement
+- Top-N Pushdown
+- 변환 제어 힌트
 
-### Partition, DML, and Batch Tuning
+### SQL 분석과 고급 튜닝
 
-- Partition pruning and PSTART/PSTOP
-- Exchange partition
-- Local/global index behavior
-- NOLOGGING, APPEND, direct path insert
-- Parallel DML
-- Large delete/update rewrite
-- Index unusable/rebuild strategy
+- SQL Trace와 TKPROF
+- Parse/Execute/Fetch call 분석
+- CR, PR, current, query, elapsed, CPU
+- 대기 이벤트
+- Sort 메커니즘, PGA, One-pass, Multi-pass
+- 대량 DML, Direct Path, APPEND, Exchange Partition
+- Lock, Latch, MVCC, 동시성 제어
 
-### Sort, Hash, and Partial Range Processing
+## 연결 정책
 
-- Sort elimination
-- Group by placement
-- Hash group by
-- `COUNT STOPKEY`
-- `index_desc`
-- Paging and deterministic ordering
-
-### Lock and Concurrency
-
-- Transaction isolation basics
-- Row lock, table lock, enqueue
-- Latch vs lock
-- MVCC concept
-- Deadlock and blocking sessions
-
-## Current Site Mapping
-
-- `lib/concepts.ts` already contains subject-based concept documents and should remain under the single `개념정리` menu.
-- Concept documents should be improved inside this hierarchy rather than by creating new top-level technical menus.
-- Related practice questions should link back to the closest detailed concept whenever the UI adds concept links.
-
-## 2026-07-20 Reinforced Documents
-
-- 2과목 SQL 기본 및 활용 > SQL 기본 > `WHERE 절`: NULL 3값 논리, NOT IN, OUTER JOIN 조건 위치, SARGable 조건까지 문제풀이형으로 보강.
-- 3과목 SQL 고급활용 및 튜닝 > 인덱스 튜닝 > `인덱스 스캔 효율화`: B-tree 수직/수평 탐색, access/filter predicate, 결합 인덱스 조건 순서, 테이블 방문량 판단까지 보강.
-- 3과목 SQL 고급활용 및 튜닝 > SQL 분석 도구 > `SQL 트레이스`: Parse/Execute/Fetch, query/current/disk, rows 대비 CR/PR 해석, 실행계획과 Trace 연결 방식 보강.
-- 3과목 SQL 고급활용 및 튜닝 > SQL Rewrite and Transformation > `쿼리 변환`: View Merging, Predicate Pushing, Subquery Unnesting, OR Expansion의 허용/차단 기준 보강.
+- 문제 해설은 관련 개념 ID로 이동한다.
+- 개념 페이지는 관련 문제와 SQL 실습으로 연결한다.
+- 실습은 Trace, 실행계획, Predicate, 인덱스/조인 관련 개념을 함께 연결한다.

@@ -1,9 +1,12 @@
-import type { Choice, ChoiceId, ConceptArticle, Difficulty, LabQuestion, ObjectiveQuestion, SubjectId } from "@/lib/types";
+import type { Choice, ChoiceId, ConceptArticle, Difficulty, LabPlanExplanation, LabQuestion, LabTraceSummaryRow, ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 type ChoiceTuple = [string, string, string, string];
 
 type DraftQuestion = {
+  majorTopic?: string;
+  middleTopic?: string;
+  questionType?: string;
   topic: string;
   difficulty: Difficulty;
   stem: string;
@@ -14,6 +17,7 @@ type DraftQuestion = {
   answerIndex?: 0 | 1 | 2 | 3;
   choiceExplanations?: ChoiceTuple;
   relatedConceptId?: string;
+  reviewStatus?: "approved" | "review_required";
   hint: string;
   explanation: string;
 };
@@ -168,6 +172,106 @@ function makeExamPoint(draft: DraftQuestion) {
 
 function makeStudyHint(draft: DraftQuestion) {
   return [`출제 포인트: ${draft.topic}`, `힌트: ${draft.hint}`, `풀이 방향:\n${makeSolvingGuide(draft)}`].join("\n\n");
+}
+
+function inferQuestionType(draft: DraftQuestion, subjectId: SubjectId) {
+  if (draft.questionType) return draft.questionType;
+  if (draft.stem.includes("옳은 것만 모두") || draft.passage?.includes("[보기]")) return "보기 조합형";
+  if (draft.stem.includes("부적절") || draft.stem.includes("옳지 않은")) return "옳지 않은 설명 선택형";
+  if (draft.code?.includes("Predicate Information") || draft.code?.includes("Rows") || draft.code?.includes("CR")) return "SQL Trace 분석 선택형";
+  if (draft.code?.includes("Operation") || draft.topic.includes("실행계획")) return "실행계획 분석 선택형";
+  if (draft.code && subjectId === "sql-basic") return "SQL 실행 결과 선택형";
+  if (draft.code && subjectId === "tuning") return "적절한 튜닝 방향 선택형";
+  if (draft.table) return "표 판단형 객관식";
+  return "단일 선택 객관식";
+}
+
+function inferMajorTopic(subjectId: SubjectId, topic: string) {
+  if (subjectId === "modeling") {
+    if (hasAny(topic, ["정규", "반정규", "NULL", "성능", "도메인"])) return "성능 데이터 모델링";
+    if (hasAny(topic, ["스키마", "모델링", "엔터티", "속성", "관계", "식별"])) return "데이터 모델링의 이해";
+    return "관계와 식별자";
+  }
+
+  if (subjectId === "sql-basic") {
+    if (hasAny(topic, ["JOIN", "조인", "서브쿼리", "집합", "Top-N", "계층", "윈도우", "ROLLUP", "CUBE"])) return "SQL 활용";
+    if (hasAny(topic, ["DDL", "DML", "TCL", "제약", "트랜잭션"])) return "관리 구문";
+    return "SQL 기본";
+  }
+
+  if (hasAny(topic, ["인덱스", "스캔", "클러스터링", "Predicate", "SARGable", "테이블 엑세스"])) return "인덱스 튜닝";
+  if (hasAny(topic, ["조인", "Join", "NL", "Hash", "Sort Merge"])) return "조인 튜닝";
+  if (hasAny(topic, ["Trace", "트레이스", "실행계획", "TKPROF"])) return "SQL 분석 도구";
+  if (hasAny(topic, ["쿼리", "뷰", "서브쿼리", "OR", "파티션", "Top-N", "Sort", "Group"])) return "SQL 최적화 원리";
+  if (hasAny(topic, ["Lock", "동시성", "트랜잭션"])) return "Lock과 트랜잭션 동시성 제어";
+  return "SQL 고급활용 및 튜닝";
+}
+
+function inferMiddleTopic(subjectId: SubjectId, topic: string) {
+  if (subjectId === "modeling") {
+    if (hasAny(topic, ["정규", "반정규"])) return "정규화와 반정규화";
+    if (hasAny(topic, ["식별"])) return "식별자";
+    if (hasAny(topic, ["관계"])) return "관계";
+    if (hasAny(topic, ["엔터티"])) return "엔터티";
+    return "데이터 모델링 핵심";
+  }
+
+  if (subjectId === "sql-basic") {
+    if (hasAny(topic, ["JOIN", "조인"])) return "조인";
+    if (hasAny(topic, ["GROUP", "ROLLUP", "CUBE", "집계"])) return "그룹 함수";
+    if (hasAny(topic, ["윈도우", "Top-N", "계층"])) return "고급 SQL";
+    if (hasAny(topic, ["서브쿼리", "집합"])) return "서브쿼리와 집합 연산";
+    return "SQL 기본 문법";
+  }
+
+  if (hasAny(topic, ["인덱스", "스캔", "Predicate", "SARGable", "클러스터링"])) return "인덱스 스캔 효율화";
+  if (hasAny(topic, ["NL"])) return "NL 조인";
+  if (hasAny(topic, ["Hash"])) return "Hash Join";
+  if (hasAny(topic, ["Sort Merge"])) return "Sort Merge Join";
+  if (hasAny(topic, ["Trace", "트레이스", "TKPROF"])) return "SQL Trace";
+  if (hasAny(topic, ["파티션"])) return "Partition Pruning";
+  if (hasAny(topic, ["뷰", "서브쿼리", "OR", "쿼리"])) return "Query Transformation";
+  return "실행계획과 튜닝 판단";
+}
+
+function inferRelatedConceptId(subjectId: SubjectId, topic: string) {
+  if (subjectId === "modeling") {
+    if (topic.includes("엔터티")) return "modeling-entity";
+    if (topic.includes("속성")) return "modeling-attribute";
+    if (topic.includes("관계")) return "modeling-relationship";
+    if (topic.includes("식별")) return "modeling-identifier";
+    if (topic.includes("정규")) return "modeling-normalization";
+    if (topic.includes("NULL")) return "modeling-null";
+    return "modeling-data-model";
+  }
+
+  if (subjectId === "sql-basic") {
+    if (topic.includes("WHERE") || topic.includes("NULL") || topic.includes("SARGable")) return "sql-where";
+    if (topic.includes("조인") || topic.includes("JOIN")) return "sql-standard-join";
+    if (topic.includes("GROUP") || topic.includes("ROLLUP") || topic.includes("CUBE") || topic.includes("집계")) return "sql-group-having";
+    if (topic.includes("윈도우")) return "sql-window-functions";
+    if (topic.includes("Top-N")) return "sql-top-n";
+    if (topic.includes("서브쿼리")) return "sql-subquery";
+    if (topic.includes("집합")) return "sql-set-operators";
+    if (topic.includes("함수")) return "sql-functions";
+    return "sql-where";
+  }
+
+  if (topic.includes("Trace") || topic.includes("트레이스") || topic.includes("TKPROF")) return "tuning-sql-trace";
+  if (topic.includes("쿼리") || topic.includes("뷰") || topic.includes("서브쿼리") || topic.includes("OR")) return "tuning-query-transformation";
+  if (topic.includes("Hash")) return "tuning-hash-join";
+  if (topic.includes("NL")) return "tuning-nl-join";
+  if (topic.includes("Sort") || topic.includes("정렬")) return "tuning-sort";
+  if (topic.includes("파티션")) return "tuning-partitioning";
+  if (topic.includes("Lock") || topic.includes("동시성")) return "tuning-lock";
+  if (topic.includes("테이블")) return "tuning-table-access";
+  return "tuning-index-scan-efficiency";
+}
+
+function duplicationCheckNote(globalIndex: number) {
+  if (globalIndex < 10) return "approved seed: 사용자가 승인한 1~10번 품질 기준 세트";
+  if (globalIndex < 100) return "자동 QA: 동일 stem/code/table/choices 서명 중복 없음";
+  return "review_required: 20문제 확장 배치 검수 후 승인 필요";
 }
 
 function makeDetailedExplanation(draft: DraftQuestion, answerText: string) {
@@ -1273,24 +1377,32 @@ function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0
     const draft = withExtraContext(drafts[globalIndex % drafts.length], globalIndex, drafts.length);
     const answerIndex = draft.answerIndex ?? 0;
     const rotated = rotateChoices(draft.choices, answerIndex, globalIndex);
+    const majorTopic = draft.majorTopic ?? inferMajorTopic(config.id, draft.topic);
+    const middleTopic = draft.middleTopic ?? inferMiddleTopic(config.id, draft.topic);
+    const relatedConceptId = draft.relatedConceptId ?? inferRelatedConceptId(config.id, draft.topic);
 
     return {
       id: `${idPrefix}-${String(globalIndex + 1).padStart(3, "0")}`,
       number: globalIndex + 1,
       subjectId: config.id,
       subjectName: config.name,
+      majorTopic,
+      middleTopic,
       topic: draft.topic,
       difficulty: draft.difficulty,
+      questionType: inferQuestionType(draft, config.id),
       stem: draft.stem,
       passage: draft.passage,
       code: draft.code,
       table: draft.table,
       choices: makeChoices(rotated.choices),
       answer: choiceIds[rotated.answerIndex],
-      relatedConceptId: draft.relatedConceptId,
+      relatedConceptId,
       hint: makeStudyHint(draft),
       explanation: makeDetailedExplanation(draft, rotated.choices[rotated.answerIndex]),
-      whyWrong: makeWhyWrong(draft, rotated.choices, rotated.answerIndex, draft.choiceExplanations ? rotateTuple(draft.choiceExplanations, globalIndex) : undefined)
+      whyWrong: makeWhyWrong(draft, rotated.choices, rotated.answerIndex, draft.choiceExplanations ? rotateTuple(draft.choiceExplanations, globalIndex) : undefined),
+      reviewStatus: draft.reviewStatus ?? (globalIndex < 100 ? "approved" : "review_required"),
+      duplicationCheck: duplicationCheckNote(globalIndex)
     };
   });
 }
@@ -3606,6 +3718,86 @@ where e.dt >= date '2026-07-01'
   }
 ];
 
+function explainPlanItem(item: string): LabPlanExplanation {
+  const upper = item.toUpperCase();
+  const catalog: Array<[string, string, string]> = [
+    ["COUNT STOPKEY", "COUNT STOPKEY - 정렬 또는 인덱스 순서에서 필요한 건수만 읽고 조기 중단", "Top-N 조건을 가능한 안쪽에 배치했는지 확인합니다."],
+    ["INDEX RANGE SCAN DESCENDING", "INDEX RANGE SCAN DESCENDING - 인덱스 범위를 역순으로 스캔", "ORDER BY DESC와 인덱스 컬럼 순서가 맞으면 정렬 비용을 줄일 수 있습니다."],
+    ["INDEX RANGE SCAN", "INDEX RANGE SCAN - 인덱스 시작점과 종료점을 잡아 범위 스캔", "access predicate가 실제 스캔 범위를 줄이는지가 핵심입니다."],
+    ["INDEX UNIQUE SCAN", "INDEX UNIQUE SCAN - 유일 인덱스로 단건을 찾는 접근", "반복 횟수가 많으면 단건 접근도 누적 비용이 커집니다."],
+    ["TABLE ACCESS BY INDEX ROWID", "TABLE ACCESS BY INDEX ROWID - 인덱스에서 얻은 ROWID로 테이블 방문", "ROWID 방문이 많으면 테이블 랜덤 액세스 비용을 따져야 합니다."],
+    ["TABLE ACCESS FULL", "TABLE ACCESS FULL - 테이블 전체 또는 파티션 전체를 순차적으로 읽음", "대량 범위에서는 유리할 수 있지만 소량 조건이면 인덱스 후보를 봅니다."],
+    ["NESTED LOOPS OUTER", "NESTED LOOPS OUTER - 기준 행을 보존하며 후행 테이블을 반복 탐색", "후행 인덱스와 보존 조건 위치가 중요합니다."],
+    ["NESTED LOOPS", "NESTED LOOPS - 선행 집합의 각 행마다 후행 집합을 반복 탐색", "선행 집합이 작고 후행 인덱스가 효율적일 때 적합합니다."],
+    ["HASH JOIN", "HASH JOIN - 한쪽 입력을 해시 테이블로 만들고 다른 쪽을 탐색", "대량 조인에서 유리하지만 메모리 부족 시 TEMP spill을 볼 수 있습니다."],
+    ["HASH GROUP BY", "HASH GROUP BY - 해시 영역으로 그룹 집계를 수행", "입력 건수와 distinct 그룹 수, PGA/TEMP 부담을 함께 봅니다."],
+    ["UNION-ALL", "UNION-ALL - 분기 결과를 중복 제거 없이 결합", "분기별 인덱스를 살릴 수 있지만 중복 방지 조건이 필요할 수 있습니다."],
+    ["PARTITION RANGE", "PARTITION RANGE - 파티션 키 조건으로 읽을 파티션 범위 결정", "PSTART/PSTOP이 좁혀졌는지 확인해야 합니다."],
+    ["PSTART/PSTOP", "PSTART/PSTOP - 파티션 시작/끝 번호", "ALL이면 파티션 프루닝 실패 가능성을 의심합니다."],
+    ["WINDOW SORT PUSHED RANK", "WINDOW SORT PUSHED RANK - Top-N/분석 함수 순위 처리를 조기 적용", "정렬 기준이 결정적이고 제한 위치가 맞는지 봅니다."],
+    ["SORT", "SORT - 정렬 또는 정렬 기반 집계/중복 제거", "인덱스 순서, GROUP BY 방식, DISTINCT 제거 가능성을 확인합니다."],
+    ["NO_MERGE", "NO_MERGE - 인라인 뷰 병합 차단 의도", "집계 후 조인이나 Top-N 순서를 보존해야 할 때 사용합니다."],
+    ["ANTI JOIN", "ANTI JOIN - 존재하지 않는 행을 찾는 조인", "NOT IN의 NULL 함정보다 NOT EXISTS가 안전한지 판단합니다."],
+    ["SEMI JOIN", "SEMI JOIN - 존재 여부만 확인하는 조인", "중복 제거 없이 존재성만 판단할 때 효율적입니다."]
+  ];
+  const match = catalog.find(([needle]) => upper.includes(needle));
+
+  return {
+    operation: item,
+    korean: match?.[1] ?? `${item} - 목표 실행계획에서 확인해야 할 처리 단계`,
+    note: match?.[2] ?? "영문 Operation은 Oracle 표기를 유지하고, 해설에서 왜 필요한지 확인합니다."
+  };
+}
+
+function buildTraceSummary(traceStats?: string): LabTraceSummaryRow[] {
+  if (!traceStats) return [];
+  const operationLines = traceStats
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^\d+\s+/.test(line));
+  const totals = operationLines.reduce(
+    (acc, line) => {
+      const parts = line.split(/\s+/);
+      const maybeNumbers = parts.filter((part) => /^\d+$/.test(part));
+      const time = parts.find((part) => /^\d{2}:\d{2}:\d{2}/.test(part));
+
+      if (maybeNumbers.length >= 5) {
+        const [rows, loop, pr, cr] = maybeNumbers.slice(-4).map(Number);
+        acc.rows += rows;
+        acc.loop = Math.max(acc.loop, loop);
+        acc.pr += pr;
+        acc.cr += cr;
+      }
+
+      if (time && !acc.time) acc.time = time;
+      return acc;
+    },
+    { rows: 0, loop: 0, pr: 0, cr: 0, time: "" }
+  );
+
+  return [
+    { metric: "Rows", value: totals.rows.toLocaleString("ko-KR"), meaning: "주요 Row Source에서 처리 또는 반환한 행 수 합계입니다. 실제 Oracle 측정값이 아니라 설명용 예시 기준입니다." },
+    { metric: "Loop/Starts", value: totals.loop.toLocaleString("ko-KR"), meaning: "같은 오퍼레이션이 반복 수행되는 정도입니다. NL 조인 후행 접근이나 스칼라 조회에서 커질 수 있습니다." },
+    { metric: "PR", value: totals.pr.toLocaleString("ko-KR"), meaning: "Physical Read 예시값입니다. 디스크 읽기 또는 캐시 미적중 가능성을 봅니다." },
+    { metric: "CR", value: totals.cr.toLocaleString("ko-KR"), meaning: "Consistent Read 예시값입니다. Rows 대비 과하면 인덱스 효율, 조인 반복, 테이블 액세스를 의심합니다." },
+    { metric: "Time", value: totals.time || "00:00:00.xx", meaning: "교육용 Trace에 표시된 경과 시간 예시입니다. 실제 실행 시간으로 단정하지 않습니다." }
+  ];
+}
+
+function relatedConceptsForLab(lab: LabCase) {
+  const ids = new Set<string>();
+  if (hasAny(lab.topic, ["Trace", "트레이스", "TKPROF", "실행계획"])) ids.add("tuning-sql-trace");
+  if (hasAny(lab.topic, ["인덱스", "스캔", "Top-N", "Predicate", "SARGable"])) ids.add("tuning-index-scan-efficiency");
+  if (hasAny(lab.topic, ["테이블", "랜덤"])) ids.add("tuning-table-access");
+  if (hasAny(lab.topic, ["NL", "조인", "Join"])) ids.add("tuning-nl-join");
+  if (hasAny(lab.topic, ["해시", "Hash"])) ids.add("tuning-hash-join");
+  if (hasAny(lab.topic, ["파티션", "Partition"])) ids.add("tuning-partitioning");
+  if (hasAny(lab.topic, ["OR", "뷰", "서브쿼리", "쿼리"])) ids.add("tuning-query-transformation");
+  if (hasAny(lab.topic, ["Sort", "정렬", "Group", "Distinct"])) ids.add("tuning-sort");
+  if (!ids.size) ids.add("tuning-sql-trace");
+  return Array.from(ids);
+}
+
 export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
   ...lab,
   id: `lab-${String(index + 1).padStart(2, "0")}`,
@@ -3613,7 +3805,11 @@ export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, i
   schemaSql: sqlpLabEnvironments[index]?.schemaSql ?? sqlpLabSchema,
   seedSql: sqlpLabEnvironments[index]?.seedSql ?? sqlpLabSeed,
   traceStats: labTrace(index),
-  predicateInfo: labPredicate(index)
+  predicateInfo: labPredicate(index),
+  targetPlanExplanations: lab.targetPlan.map(explainPlanItem),
+  traceSummary: buildTraceSummary(labTrace(index)),
+  simulationNotice: "이 실행계획과 SQL Trace는 첨부 자료와 복기 유형을 바탕으로 만든 SQLP 학습용 설명 예시입니다. 실제 Oracle에서 측정한 운영 실행 결과로 표시하지 않습니다.",
+  relatedConceptIds: relatedConceptsForLab(lab)
 }));
 
 export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
@@ -3646,7 +3842,10 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
     scenario: `${base.scenario} 같은 유형을 다른 조건으로 다시 풀어보는 추가 실습입니다.`,
     prompt: `${base.prompt}\n\n추가 조건: 같은 실행계획 의도를 유지하되 날짜 범위, 선행 집합, 조인 보존 조건이 바뀌어도 답안 구조가 흔들리지 않게 작성하세요.`,
     schemaSql: `${env?.schemaSql ?? sqlpLabSchema}\n\n[추가 변형 조건]\n- 같은 유형의 다른 회차 복원 문제처럼 테이블명과 조건값이 달라졌다고 가정합니다.\n- 목표는 암기한 SQL을 복붙하는 것이 아니라 실행계획 의도를 재현하는 것입니다.`,
-    seedSql: `${env?.seedSql ?? sqlpLabSeed}\n\n[추가 출제 포인트]\n- 결과 보존 조건을 먼저 확인합니다.\n- 인덱스/힌트는 별칭이 바뀌어도 논리가 같아야 합니다.\n- COUNT STOPKEY, PSTART/PSTOP, OUTER JOIN 조건 위치, access/filter 구분을 설명할 수 있어야 합니다.`
+    seedSql: `${env?.seedSql ?? sqlpLabSeed}\n\n[추가 출제 포인트]\n- 결과 보존 조건을 먼저 확인합니다.\n- 인덱스/힌트는 별칭이 바뀌어도 논리가 같아야 합니다.\n- COUNT STOPKEY, PSTART/PSTOP, OUTER JOIN 조건 위치, access/filter 구분을 설명할 수 있어야 합니다.`,
+    targetPlanExplanations: base.targetPlan.map(explainPlanItem),
+    simulationNotice: "이 추가 실습의 실행계획과 Trace는 검수 전 학습용 설명 예시입니다. 관리자 검수 후 공개하는 배치 후보로 봅니다.",
+    relatedConceptIds: relatedConceptsForLab(base)
   };
 }
 
@@ -3656,7 +3855,8 @@ export function createLocalExtraLabQuestions(startCount: number, batchSize = 5):
     return {
       ...createLocalExtraLabQuestion(count),
       traceStats: `${labTrace(count, offset)}\n\n추가 변형 포인트: 기준 Trace보다 Loop 또는 CR이 커지면 선행 집합 축소 위치를 먼저 의심합니다.`,
-      predicateInfo: `${labPredicate(count, offset)}\n\n추가 변형 포인트: access 조건은 인덱스 진입 조건, filter 조건은 읽은 뒤 버리는 조건으로 나누어 서술합니다.`
+      predicateInfo: `${labPredicate(count, offset)}\n\n추가 변형 포인트: access 조건은 인덱스 진입 조건, filter 조건은 읽은 뒤 버리는 조건으로 나누어 서술합니다.`,
+      traceSummary: buildTraceSummary(labTrace(count, offset))
     };
   });
 }

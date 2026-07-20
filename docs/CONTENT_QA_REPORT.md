@@ -1,65 +1,49 @@
-# SQLMate Content QA Report
+# Content QA Report
 
-## Scope
+Date: 2026-07-20
 
-This QA report applies to the restored UI branch based on `e32814c`.
+## 범위
 
-## UI and Flow QA
+이번 QA는 현재 SQLMate 디자인과 메뉴 구조를 유지한 상태에서 다음 세 영역만 대상으로 한다.
 
-| Item | Result | Notes |
-| --- | --- | --- |
-| Restore previous design direction | PASS | Kept the existing sidebar, cards, dashboard layout, note layout, colors, and typography from `e32814c`. |
-| Remove subject-level top menus | PASS | The rejected overhaul branch is not used. |
-| Remove bookmark/statistics/AI tutor top menus | PASS | These menus do not exist on the restored branch. |
-| Keep problem-solving under one menu | PASS | Top-level sidebar uses `문제풀이`; SQL lab is now reachable inside that flow. |
-| Keep personal note simple | PASS | Notes remain title/body/tag based, not block-editor based. |
-| Highlight chip removal | PASS | Top individual deletion chips were removed. |
-| Individual mark deletion | PASS | Clicking an existing highlighted text removes only that highlight. |
-| Clear all marks | PASS | One `모든 마킹 지우기` button exists in the concept toolbar. |
+- 문제풀이
+- SQL 실습
+- 개념정리
 
-## Objective Question QA
+## 필기 문제 QA
 
-| Item | Result | Notes |
-| --- | --- | --- |
-| 1과목 100 questions | PASS | Covered by `tests/problem-bank.test.ts`. |
-| 2과목 100 questions | PASS | Covered by `tests/problem-bank.test.ts`. |
-| 3과목 100 questions | PASS | Covered by `tests/problem-bank.test.ts`. |
-| Objective questions require click selection | PASS | `ObjectiveQuestion` uses choices and one answer; no SQL textarea is rendered in objective question view. |
-| SQL writing is separated into SQL practice | PASS | SQL textarea exists only in the lab view. |
-| Extra questions are subject-local | PASS | Existing tests verify independent 20-question batches per subject. |
-| Exact official exam-copy risk | PASS | Current content is original/reconstructed-style, not copied official questions. |
-| Depth and final exam fitness | REVIEW REQUIRED | Question pool is structurally ready, but content should keep being edited from PDF and official range. |
+| 항목 | 결과 | 메모 |
+|---|---|---|
+| 1~10번 승인 문제 유지 | PASS | 사용자가 만족한 문제는 삭제하지 않았다. |
+| 과목별 100문제 유지 | PASS | 테스트에서 과목별 100문제를 확인한다. |
+| 필기 문제 클릭형 객관식 유지 | PASS | 직접 SQL 작성/긴 서술은 필기 문제에 추가하지 않았다. |
+| 선택지별 해설 | PASS | 모든 문제에 whyWrong이 존재하도록 테스트한다. |
+| 관련 개념 연결 | PASS | seed 문제와 생성 문제 모두 관련 개념 ID를 갖도록 보강했다. |
+| 중복 검사 | PASS | signature 중복과 배치용 중복 후보 검사를 추가했다. |
+| 20문제 확장 구조 | PASS | 관리자 검수용 배치 계획 함수와 테스트를 추가했다. |
 
-## SQL Practice QA
+## SQL 실습 QA
 
-| Item | Result | Notes |
-| --- | --- | --- |
-| 20 lab questions | PASS | Covered by `tests/problem-bank.test.ts`. |
-| Lab-only SQL input | PASS | SQL editor exists only in `section === "lab"`. |
-| Execution plan simulation label | PASS | UI labels local mode as simulation when no `DATABASE_URL` exists. |
-| PDF-derived practice topics | PASS | Existing lab pool includes partition, Top-N, index, no_merge, COUNT STOPKEY, exchange partition, and Predicate Information patterns. |
-| Actual Oracle execution | REVIEW REQUIRED | No Oracle sandbox is connected. The app must not claim actual Oracle execution. |
+| 항목 | 결과 | 메모 |
+|---|---|---|
+| 실습 20문제 유지 | PASS | 기존 실습 수량은 유지했다. |
+| 실행계획 한글 설명 | PASS | 목표 실행계획마다 Operation 원문과 한글 설명을 연결했다. |
+| Trace 요약 표 | PASS | Rows, Loop/Starts, PR, CR, Time 요약을 생성한다. |
+| 전체 Trace 원문 | PASS | 접기/펼치기 details 영역으로 분리했다. |
+| 실제 Oracle 실행값 오인 방지 | PASS | 설명용 예시 안내 문구를 추가했다. |
+| 관련 개념 연결 | PASS | 실습별 관련 개념 ID를 제공한다. |
 
-## Concept QA
+## 개념정리 QA
 
-| Item | Result | Notes |
-| --- | --- | --- |
-| Subject-first concept organization | PASS | Concepts are selected under 1/2/3 subject tabs inside one `개념정리` menu. |
-| Avoid generic repeated labels | PASS | Existing tests reject repetitive labels such as `핵심 정의:` and `세부 포인트`. |
-| Curriculum document created | PASS | See `docs/CONCEPT_CURRICULUM.md`. |
-| Full SQLP coverage | REVIEW REQUIRED | The curriculum is mapped; individual concept depth should continue improving without changing IA. |
+| 항목 | 결과 | 메모 |
+|---|---|---|
+| 과목 중심 구조 유지 | PASS | 1과목, 2과목, 3과목 최상위 구조를 유지한다. |
+| 획일적인 풀이 공식 제거 | PASS | `단권화 풀이 공식` 삽입 로직과 제목을 제거했다. |
+| 개념별 유연한 구성 | PASS | 기본 보강 블록은 개념 구조 중심으로 변경했다. |
+| PDF 기반 누락 분석 | REVIEW REQUIRED | PDF 전체 페이지 수와 주요 주제는 분석했으나, 인코딩 깨짐 구간은 추가 시각 검수가 필요하다. |
 
-## 2026-07-20 Content Quality Pass
+## 아직 검수 필요한 콘텐츠
 
-| Item | Result | Notes |
-| --- | --- | --- |
-| Preserve restored UI | PASS | Changes are limited to problem-solving internals, concept content, and SQL practice internals. Sidebar, dashboard, note flow, and menu hierarchy were not redesigned. |
-| Reference access recorded | PASS | See `docs/REFERENCE_SITE_ANALYSIS.md`. Inaccessible Notion/Naver links are marked as inaccessible, not used as if read. |
-| First 10 questions per subject remain objective | PASS | Added a reviewed 30-question seed set. Every seed question uses 4 click choices and no 필기 SQL textarea/input answer. |
-| Choice-specific explanations | PASS | Reviewed seed questions include per-choice explanations instead of relying only on generic generated wrong-answer text. |
-| Related concept links | PASS | Reviewed seed questions link to concept IDs where the corresponding concept exists. |
-| SQL writing isolated to lab | PASS | No new 필기 SQL input was added. SQL 작성 remains in SQL 실습 only. |
-| Concept page depth | PASS | Strengthened `WHERE 절`, `인덱스 스캔 효율화`, `SQL 트레이스`, and `쿼리 변환` with textbook-style sections and comparison tables. |
-| SQL lab hint visibility | PASS | Existing lab hints are now visible in the SQL practice detail screen as 단계별 힌트. |
-| Exact-copy risk | PASS | New content is original. Reference sources were used for topic/trap/flow analysis only. |
-| Actual Oracle execution | REVIEW REQUIRED | Still no actual Oracle sandbox. Oracle plans and Trace are educational examples/simulations, not executed Oracle results. |
+- 11~100번 문제의 세부 선택지 품질은 코드상 객관식/해설/중복 기준을 통과하지만, 모든 문항을 수작업 검수한 것은 아니다.
+- PDF 기반 개념 보강은 이번 작업에서 템플릿 제거와 핵심 문서 일부 정리를 우선 반영했다. 전체 단권화 수준의 확장은 다음 콘텐츠 배치에서 계속해야 한다.
+- 실제 Oracle 실행 환경이 없으므로 실습 Trace/실행계획은 설명용 예시로 유지한다.

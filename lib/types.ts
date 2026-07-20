@@ -14,8 +14,11 @@ export type ObjectiveQuestion = {
   number: number;
   subjectId: SubjectId;
   subjectName: string;
+  majorTopic?: string;
+  middleTopic?: string;
   topic: string;
   difficulty: Difficulty;
+  questionType?: string;
   stem: string;
   passage?: string;
   code?: string;
@@ -29,6 +32,20 @@ export type ObjectiveQuestion = {
   hint: string;
   explanation: string;
   whyWrong: Record<ChoiceId, string>;
+  reviewStatus?: "approved" | "review_required";
+  duplicationCheck?: string;
+};
+
+export type LabTraceSummaryRow = {
+  metric: string;
+  value: string;
+  meaning: string;
+};
+
+export type LabPlanExplanation = {
+  operation: string;
+  korean: string;
+  note: string;
 };
 
 export type LabQuestion = {
@@ -45,9 +62,13 @@ export type LabQuestion = {
   prompt: string;
   expectedSql: string;
   targetPlan: string[];
+  targetPlanExplanations?: LabPlanExplanation[];
   oracleNotes: string[];
   hints: string[];
   rubric: string[];
+  traceSummary?: LabTraceSummaryRow[];
+  simulationNotice?: string;
+  relatedConceptIds?: string[];
 };
 
 export type ConceptStudyBlock =

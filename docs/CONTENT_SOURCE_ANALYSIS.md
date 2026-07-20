@@ -1,72 +1,46 @@
-# SQLP Content Source Analysis
+# Content Source Analysis
 
-## Primary Attached PDF
+Date: 2026-07-20
 
-- File: `105d86a3-c085-4b15-a217-d5d72210f2e4_3과목.pdf`
-- Local analysis copy: `sqlp_subject3_tmp.pdf`
-- Metadata title: `3과목`
-- Page count: 44
-- Text extraction: succeeded for all 44 pages
-- Visual rendering: selected pages 27-29 and 36-38 were rendered and visually inspected
+## 첨부 PDF 분석
 
-## Page Topic Map
+| 자료 | 페이지 | 분석 상태 | 주요 활용 영역 |
+|---|---:|---|---|
+| SQL 전문가가이드.pdf | 269 | 페이지 수와 목차 확인, 텍스트 추출, 대표 페이지 렌더링 확인 | 1과목 모델링, 2과목 SQL 기본/활용, 3과목 옵티마이저·인덱스·조인·Trace 개념 |
+| 04.오라클_성능_고도화_원리와_해법1_opt.pdf | 523 | 페이지 수 확인, 키워드 기반 텍스트 인덱싱, 대표 페이지 렌더링 확인 | SGA/PGA, Library Cache, Parse, Latch, SQL Trace, Static/Dynamic SQL |
+| 05.오라클_성능_고도화_원리와_해법2_opt.pdf | 754 | 페이지 수 확인, 키워드 기반 텍스트 인덱싱, 대표 페이지 렌더링 확인 | 통계정보, 옵티마이저, 조인, 인덱스, Partition, 대량 DML, Lock/동시성 |
 
-| Pages | Main topic | Use in SQLMate |
-| --- | --- | --- |
-| 1, 44 | Section cover pages | No direct content use |
-| 2-3 | Partition exchange flow, CTAS, NOLOGGING, PARALLEL, local/global index handling, `WITHOUT VALIDATION`, `UPDATE GLOBAL INDEXES` | SQL practice, partition concept |
-| 4-5 | DELETE tuning, truncate/drop index/parallel DML/nologging/reinsert/rebuild flow, paging processing | SQL practice, DML tuning, Top-N/paging concept |
-| 6-11 | 54회 실기 1 복기: multi-column update, OR condition, `OR_EXPAND`, `SWAP_JOIN_INPUTS`, `FULL`, scalar update rewrite | SQL practice, query transformation, OR expansion, update tuning |
-| 12-15 | 54회 실기 2 복기: target table truncate, unusable index, parallel DML, multi-table insert all | SQL practice, large DML tuning |
-| 16-19 | 53회 실기 1 복기: UNION ALL branches, `COUNT STOPKEY`, T1/T2/T3/T4 join rewrite | SQL practice, partial range processing, Top-N |
-| 20-23 | 53회 실기 2 복기: merge/update/delete/insert workload, exchange partition strategy | SQL practice, partition exchange, batch rewrite |
-| 24-30 | 52회 실기 1 복기: 주문/상품이력/주문상품/배송 schema, before/after execution plans, Predicate Information, index rewrite, `leading/use_nl/index/no_unnest` | SQL practice, index design, NL join, scalar subquery, access/filter predicate |
-| 31-39 | 52회 실기 2 복기: fixed FROM order a,b,c,d,e,f, partition range all to iterator, full scans, hash join/right outer, grouped inline view, code detail joins | SQL practice, hash join, view/no_merge, partition pruning |
-| 40 | SQL Trace formulas: rows/execute, block/fetch, array size, execute count vs parse count | Concept guide, trace interpretation questions |
-| 41 | Hint notes: `NO_UNNEST`, scalar subquery cache, filter timing | Concept guide, practice hints |
-| 42 | Index range scan blockers: column transformation, leading wildcard, implicit conversion, `IS NULL` limits | Concept guide, objective questions |
-| 43 | Partial range processing: inline view group by, `use_nl`, `no_merge`, `push_pred`, scalar subquery `no_unnest`, `index_desc` | Concept guide, SQL practice |
+## 시각 확인
 
-## Practice Content Candidates
+- `SQL 전문가가이드.pdf` 대표 페이지: View Merging, Predicate Pushing, 실행계획 예시가 있는 페이지를 이미지로 렌더링해 확인했다.
+- `오라클 성능 고도화 1` 대표 페이지: 라이브러리 캐시 효율, Execute to Parse, Static vs Dynamic SQL 설명 페이지를 이미지로 확인했다.
+- `오라클 성능 고도화 2` 대표 페이지: Statistics Preference, DBMS_STATS 설정 예시 페이지를 이미지로 확인했다.
 
-- Partition exchange with CTAS and index handling
-- Large DELETE converted to truncate/reinsert/rebuild strategy
-- Multi-column update with OR expansion
-- Parallel insert all into target table
-- UNION ALL Top-N with repeated `COUNT STOPKEY`
-- Exchange partition replacing high-volume merge/update/delete workload
-- Order/product-history lookup with outer join condition placement and scalar delivery lookup
-- Fixed-table-order hash join aggregation with code detail outer joins
-- SQL Trace interpretation using rows, execute, fetch, CR, PR, and array size
+렌더링 파일은 `tmp/` 아래 분석용으로만 생성했으며 Git에는 포함하지 않는다.
 
-## Concept Content Candidates
+## PDF에서 콘텐츠로 전환한 기준
 
-- Partition pruning and exchange partition
-- Direct path insert, NOLOGGING, parallel DML
-- Index usability and global/local index maintenance
-- Access Predicate vs Filter Predicate
-- Index range scan failure patterns
-- Top-N and partial range processing
-- Query transformation: OR Expansion, View Merging, Predicate Pushing, Subquery Unnesting
-- Join method control: Nested Loops, Hash Join, right outer hash join
-- SQL Trace/TKPROF metric interpretation
-- Scalar subquery cache and `NO_UNNEST`
+### 문제풀이
 
-## Visual Inspection Notes
+- 필기 문제는 SQLP 필기 시험 성격에 맞춰 객관식으로 유지한다.
+- SQL 작성, 힌트 작성, 실행계획 유도는 SQL 실습으로 분리한다.
+- SQL 전문가 가이드의 모델링, SQL 논리 처리, 조인, 집계, 옵티마이저 주제를 객관식 판단 문제로 재구성한다.
+- 오라클 성능 고도화 자료의 Trace, Parse, 인덱스 효율, 조인 반복, 통계정보 주제는 3과목 고난도 선택형과 실습 해설에 연결한다.
 
-- Pages 27-29 show before/after execution plans and Predicate Information for the 52회 1번 order/product-history scenario.
-- Pages 36-38 show partition range all/iterator, full table scans, hash joins, Predicate Information, and a candidate answer using `no_merge`, `use_hash`, `full`, and `swap_join_inputs`.
-- Rendered images are temporary analysis artifacts under `tmp_pdf_pages/` and are not intended for production content.
+### SQL 실습
 
-## Copyright and Source Use
+- 실습은 PostgreSQL 입력 구조를 유지하되, Oracle/SQLP 튜닝 해설을 붙인다.
+- 실행계획과 Trace는 실제 Oracle 실행값처럼 표시하지 않고 “설명용 예시”로 명시한다.
+- Rows, Loop/Starts, PR, CR, time은 문제 풀이 근거로 쓰이도록 요약 표를 제공한다.
 
-The PDF is user-provided study material. SQLMate should not paste full original text or screenshots into the app. It should convert the observed patterns into original explanations, original objective questions, and original practice scenarios.
+### 개념정리
 
-## 2026-07-20 Reference Pass
+- 기계적인 고정 템플릿 대신 개념별로 필요한 구조만 사용한다.
+- 인덱스, 조인, 옵티마이저, Trace, Lock 같은 큰 주제는 하위 개념으로 세분화한다.
+- 과목 최상위 구조는 유지한다.
 
-- `https://yunamom.tistory.com/394` was accessible and used to analyze one-question reconstruction flow, SQL result inference, NULL/date/string traps, and choice-based explanation style.
-- `https://sqldyangpa.com/` was accessible and used to analyze focused practice flow, subject navigation, repeated quiz UX, and immediate-solving patterns.
-- `https://velog.io/@yooha9621/series/SQLP%ED%95%84%EA%B8%B0%EC%97%B0%EC%8A%B5` was accessible and used to cross-check 3과목 coverage such as index tuning, join tuning, optimizer, SQL analysis, advanced tuning, lock, and transaction.
-- The user-provided Notion link was not accessible in this run. No Notion-only content is claimed as read.
-- The Naver blog direct page was not accessible in this run. No Naver-only content is claimed as read.
-- New reviewed seed questions are original SQLMate content and do not copy source problems, answer text, or tables.
+## 읽을 수 없거나 주의가 필요한 부분
+
+- PDF 내 일부 목차/본문은 원본 인코딩 때문에 추출 텍스트가 깨지는 구간이 있었다. 해당 구간은 렌더링 이미지와 주변 문맥을 함께 확인해야 한다.
+- 외부 Notion/Naver 자료는 현재 접근이 제한되어 본문 근거로 사용하지 않았다.
+- 실제 Oracle에서 실행하지 않은 계획/Trace는 운영 측정값으로 표기하지 않는다.

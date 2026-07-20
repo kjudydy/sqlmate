@@ -8,6 +8,7 @@ import {
   objectiveQuestions,
   subjects
 } from "@/lib/problem-bank";
+import { buildAllQuestionBatchPlans, findLikelyDuplicateQuestions, QUESTION_BATCH_SIZE } from "@/lib/question-batch";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 function bySubject(subjectId: SubjectId) {
@@ -145,6 +146,7 @@ describe("SQLP problem bank", () => {
       expect(concept.studyBlocks?.some((block) => block.type === "checklist")).toBe(true);
       expect(JSON.stringify(concept.studyBlocks)).not.toContain("세부 포인트");
       expect(JSON.stringify(concept.studyBlocks)).not.toContain("지문/SQL 판정 순서");
+      expect(JSON.stringify(concept.studyBlocks)).not.toContain("풀이 공식");
     }
   });
 
@@ -162,6 +164,16 @@ describe("SQLP problem bank", () => {
     expect(labText).toContain("EXCHANGE PARTITION");
     expect(labText).toContain("INDEX RANGE SCAN DESCENDING");
     expect(labText).toContain("PSTART/PSTOP");
+  });
+
+  it("adds Korean operation explanations and trace summaries to SQL practice", () => {
+    for (const lab of labQuestions) {
+      expect(lab.simulationNotice).toContain("설명 예시");
+      expect(lab.targetPlanExplanations?.length).toBe(lab.targetPlan.length);
+      expect(lab.targetPlanExplanations?.every((item) => item.korean.includes(item.operation) || item.korean.includes(" - "))).toBe(true);
+      expect(lab.targetPlanExplanations?.every((item) => item.note.length > 12)).toBe(true);
+      expect(lab.traceSummary?.map((row) => row.metric)).toEqual(expect.arrayContaining(["Rows", "Loop/Starts", "PR", "CR", "Time"]));
+    }
   });
 
   it("provides study-ready hints, explanations, and choice feedback", () => {
@@ -205,6 +217,24 @@ describe("SQLP problem bank", () => {
       expect(firstBatch.every((question) => question.subjectId === subject.id)).toBe(true);
       expect(secondBatch.every((question) => question.subjectId === subject.id)).toBe(true);
     }
+  });
+
+  it("keeps admin-style 20-question expansion batches in review_required planning", () => {
+    const plans = buildAllQuestionBatchPlans();
+
+    expect(plans).toHaveLength(subjects.length);
+    for (const plan of plans) {
+      expect(plan.batchSize).toBe(QUESTION_BATCH_SIZE);
+      expect(plan.nextStartNumber).toBe(101);
+      expect(plan.nextEndNumber).toBe(120);
+      expect(plan.reviewStatus).toBe("review_required");
+      expect(plan.guardrails.join(" ")).toContain("객관식");
+      expect(plan.underrepresentedTopics.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("does not flag the current approved bank as exact semantic-variant duplicates", () => {
+    expect(findLikelyDuplicateQuestions()).toEqual([]);
   });
 
   it("generates independent extra SQL lab batches after the first 20", () => {

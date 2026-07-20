@@ -1,46 +1,40 @@
-# SQLMate Reference Site Analysis
+# Reference Site Analysis
 
 Date: 2026-07-20
-Branch: `feature/content-quality-pass`
-Scope: only `문제풀이`, `개념정리`, `SQL 실습` internals. The restored SQLMate layout, menu structure, sidebar, dashboard, note flow, colors, and card style are intentionally preserved.
 
-## Access Results
+Scope: SQLMate의 현재 디자인과 메뉴 구조는 유지하고, 문제풀이, SQL 실습, 개념정리 내부 품질만 개선한다.
 
-| URL | Access | Notes |
-| --- | --- | --- |
-| https://yunamom.tistory.com/394 | PASS | Readable. The page is a SQLD 57회 기출복원 article with one-question-at-a-time reconstruction flow, multiple-choice traps, SQL result inference, NULL/date/string function examples, and join/result-count reasoning. Used only for question-flow and trap-style analysis. |
-| https://sqldyangpa.com/ | PASS | Readable. The site emphasizes no-login practice, round-based question sets, subject/theory navigation, CBT flow, and random/infinite quiz concepts. Used for focused practice flow and repeated-learning UX ideas, not for SQLP content copying. |
-| https://velog.io/@yooha9621/series/SQLP%ED%95%84%EA%B8%B0%EC%97%B0%EC%8A%B5 | PASS | Readable. The series index exposes SQLP topic coverage across index tuning, join tuning, optimizer, SQL analysis, advanced SQL tuning, partitioning, lock, and transaction. Used for curriculum coverage checks. |
-| https://valiant-sloth-306.notion.site/3-32d5d8fcf4aa805f92c9d825b5dfa735?source=copy_link | FAIL | Notion content was not accessible through the available browser/search path in this run. No content from this page is claimed as read. Use exported PDF/Markdown when available. |
-| https://blog.naver.com/oracledo/220390350995 | FAIL | Direct page content was not accessible through the available browser/search path in this run. No content from this page is claimed as read. |
+## 접근 결과
 
-## Applied To Problem Solving
+| URL | 접근 | 반영 방식 |
+|---|---:|---|
+| https://yunamom.tistory.com/394 | 가능 | 한 문제씩 푸는 CBT 흐름, SQL 결과 추론, NULL/조인/집계 함정 구성 방식을 분석했다. 문제 본문은 복사하지 않고 SQLP용 선택지와 해설 구조만 참고한다. |
+| https://sqldyangpa.com/ | 가능 | no-login 문제풀이, 과목별/랜덤/루틴 학습 흐름, 제출 후 해설 노출 방식을 참고했다. SQLMate는 SQLP 수준의 실행계획/Trace/튜닝 해설로 차별화한다. |
+| https://velog.io/@yooha9621/series/SQLP%ED%95%84%EA%B8%B0%EC%97%B0%EC%8A%B5 | 가능 | SQLP 필기 세부 주제 분해 방식, 인덱스/조인/옵티마이저/Lock 계열 학습 순서를 참고했다. 문장과 예제는 복제하지 않는다. |
+| https://valiant-sloth-306.notion.site/3-32d5d8fcf4aa805f92c9d825b5dfa735?source=copy_link | 제한 | 공개 페이지 내용을 안정적으로 읽지 못했다. 사용자가 내보낸 PDF와 첨부 실습 자료를 우선 사용한다. |
+| https://blog.naver.com/oracledo/220390350995 | 제한 | 현재 도구에서 본문을 안정적으로 읽지 못했다. 접근 실패로 기록하고, 첨부 PDF와 접근 가능한 SQLP 정리 자료를 우선 사용한다. |
 
-- Kept 필기 문제 as objective click-choice only.
-- Added a reviewed first-quality seed set: 10 questions per subject, 30 total.
-- Mixed question surfaces across passages, tables, SQL snippets, execution plans, Trace summaries, and 보기 조합형 style.
-- Added choice-specific explanations for the reviewed seed set so wrong choices explain the actual misconception.
-- Connected reviewed questions to concept article IDs where available.
-- Preserved existing per-subject 100-question counts and subject-local extra-question expansion.
+## 문제풀이에 반영한 요소
 
-## Applied To Concept Study
+- 1~10번 승인 문제의 형식과 난이도를 기준으로 유지했다.
+- 필기 문제는 단일 선택, 보기 조합형, SQL 결과 선택형, 실행계획/Trace 선택형처럼 클릭형 객관식으로 분류한다.
+- 문제마다 대단원, 중단원, 문제 유형, 관련 개념 ID, 검수 상태, 중복 검사 메모를 붙였다.
+- 정답 제출 후 선택지별 해설과 관련 개념 이동을 유지한다.
 
-- Preserved the subject-first structure: `개념정리 > 1과목/2과목/3과목 > 대단원 > 세부 개념`.
-- Strengthened four high-impact concept pages without changing the concept UI:
-  - `WHERE 절`
-  - `인덱스 스캔 효율화`
-  - `SQL 트레이스`
-  - `쿼리 변환`
-- Added dense textbook-style blocks with reading order, comparison tables, execution-plan/trace interpretation, and exam traps.
+## SQL 실습에 반영한 요소
 
-## Applied To SQL Practice
+- SQL Trace를 긴 본문으로만 보여주지 않고 핵심 요약 표와 전체 원문 접기 영역으로 분리했다.
+- 목표 실행계획은 Oracle Operation 영문명을 유지하되 한글 설명과 판단 포인트를 함께 제공한다.
+- 실제 Oracle 실행값이 아닌 교육용 계획/Trace에는 설명용 예시임을 명시한다.
 
-- Kept SQL writing only in the SQL practice area.
-- Exposed existing lab hints directly in the lab screen as 단계별 힌트.
-- Preserved existing Oracle-vs-simulation labeling. PostgreSQL/local simulation is not represented as actual Oracle execution.
+## 개념정리에 반영한 요소
 
-## Copyright And Source Safety
+- 모든 개념 페이지에 동일한 “풀이 공식”을 강제로 넣는 구조를 제거했다.
+- 과목 중심 목차는 유지하고, 세부 주제는 SQL 전문가 가이드와 오라클 성능 고도화 자료 기준으로 보강한다.
+- 개념은 정의, 내부 원리, 관계, 예제, 실행계획/Trace 연결이 필요한 경우에만 유연하게 구성한다.
 
-- No source problem text, answer text, table, image, or code is copied verbatim.
-- Reference materials were used to identify learning flow, topic coverage, and trap patterns.
-- All new questions and explanations are original SQLMate content.
+## 저작권 및 품질 원칙
+
+- 외부 사이트 문장, 문제, 해설, 표, SQL을 그대로 복사하지 않는다.
+- 출제 의도와 학습 흐름만 분석해 자체 문제와 자체 해설로 재구성한다.
+- 접근하지 못한 자료는 읽은 것처럼 기록하지 않는다.

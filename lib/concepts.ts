@@ -16,12 +16,6 @@ function concept(seed: ConceptSeed): ConceptArticle {
 function completeStudyBlocks(blocks: ConceptStudyBlock[], defaults: ConceptStudyBlock[]) {
   const completed = [...blocks];
   const hasType = (type: ConceptStudyBlock["type"]) => completed.some((block) => block.type === type);
-  const hasFormula = completed.some((block) => block.title.includes("단권화 풀이 공식"));
-  const formulaBlock = defaults.find((block) => block.title.includes("단권화 풀이 공식"));
-
-  if (formulaBlock && !hasFormula) {
-    completed.splice(Math.min(completed.length, 2), 0, formulaBlock);
-  }
 
   for (const block of defaults) {
     if (completed.length >= 3 && hasType("table") && hasType("checklist")) break;
@@ -106,13 +100,13 @@ function buildDefaultStudyBlocks(seed: ConceptSeed): ConceptStudyBlock[] {
     },
     {
       type: "table",
-      title: `${seed.detailTopic} 단권화 풀이 공식`,
-      headers: ["시험장에서 할 일", "판단 기준", "오답 제거 포인트"],
+      title: `${seed.detailTopic} 개념 구조`,
+      headers: ["구분", "확인할 내용", "시험에서 흔한 함정"],
       rows: [
-        ["1. 핵심 용어 표시", `${seed.detailTopic}이 정의, 구조, 결과, 성능 중 무엇을 묻는지 먼저 표시한다.`, "보기의 표현이 맞아 보여도 질문이 '부적절한 것'이면 반대로 읽는다."],
-        ["2. 조건과 예외 분리", subjectGuide.firstQuestion, "항상/절대/무조건 같은 표현은 예외가 있는지 확인한다."],
-        ["3. 결과 영향 추적", subjectGuide.secondQuestion, "모델링은 조인/NULL/건수, SQL은 처리 순서/집계/정렬, 튜닝은 access/filter/loop/CR로 연결한다."],
-        ["4. 답안화 문장", `정답 근거는 '${seed.summary}'에서 출발해 기출 함정 '${seed.examTrap}'을 제거하는 방식으로 설명한다.`, "외운 문장보다 지문 조건을 바꿔도 유지되는 원리를 고른다."]
+        ["핵심 용어", `${seed.detailTopic}이 정의, 구조, 결과, 성능 중 무엇과 연결되는지 확인한다.`, "용어가 비슷해 보여도 적용 범위와 전제조건이 다를 수 있다."],
+        ["판단 기준", subjectGuide.firstQuestion, "항상/절대/무조건 같은 표현은 예외가 있는지 확인한다."],
+        ["결과 영향", subjectGuide.secondQuestion, "모델링은 조인/NULL/건수, SQL은 처리 순서/집계/정렬, 튜닝은 access/filter/loop/CR로 연결한다."],
+        ["주의 문장", seed.examTrap, "외운 문장보다 지문 조건을 바꿔도 유지되는 원리를 고른다."]
       ]
     },
     {
@@ -657,7 +651,7 @@ const conceptSeeds: ConceptSeed[] = [
       },
       {
         type: "table",
-        title: "WHERE 절 단권화 풀이 공식",
+        title: "WHERE 절 조건 판단 표",
         headers: ["확인 순서", "판단 기준", "대표 함정"],
         rows: [
           ["1. NULL 여부", "= NULL, <> NULL, NOT IN 서브쿼리 NULL, NVL/COALESCE 사용 여부를 먼저 본다.", "NULL은 값이 아니라 UNKNOWN을 만들 수 있다."],
@@ -1120,7 +1114,7 @@ const conceptSeeds: ConceptSeed[] = [
       },
       {
         type: "table",
-        title: "SQL 트레이스 단권화 풀이 공식",
+        title: "SQL 트레이스 수치 읽기",
         headers: ["항목", "읽는 법", "오답 함정"],
         rows: [
           ["Parse", "하드/소프트 파싱, 라이브러리 캐시 탐색, 권한 체크 비용", "Parse가 1이면 병목이 없다는 뜻이 아니다."],
@@ -1243,7 +1237,7 @@ const conceptSeeds: ConceptSeed[] = [
       },
       {
         type: "table",
-        title: "인덱스 스캔 효율화 단권화 풀이 공식",
+        title: "인덱스 스캔 효율 진단 표",
         headers: ["확인 순서", "볼 항목", "판단"],
         rows: [
           ["1. 인덱스 컬럼 순서", "선두 컬럼에 등치 조건이 있는가?", "선두 컬럼이 없으면 Skip Scan 또는 넓은 Range Scan 가능성을 본다."],
@@ -1477,7 +1471,7 @@ const conceptSeeds: ConceptSeed[] = [
       },
       {
         type: "table",
-        title: "쿼리 변환 단권화 풀이 공식",
+        title: "쿼리 변환 판단 기준",
         headers: ["변환", "유리한 경우", "막아야 할 수 있는 경우"],
         rows: [
           ["View Merging", "뷰 바깥 조건을 안쪽 테이블까지 밀어 조인 순서를 넓힐 때", "Top-N, 집계 후 조인, rownum 순서가 의미 있을 때"],

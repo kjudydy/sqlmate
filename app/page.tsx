@@ -1235,11 +1235,15 @@ export default function Home() {
                 <div className="code-panel plan-target-panel">
                   <div className="code-panel-heading">
                     <h3>목표 실행계획</h3>
-                    <span>답안에서 드러나야 할 의도</span>
+                    <span>영문 Operation · 한글 해설</span>
                   </div>
-                  <ul>
-                    {activeLab.targetPlan.map((item) => (
-                      <li key={item}>{item}</li>
+                  <ul className="plan-explain-list">
+                    {(activeLab.targetPlanExplanations ?? activeLab.targetPlan.map((item) => ({ operation: item, korean: item, note: "답안에서 이 처리 의도를 드러내야 합니다." }))).map((item) => (
+                      <li key={item.operation}>
+                        <strong>{item.operation}</strong>
+                        <span>{item.korean}</span>
+                        <em>{item.note}</em>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -1247,9 +1251,35 @@ export default function Home() {
                   <div className="code-panel schema-panel compact">
                     <div className="code-panel-heading">
                       <h3>SQL Trace 통계</h3>
-                      <span>Rows · Loop · PR · CR · time</span>
+                      <span>핵심 요약 · 전체 원문</span>
                     </div>
-                    <pre>{activeLab.traceStats}</pre>
+                    {activeLab.simulationNotice && <p className="trace-notice">{activeLab.simulationNotice}</p>}
+                    {activeLab.traceSummary?.length ? (
+                      <div className="trace-summary-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>항목</th>
+                              <th>값</th>
+                              <th>의미</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeLab.traceSummary.map((row) => (
+                              <tr key={row.metric}>
+                                <td>{row.metric}</td>
+                                <td>{row.value}</td>
+                                <td>{row.meaning}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                    <details className="trace-raw">
+                      <summary>전체 Trace 원문 보기</summary>
+                      <pre>{activeLab.traceStats}</pre>
+                    </details>
                   </div>
                 )}
                 {activeLab.predicateInfo && (
@@ -1335,6 +1365,22 @@ export default function Home() {
                     <li key={note}>{note}</li>
                   ))}
                 </ul>
+                {activeLab.relatedConceptIds?.length ? (
+                  <div className="related-concept-actions">
+                    <strong>관련 개념</strong>
+                    {activeLab.relatedConceptIds.map((conceptId) => {
+                      const concept = conceptArticles.find((article) => article.id === conceptId);
+                      if (!concept) return null;
+
+                      return (
+                        <button key={conceptId} className="ghost-button" onClick={() => openRelatedConcept(conceptId)}>
+                          <BookOpen size={16} />
+                          {concept.detailTopic}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </section>
             </section>
           </div>
