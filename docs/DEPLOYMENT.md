@@ -19,8 +19,8 @@ Do not run `vercel --prod` from this branch.
 
 Latest Preview:
 
-- URL: https://sqlmate-24x8smi1z-judy-study.vercel.app
-- Inspect: https://vercel.com/judy-study/sqlmate/8yNoYjVkdRikqNzHyv9QHvuLytEU
+- URL: https://sqlmate-ak0u5hec1-judy-study.vercel.app
+- Inspect: https://vercel.com/judy-study/sqlmate/D1XkNhmG4VuMUBw8yuZhyX1LaK6Z
 - HTTP verification: `STATUS=200`
 
 ## Production
