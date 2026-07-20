@@ -537,6 +537,18 @@ ul {
   box-shadow: inset 4px 0 0 var(--teal);
 }
 
+.subject-tab.lab-entry {
+  border-color: rgba(32, 34, 53, 0.18);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.subject-tab.lab-entry span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .concept-toc,
 .concept-detail-list {
   border: 1px solid var(--line);
@@ -1296,6 +1308,12 @@ pre {
   border-radius: 4px;
   padding: 0 2px;
   color: inherit;
+  cursor: pointer;
+}
+
+.concept-mark:focus-visible {
+  outline: 2px solid rgba(8, 117, 104, 0.35);
+  outline-offset: 2px;
 }
 
 .selection-preview {

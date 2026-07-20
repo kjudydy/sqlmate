@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Database,
   Highlighter,
   Lightbulb,
   LogIn,
@@ -606,7 +605,22 @@ export default function Home() {
       if (start < cursor) return;
       if (start > cursor) parts.push(text.slice(cursor, start));
       parts.push(
-        <mark className={`concept-mark mark-${highlight.color}`} key={highlight.id} title="아래 형광펜 목록에서 개별 삭제할 수 있어요.">
+        <mark
+          className={`concept-mark mark-${highlight.color}`}
+          key={highlight.id}
+          role="button"
+          tabIndex={0}
+          title="클릭하면 이 형광펜만 삭제됩니다."
+          onClick={(event) => {
+            event.stopPropagation();
+            removeConceptHighlight(highlight.id);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            removeConceptHighlight(highlight.id);
+          }}
+        >
           {text.slice(start, end)}
         </mark>
       );
@@ -687,6 +701,17 @@ export default function Home() {
     setSelectedHighlightTarget(null);
   }
 
+  function clearConceptHighlights() {
+    if (!selectedConcept) return;
+    updateConceptMark(selectedConcept.id, {
+      highlighted: false,
+      highlights: []
+    });
+    setSelectedHighlightText("");
+    setSelectedHighlightTarget(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
   function selectConceptSubject(subjectId: SubjectId) {
     const firstConcept = conceptArticles.find((concept) => concept.subjectId === subjectId);
     setActiveConceptSubject(subjectId);
@@ -764,7 +789,6 @@ export default function Home() {
   const navItems = [
     { id: "dashboard" as Section, label: "대시보드", icon: BarChart3 },
     { id: "practice" as Section, label: "문제풀이", icon: Brain },
-    { id: "lab" as Section, label: "SQL 실습", icon: Database },
     { id: "wrong" as Section, label: "오답노트", icon: RotateCcw },
     { id: "concepts" as Section, label: "개념정리", icon: BookOpen },
     { id: "notes" as Section, label: "개인노트", icon: NotebookPen }
@@ -811,8 +835,9 @@ export default function Home() {
         <nav className="nav-list" aria-label="SQLMate sections">
           {navItems.map((item) => {
             const Icon = item.icon;
+            const isActive = section === item.id || (item.id === "practice" && section === "lab");
             return (
-              <button key={item.id} className={section === item.id ? "nav-item active" : "nav-item"} onClick={() => setSection(item.id)}>
+              <button key={item.id} className={isActive ? "nav-item active" : "nav-item"} onClick={() => setSection(item.id)}>
                 <Icon size={18} />
                 <span>{item.label}</span>
               </button>
@@ -989,6 +1014,10 @@ export default function Home() {
                   {subject.name}
                 </button>
               ))}
+              <button className="subject-tab lab-entry" onClick={() => setSection("lab")}>
+                <span>SQL 실습</span>
+                <strong>실행계획 · Trace · SQL Rewrite</strong>
+              </button>
               <div className="extra-gate">
                 <span>
                   {subjectAnsweredCount}/{subjectQuestions.length} 완료
@@ -1134,6 +1163,10 @@ export default function Home() {
         {section === "lab" && (
           <div className="lab-layout">
             <section className="subject-panel">
+              <button className="subject-tab" onClick={() => setSection("practice")}>
+                <span>필기 문제풀이</span>
+                <strong>1과목 · 2과목 · 3과목 객관식으로 돌아가기</strong>
+              </button>
               {allLabQuestions.map((lab, index) => (
                 <button
                   key={lab.id}
@@ -1410,19 +1443,13 @@ export default function Home() {
                     <Highlighter size={17} />
                     선택 형광펜
                   </button>
+                  <button className="ghost-button" onClick={clearConceptHighlights} disabled={selectedConceptHighlights.length === 0}>
+                    <Trash2 size={17} />
+                    모든 마킹 지우기
+                  </button>
                 </div>
               </div>
               {selectedHighlightText && <p className="selection-preview">선택됨: {selectedHighlightText}</p>}
-              {selectedConceptHighlights.length > 0 && (
-                <div className="highlight-list">
-                  {selectedConceptHighlights.map((highlight) => (
-                    <button key={highlight.id} className={`highlight-chip mark-${highlight.color}`} onClick={() => removeConceptHighlight(highlight.id)}>
-                      <span>{highlight.text}</span>
-                      <b>삭제</b>
-                    </button>
-                  ))}
-                </div>
-              )}
               <p className="lead" data-highlight-field={`${selectedConcept.id}:summary`}>
                 {renderHighlightedText(selectedConcept.summary, `${selectedConcept.id}:summary`)}
               </p>
@@ -1621,7 +1648,7 @@ function sectionTitle(section: Section) {
     case "practice":
       return "객관식 문제풀이";
     case "lab":
-      return "SQL 작성형 실습";
+      return "문제풀이 · SQL 실습";
     case "wrong":
       return "오답 복습";
     case "concepts":
