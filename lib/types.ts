@@ -206,7 +206,6 @@ export type TodoItem = {
 };
 
 export type StudyStatePayload = {
-  stateVersion?: string;
   answers: Record<string, AnswerRecord>;
   labAnswers: Record<string, LabAnswerRecord>;
   todoChecks: Record<string, boolean>;

@@ -12,13 +12,6 @@ import type {
   SourceType,
   SubjectId
 } from "@/lib/types";
-import {
-  buildPdfLabQuestions,
-  buildPdfObjectiveQuestions,
-  createPdfExtraLabQuestions,
-  createPdfExtraQuestions,
-  pdfQuestionBankVersion
-} from "@/lib/pdf-derived-bank";
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 type ChoiceTuple = [string, string, string, string];
@@ -105,7 +98,7 @@ type OfficialPdfSource = {
   visualChecks: number[];
 };
 
-const OFFICIAL_SOURCE_VERSION = pdfQuestionBankVersion;
+const OFFICIAL_SOURCE_VERSION = "official-pdf-corpus-2026-07-23";
 
 export const officialSourceVersion = OFFICIAL_SOURCE_VERSION;
 
@@ -3178,15 +3171,11 @@ const configs = [modeling, sqlBasic, tuning] as const;
 
 export const subjects = configs.map((config) => ({ id: config.id, name: config.name }));
 
-const legacyObjectiveQuestions: ObjectiveQuestion[] = [
+export const objectiveQuestions: ObjectiveQuestion[] = [
   ...buildSubject(modeling, 100),
   ...buildSubject(sqlBasic, 100),
   ...buildSubject(tuning, 100)
 ];
-
-const pdfObjectiveQuestions = buildPdfObjectiveQuestions(100);
-
-export const objectiveQuestions: ObjectiveQuestion[] = pdfObjectiveQuestions.length ? pdfObjectiveQuestions : legacyObjectiveQuestions;
 
 export { conceptArticles } from "./concepts";
 
@@ -4273,7 +4262,7 @@ function labSourceMetadata(lab: LabCase, index: number, approved: boolean): Cont
   };
 }
 
-const legacyLabQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
+export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
   ...labSourceMetadata(lab, index, true),
   ...lab,
   id: `lab-${String(index + 1).padStart(2, "0")}`,
@@ -4288,14 +4277,7 @@ const legacyLabQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, in
   relatedConceptIds: relatedConceptsForLab(lab)
 }));
 
-const pdfLabQuestions = buildPdfLabQuestions(20);
-
-export const labQuestions: LabQuestion[] = pdfLabQuestions.length ? pdfLabQuestions : legacyLabQuestions;
-
 export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
-  const pdfQuestion = createPdfExtraQuestions(subjectId, count, 1)[0];
-  if (pdfQuestion) return pdfQuestion;
-
   if (subjectId === "modeling") {
     return buildSubject(modeling, 1, 100 + count, "extra-modeling")[0];
   }
@@ -4308,16 +4290,10 @@ export function createLocalExtraQuestion(subjectId: SubjectId, count: number): O
 }
 
 export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
-  const pdfQuestions = createPdfExtraQuestions(subjectId, startCount, batchSize);
-  if (pdfQuestions.length) return pdfQuestions;
-
   return Array.from({ length: batchSize }, (_, offset) => createLocalExtraQuestion(subjectId, startCount + offset));
 }
 
 export function createLocalExtraLabQuestion(count: number): LabQuestion {
-  const pdfLab = createPdfExtraLabQuestions(count, 1)[0];
-  if (pdfLab) return pdfLab;
-
   const base = sqlpLabCases[count % sqlpLabCases.length];
   const env = sqlpLabEnvironments[count % sqlpLabEnvironments.length];
   const variant = Math.floor(count / sqlpLabCases.length) + 1;
@@ -4349,9 +4325,6 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
 }
 
 export function createLocalExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
-  const pdfLabs = createPdfExtraLabQuestions(startCount, batchSize);
-  if (pdfLabs.length) return pdfLabs;
-
   return Array.from({ length: batchSize }, (_, offset) => {
     const count = startCount + offset;
     return {

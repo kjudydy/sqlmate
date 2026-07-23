@@ -1,43 +1,40 @@
 # Question Duplication Report
 
-Updated: 2026-07-23
+Date: 2026-07-20
 
-## Current Strategy
+## 검사 방식
 
-PDF-derived questions use three identifiers:
+코드 레벨에서 다음 정보를 결합해 문제 fingerprint를 만든다.
 
-- `contentHash`: display-level question hash.
-- `semanticFingerprint`: rendered question fingerprint.
-- `variantGroupId`: groups Original / Safe Variant / Similar items derived from the same source unit.
+- 과목
+- 대단원
+- 중단원
+- 세부 주제
+- 문제 유형
+- 문제 본문
+- passage/code/table
+- 선택지 전체
 
-This separates legitimate PDF-derived siblings from accidental duplicates.
+정규화 과정에서는 공백 차이를 제거하고, 숫자만 바꾼 문제를 더 쉽게 잡기 위해 숫자를 `#`로 치환한다.
 
-## Automated Result
+## 현재 결과
 
-`findLikelyDuplicateQuestions()` returns no duplicate buckets in the current approved bank.
+- 각 과목 100문제의 완전 동일 signature 중복은 테스트로 차단한다.
+- `findLikelyDuplicateQuestions()`는 현재 승인 문제은행에서 exact semantic-variant duplicate 후보가 없음을 확인하도록 테스트에 추가했다.
+- 기존 1~10번 문제는 사용자 승인 품질 기준으로 유지한다.
 
-Vitest coverage:
+## 중복으로 판단하는 예
 
-- exact objective signatures per subject are unique
-- semantic duplicate guard returns `[]`
-- extra 20-question objective batches have unique ids
-- extra 20-lab practice batches have unique ids
+- 선택지 순서만 변경
+- 정답 번호만 변경
+- 숫자만 변경
+- 테이블명/컬럼명만 변경
+- WHERE 조건값만 변경
+- 기존 문제의 긍정문을 부정문으로만 바꿈
+- 같은 실행계획 구조에 이름만 바꿈
 
-## Duplicate Rules
+## 검수 전 배치 원칙
 
-The following are not counted as new questions in future batches:
-
-- only choice order changed
-- only number changed
-- only table/column name changed
-- same SQL and same reasoning path
-- same source unit with no new generated mode
-- identical content hash or semantic fingerprint
-
-The following are allowed but grouped:
-
-- Original item
-- Safe Variant of that source item
-- Similar item with the same source concept and trap
-
-They share a `variantGroupId` but must have distinct content hashes and fingerprints.
+- 20문제 추가 배치는 `review_required` 상태로 생성한다.
+- 중복 후보가 있으면 일반 사용자에게 공개하지 않는다.
+- 정답, 선택지별 해설, 관련 개념 ID가 없는 문제도 공개하지 않는다.

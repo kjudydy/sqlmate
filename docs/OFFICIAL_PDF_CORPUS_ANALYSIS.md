@@ -1,84 +1,41 @@
 # Official PDF Corpus Analysis
 
-Updated: 2026-07-23
+Date: 2026-07-23
 
-## Scope
+## 분석 대상
 
-The uploaded PDFs are treated as SQLMate's official problem-bank source, not as a loose style reference. The application now builds the active question bank from extracted PDF question units and tracks three delivery forms:
+이번 분석은 사용자가 제공한 SQLMate 공식 원본 PDF 7개를 대상으로 했다. 텍스트 추출은 `pypdf`, 대표 페이지 시각 검수는 Poppler 렌더링으로 수행했다. 추출 산출물과 렌더링 이미지는 `tmp/pdf-analysis/official-corpus/` 아래에 보관하며 Git에는 포함하지 않는다.
 
-- Original: a source unit based on the PDF item.
-- Safe Variant: a safe web-learning variant of the same source unit.
-- Similar: a newly reconstructed question with the same concept, difficulty, and trap pattern.
+| PDF | 페이지 | 텍스트 추출 페이지 | 저텍스트/시각 검수 필요 페이지 | 문제 후보 수 | 대표 렌더링 확인 페이지 |
+|---|---:|---:|---|---:|---|
+| SQL-자격검정-실전문제.pdf | 144 | 136 | 1, 12, 20, 40, 71, 93, 106, 107 | 685 | 1, 16, 101, 140 |
+| 45회_기출문제.pdf | 20 | 20 | 없음 | 105 | 1, 10, 20 |
+| 46회_기출문제.pdf | 11 | 11 | 없음 | 81 | 1, 5, 11 |
+| 47회_기출문제.pdf | 12 | 12 | 없음 | 82 | 1, 6, 12 |
+| 48회_기출문제.pdf | 14 | 14 | 없음 | 84 | 1, 7, 14 |
+| 49회_기출문제.pdf | 22 | 22 | 없음 | 70 | 1, 11, 22 |
+| 50회_기출문제.pdf | 16 | 16 | 없음 | 65 | 1, 8, 16 |
 
-The user-facing app does not label a question as Original, Variant, or Similar. The labels are kept in metadata for audit, reporting, and future batch extension.
+> 문제 후보 수는 정규식 기반 자동 후보 수다. 실제 공식 문제 수와 동일하다고 단정하지 않고, PDF 출제 스타일과 과목별 보강 범위를 파악하기 위한 분석 지표로 사용한다.
 
-## Source Files
+## 관찰한 출제 스타일
 
-| File | Pages | Use |
-|---|---:|---|
-| SQL-자격검정-실전문제.pdf | 144 | Main official objective/practice source |
-| 45회_기출문제.pdf | 20 | Recap source |
-| 46회_기출문제.pdf | 11 | Recap source |
-| 47회_기출문제.pdf | 12 | Recap source |
-| 48회_기출문제.pdf | 14 | Recap source |
-| 49회_기출문제.pdf | 22 | Recap source |
-| 50회_기출문제.pdf | 16 | Recap source |
+- 회차별 기출 PDF는 한 문제씩 짧게 묻는 유형뿐 아니라, SQL 코드와 테이블 데이터를 함께 제시하고 결과를 추론하게 하는 유형이 반복된다.
+- `SQL-자격검정-실전문제.pdf`는 필기 영역과 SQL 전문가 실기 영역이 분리되어 있으며, 뒤쪽 페이지에는 SQL 작성, 실행계획, 인덱스 설계, SQL Rewrite 사고 과정이 확인된다.
+- 45~50회 기출은 보기 조합형, SQL 결과 추론형, 표 기반 판단형 비중이 높아 단순 정의 암기 문제로 수량을 채우면 실제 학습 효과가 떨어진다.
+- 3과목과 SQL Practice는 실행계획과 Trace를 장식으로 보여주면 안 되고, Rows/Starts/CR/PR/Predicate를 정답 근거로 쓰도록 구성해야 한다.
 
-## Extraction Summary
+## SQLMate 반영 방식
 
-The extraction script is `scripts/extract-official-pdf-bank.py`.
+- 1·2·3과목 300문제에는 `sourceDocument`, `sourceType`, `generationMode`, `batchId`, `contentHash`, `semanticFingerprint`, `validationStatus`를 부여한다.
+- 최초 100문제 세트는 과목별 `initial-*-v1` 배치로 관리하고, 추가 문제는 20문제 단위 `extra-*-n` 배치로 관리한다.
+- 출처 유형은 `owner_pdf`, `owner_pdf_variant`, `owner_pdf_similar`를 섞어 원본 충실형, 안전 변형형, 고품질 유사형을 구분한다.
+- SQL Practice도 최초 20문제와 추가 20문제 배치를 같은 방식으로 추적한다.
+- 일반 사용자에게는 검수된 문제만 공개한다는 원칙을 유지하고, 추가 배치는 `review_required` 상태로 생성한다.
 
-Output file: `data/official-pdf-question-units.json`
+## 저작권 및 품질 원칙
 
-Version: `official-pdf-extracted-2026-07-23`
-
-| Subject | Extracted Units |
-|---|---:|
-| 1과목 데이터 모델링의 이해 | 59 |
-| 2과목 SQL 기본 및 활용 | 177 |
-| 3과목 SQL 고급활용 및 튜닝 | 41 |
-| SQL Practice source unit | 1 |
-| Total | 278 |
-
-| Extraction Status | Count | Meaning |
-|---|---:|---|
-| original_ready | 26 | Question, choices, answer, and explanation were linked automatically |
-| answer_ready | 1 | Question, choices, and answer were linked; explanation needs review |
-| recall_answer_only | 100 | Recap answer was found, but choices/explanation are incomplete |
-| review_required | 151 | OCR or recap structure needs manual review |
-
-## Active Bank Composition
-
-The active objective bank is generated from the extracted units:
-
-| Subject | Total | Original | Safe Variant | Similar |
-|---|---:|---:|---:|---:|
-| 1과목 | 100 | 34 | 33 | 33 |
-| 2과목 | 100 | 34 | 33 | 33 |
-| 3과목 | 100 | 34 | 33 | 33 |
-
-SQL Practice:
-
-| Area | Total | Original | Safe Variant | Similar |
-|---|---:|---:|---:|---:|
-| SQL Practice | 20 | 7 | 7 | 6 |
-
-Future expansion uses 20-question batches:
-
-- Objective: `createPdfExtraQuestions(subjectId, startCount, 20)`
-- SQL Practice: `createPdfExtraLabQuestions(startCount, 20)`
-
-Generated extra batches are stored as `review_required` candidates by metadata. Initial production bank items are marked `approved`/`validated` so the current app can serve the rebuilt bank immediately.
-
-## Known Extraction Limits
-
-- Some scanned/OCR choices are merged with the next question or with nearby "핵심정리" content. The UI sanitizes obvious spillover, and the source unit keeps the extraction status.
-- Some recap PDFs provide answer-oriented notes rather than full question/choice/explanation sets.
-- Multi-answer source marks are preserved in explanation text, but the current objective UI remains single-click choice based. Multi-select scoring is a future enhancement if exact multi-answer reproduction becomes mandatory.
-- SQL Practice pages are sparse in the extracted text, so the first 20 labs are reconstructed mainly from the practice source unit plus tuning units while preserving source metadata and marking execution plans as learning examples.
-
-## Integrity Rules
-
-- Source document, source page, source question number, generation mode, variant group, content hash, semantic fingerprint, batch id, and validation status are attached to each question.
-- Duplicate checks use content hash, semantic fingerprint, and variant group id.
-- Future PDF ingestion must run extraction first, then append only non-duplicate units in 20-question batches.
+- 사용자가 제공한 PDF는 SQLMate 공식 원본 자료로 취급한다.
+- 웹 표시용 문제는 PDF의 문제 구조, 난이도, 사고 과정, 함정 설계를 반영하되, 문제·선택지·해설을 무비판적으로 중복 양산하지 않는다.
+- 단순히 숫자, 테이블명, 컬럼명, 선택지 순서만 바꾼 문항은 고품질 유사형으로 인정하지 않는다.
+- 실제 Oracle에서 실행하지 않은 실행계획과 Trace는 SQLMate 화면에서 설명용 예시로 구분한다.
