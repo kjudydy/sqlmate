@@ -182,12 +182,28 @@ describe("SQLP problem bank", () => {
       expect(question.hint).toContain("풀이 방향");
       expect(question.explanation).toContain("정답 근거");
       expect(question.explanation).toContain("시험 포인트");
+      expect(question.explanation).toContain("PDF 실전형 복습");
 
       for (const choice of question.choices) {
         expect(question.whyWrong[choice.id]).toBeTruthy();
         expect(question.whyWrong[choice.id].length).toBeGreaterThan(20);
       }
     }
+  });
+
+  it("reflects SQL exam practice PDF style in objective question materials", () => {
+    const questionsWithMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
+    const questionsWithTables = objectiveQuestions.filter((question) => question.table);
+    const questionsWithCode = objectiveQuestions.filter((question) => question.code);
+    const tuningQuestionsWithTraceTable = bySubject("tuning").filter((question) =>
+      question.table?.headers.join(" ").includes("Trace/Plan")
+    );
+
+    expect(questionsWithMaterial.length).toBeGreaterThanOrEqual(260);
+    expect(questionsWithTables.length).toBeGreaterThanOrEqual(90);
+    expect(questionsWithCode.length).toBeGreaterThanOrEqual(120);
+    expect(tuningQuestionsWithTraceTable.length).toBeGreaterThanOrEqual(40);
+    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(8);
   });
 
   it("generates local extra questions after the first 100 without id collisions", () => {
@@ -198,6 +214,8 @@ describe("SQLP problem bank", () => {
       expect(extra.number).toBe(101);
       expect(baseIds.has(extra.id)).toBe(false);
       expect(extra.subjectId).toBe(subject.id);
+      expect(extra.passage).toContain("PDF 실전문제형 추가 사례");
+      expect(extra.explanation).toContain("PDF 실전형 복습");
     }
   });
 
@@ -216,6 +234,9 @@ describe("SQLP problem bank", () => {
       expect(ids.size).toBe(40);
       expect(firstBatch.every((question) => question.subjectId === subject.id)).toBe(true);
       expect(secondBatch.every((question) => question.subjectId === subject.id)).toBe(true);
+      expect(firstBatch.every((question) => question.reviewStatus === "review_required")).toBe(true);
+      expect(firstBatch.every((question) => question.duplicationCheck?.includes("review_required"))).toBe(true);
+      expect(firstBatch.every((question) => question.passage?.includes("PDF 실전문제형 추가 사례"))).toBe(true);
     }
   });
 
@@ -253,5 +274,8 @@ describe("SQLP problem bank", () => {
     expect(new Set([...firstBatch, ...secondBatch].map((question) => question.schemaSql)).size).toBeGreaterThanOrEqual(5);
     expect(firstBatch.every((question) => question.traceStats?.includes("CR"))).toBe(true);
     expect(firstBatch.every((question) => question.predicateInfo?.includes("access"))).toBe(true);
+    expect(firstBatch.every((question) => question.title.includes("PDF 실기형 추가"))).toBe(true);
+    expect(firstBatch.every((question) => question.prompt.includes("PDF 실기형 추가 조건"))).toBe(true);
+    expect(firstBatch.every((question) => question.rubric.some((item) => item.includes("데이터 분포")))).toBe(true);
   });
 });

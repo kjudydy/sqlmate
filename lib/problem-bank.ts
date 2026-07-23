@@ -178,8 +178,10 @@ function inferQuestionType(draft: DraftQuestion, subjectId: SubjectId) {
   if (draft.questionType) return draft.questionType;
   if (draft.stem.includes("옳은 것만 모두") || draft.passage?.includes("[보기]")) return "보기 조합형";
   if (draft.stem.includes("부적절") || draft.stem.includes("옳지 않은")) return "옳지 않은 설명 선택형";
+  if (draft.stem.includes("작성 방향") || draft.stem.includes("개선하는 방향")) return "SQL Rewrite 선택형";
   if (draft.code?.includes("Predicate Information") || draft.code?.includes("Rows") || draft.code?.includes("CR")) return "SQL Trace 분석 선택형";
   if (draft.code?.includes("Operation") || draft.topic.includes("실행계획")) return "실행계획 분석 선택형";
+  if (subjectId === "modeling" && draft.table) return "ERD/표 판단형 객관식";
   if (draft.code && subjectId === "sql-basic") return "SQL 실행 결과 선택형";
   if (draft.code && subjectId === "tuning") return "적절한 튜닝 방향 선택형";
   if (draft.table) return "표 판단형 객관식";
@@ -279,6 +281,7 @@ function makeDetailedExplanation(draft: DraftQuestion, answerText: string) {
     `정답 근거: ${draft.explanation}`,
     `풀이 순서:\n${makeSolvingGuide(draft)}`,
     `시험 포인트: ${makeExamPoint(draft)}`,
+    `PDF 실전형 복습: 문제에 표, SQL, 실행계획, Trace 또는 업무 규칙이 제시되면 자료를 장식으로 보지 말고 정답을 가르는 근거로 사용해야 합니다. SQLMate 문제는 SQL-자격검정 실전문제의 출제 의도와 사고 과정을 참고하되 원문을 복제하지 않은 자체 문항입니다.`,
     `정답 선택지 핵심: ${answerText}`
   ].join("\n\n");
 }
@@ -287,6 +290,13 @@ function makeWhyWrong(draft: DraftQuestion, choices: ChoiceTuple, answerIndex: n
   const answerText = choices[answerIndex];
   const asksWrongChoice = hasAny(draft.stem, ["부적절", "틀린", "아닌"]);
   const asksCombo = hasAny(draft.stem, ["옳은 것만 모두", "보기"]);
+  const materialCue = draft.code
+    ? "제시된 SQL, 실행계획 또는 Trace의 조건 적용 위치를 확인해야 합니다."
+    : draft.table
+      ? "제시된 표의 행/열 조건을 실제 업무 규칙에 대입해야 합니다."
+      : draft.passage
+        ? "지문 속 업무 제약과 단정 표현을 함께 확인해야 합니다."
+        : "정의만 외우지 말고 선택지의 전제와 예외를 확인해야 합니다.";
 
   return choiceIds.reduce(
     (acc, id, index) => {
@@ -303,16 +313,16 @@ function makeWhyWrong(draft: DraftQuestion, choices: ChoiceTuple, answerIndex: n
       }
 
       if (asksWrongChoice) {
-        acc[id] = `오답입니다. 이 선택지는 지문 기준으로 옳거나 더 적절한 설명이므로, '${draft.stem}' 문항에서는 정답이 아닙니다. 정답은 "${answerText}"처럼 잘못된 전제를 담은 선택지입니다.`;
+        acc[id] = `오답입니다. 이 선택지는 지문 기준으로 옳거나 더 적절한 설명이므로, '${draft.stem}' 문항에서는 정답이 아닙니다. 오답 유도 포인트는 부정형 질문을 긍정형처럼 읽게 만드는 데 있습니다. ${materialCue} 정답은 "${answerText}"처럼 잘못된 전제를 담은 선택지입니다.`;
         return acc;
       }
 
       if (asksCombo) {
-        acc[id] = `오답입니다. 보기 조합 중 하나 이상의 O/X 판정이 어긋났습니다. ㄱ, ㄴ, ㄷ을 따로 판단하면 정답 조합은 "${answerText}"입니다.`;
+        acc[id] = `오답입니다. 보기 조합 중 하나 이상의 O/X 판정이 어긋났습니다. 오답 유도 포인트는 맞는 문장 하나와 틀린 문장 하나를 묶어 그럴듯한 조합으로 보이게 하는 것입니다. ㄱ, ㄴ, ㄷ을 따로 판단하면 정답 조합은 "${answerText}"입니다.`;
         return acc;
       }
 
-      acc[id] = `오답입니다. "${choiceText}"는 ${draft.topic}의 핵심 조건을 충분히 만족하지 못합니다. 지문과 SQL/모델 조건을 적용하면 "${answerText}"가 더 정확합니다.`;
+      acc[id] = `오답입니다. "${choiceText}"는 ${draft.topic}의 핵심 조건을 충분히 만족하지 못합니다. 오답 유도 포인트는 일부 상황에서는 맞아 보이는 설명을 모든 상황에 일반화한 데 있습니다. ${materialCue} 지문과 SQL/모델 조건을 적용하면 "${answerText}"가 더 정확합니다.`;
       return acc;
     },
     {} as Record<ChoiceId, string>
@@ -321,13 +331,19 @@ function makeWhyWrong(draft: DraftQuestion, choices: ChoiceTuple, answerIndex: n
 
 function withExtraContext(draft: DraftQuestion, index: number, baseLength: number): DraftQuestion {
   const round = Math.floor(index / baseLength);
-  if (round === 0) return draft;
+  const isExpansionBatch = index >= 100;
+  if (round === 0 && !isExpansionBatch) return draft;
 
   const scenario = extraScenarios[index % extraScenarios.length];
   return {
     ...draft,
     stem: `${draft.stem} - ${scenario} 사례`,
-    passage: [draft.passage, `추가 사례: ${scenario} 상황에서도 같은 원칙을 적용해 판단한다.`].filter(Boolean).join("\n")
+    passage: [
+      draft.passage,
+      `PDF 실전문제형 추가 사례: ${scenario} 상황으로 업무 조건, 데이터 분포, 판단 근거가 달라졌다. 기존 문제의 숫자나 테이블명만 바꾼 문제가 아니므로 지문, SQL, 표, 실행계획 자료를 다시 읽고 판단한다.`
+    ]
+      .filter(Boolean)
+      .join("\n")
   };
 }
 
@@ -1414,11 +1430,25 @@ function modelDrafts(spec: ModelSpec, index: number): DraftQuestion[] {
       difficulty: spec.difficulty,
       stem: `다음 중 ${spec.topic}에 대한 설명으로 가장 부적절한 것은?`,
       passage: spec.scenario,
+      table: {
+        headers: ["검토 관점", "문제에서 확인할 단서"],
+        rows: [
+          ["업무 규칙", spec.scenario],
+          ["모델링 원칙", spec.correctRule],
+          ["SQL 영향", spec.sqlAngle]
+        ]
+      },
       choices: [
         spec.trap,
         spec.correctRule,
         "업무 규칙을 데이터 구조로 표현할 때 식별 가능성과 관계 선택성을 함께 검토한다.",
         "정규화 이후 성능 요구가 명확하면 반정규화 여부를 별도로 검토할 수 있다."
+      ],
+      choiceExplanations: [
+        `정답입니다. ${spec.trap} 이 설명은 제시된 업무 규칙을 데이터 구조로 검증해야 한다는 SQLP 모델링 관점과 어긋납니다.`,
+        `오답입니다. ${spec.correctRule} 이 선택지는 표의 모델링 원칙과 일치하므로 부적절한 설명이 아닙니다.`,
+        "오답입니다. 식별 가능성과 관계 선택성은 ERD와 이후 SQL 조인 경로 판단에 직접 영향을 주므로 적절한 설명입니다.",
+        "오답입니다. 반정규화는 성능 병목과 정합성 비용을 함께 검토한 뒤 적용할 수 있으므로 적절한 설명입니다."
       ],
       hint: "업무 규칙을 데이터 구조로 바꾸는 기준을 보세요.",
       explanation: `${spec.trap}은(는) 모델링 원칙에 맞지 않는 부적절한 설명입니다. ${spec.correctRule}`
@@ -1427,11 +1457,18 @@ function modelDrafts(spec: ModelSpec, index: number): DraftQuestion[] {
       topic: spec.topic,
       difficulty: spec.difficulty,
       stem: `다음 설명에 해당하는 ${spec.topic} 후보로 가장 적절한 것은?`,
+      passage: `${spec.scenario}\n아래 후보는 PDF 실전문제처럼 엔터티·속성·관계 후보가 섞여 있다. 독립적으로 식별해 관리할 대상인지 먼저 판단한다.`,
       table: {
         headers: ["후보", "업무 설명"],
         rows: spec.candidates.map((candidate, candidateIndex) => [candidate, spec.candidateNotes[candidateIndex]])
       },
       choices: spec.candidates,
+      choiceExplanations: [
+        `정답입니다. ${spec.candidateNotes[0]} 따라서 ${spec.candidates[0]}은(는) 지문에서 요구하는 ${spec.topic} 후보로 가장 적절합니다.`,
+        `오답입니다. ${spec.candidateNotes[1]} 지문에서 독립 관리 대상인지 다시 확인해야 합니다.`,
+        `오답입니다. ${spec.candidateNotes[2]} 업무 발생 집합인지 단순 속성/표현 값인지 구분해야 합니다.`,
+        `오답입니다. ${spec.candidateNotes[3]} SQLP 모델링 문제는 그럴듯한 명칭보다 식별 가능성과 업무 생명주기를 봅니다.`
+      ],
       hint: "독립적으로 관리되는 집합인지, 값인지, 관계인지 구분하세요.",
       explanation: `${spec.candidates[0]}이(가) 지문 조건에서 가장 적절합니다.`
     },
@@ -1446,6 +1483,12 @@ function modelDrafts(spec: ModelSpec, index: number): DraftQuestion[] {
         "ㄴ, ㄷ",
         "ㄱ, ㄴ, ㄷ"
       ],
+      choiceExplanations: [
+        `정답입니다. ㄱ은 모델링 원칙, ㄷ은 모델링이 SQL 판단에 이어지는 효과를 설명합니다. ㄴ은 ${spec.trap}`,
+        "오답입니다. ㄱ은 맞지만 ㄴ이 틀렸습니다. SQLP 보기 조합형은 맞는 문장 하나와 틀린 문장 하나를 섞어 혼동을 유도합니다.",
+        "오답입니다. ㄷ은 맞지만 ㄴ이 틀렸고, ㄱ을 누락했습니다.",
+        "오답입니다. ㄴ이 틀린 문장이므로 전체 조합을 고르면 안 됩니다."
+      ],
       hint: "ㄴ처럼 단정적이거나 원칙을 뒤집는 문장을 먼저 제거하세요.",
       explanation: `ㄱ과 ㄷ이 옳습니다. ㄴ은 ${spec.trap}`
     },
@@ -1454,11 +1497,25 @@ function modelDrafts(spec: ModelSpec, index: number): DraftQuestion[] {
       difficulty: "실전",
       stem: `다음 업무 설명을 바탕으로 ${spec.topic}이 SQL 작성에 미치는 영향으로 가장 적절한 것은?`,
       passage: spec.scenario,
+      table: {
+        headers: ["모델 요소", "SQLP 관점 영향"],
+        rows: [
+          [spec.topic, spec.correctRule],
+          ["조회 조건", spec.sqlAngle],
+          ["오답 함정", spec.trap]
+        ]
+      },
       choices: [
         spec.sqlAngle,
         "모델링 결과는 SQL 결과 건수와 무관하고 화면 디자인에만 영향을 준다.",
         "조인 경로는 옵티마이저가 항상 자동으로 보정하므로 모델은 중요하지 않다.",
         "식별자와 관계 선택성은 인덱스 설계와 실행계획에 영향을 주지 않는다."
+      ],
+      choiceExplanations: [
+        `정답입니다. ${spec.sqlAngle} 모델링 문제도 실제 SQL 결과 건수, 조인 경로, 인덱스 후보로 이어질 수 있습니다.`,
+        "오답입니다. 모델링 결과는 화면만이 아니라 조인 조건, NULL 허용, 관계 선택성, 결과 건수에 영향을 줍니다.",
+        "오답입니다. 옵티마이저가 실행계획을 선택하더라도 잘못된 모델의 의미 오류를 자동으로 고칠 수는 없습니다.",
+        "오답입니다. 식별자와 관계 선택성은 조인 키, 인덱스 컬럼 순서, 테이블 액세스 방식과 이어집니다."
       ],
       hint: "모델링 판단이 조인, NULL, 인덱스에 어떻게 이어지는지 보세요.",
       explanation: spec.sqlAngle
@@ -1472,8 +1529,23 @@ function sqlDrafts(spec: SqlSpec, index: number): DraftQuestion[] {
       topic: spec.topic,
       difficulty: spec.difficulty,
       stem: `다음 ${spec.topic} SQL의 실행 결과 또는 해석으로 가장 적절한 것은?`,
+      passage: `${spec.scenario}\nPDF 실전문제처럼 SQL의 작성 순서가 아니라 논리 처리 순서, NULL, 조인 보존, 집계 기준 중 무엇이 결과를 바꾸는지 판단한다.`,
       code: spec.code,
+      table: {
+        headers: ["판단 지점", "확인할 내용"],
+        rows: [
+          ["업무 상황", spec.scenario],
+          ["정상 원리", spec.correctRule],
+          ["오답 유도", spec.trap]
+        ]
+      },
       choices: [spec.resultAngle, spec.trap, "SQL 문장은 항상 작성 순서대로만 실행된다.", "NULL은 모든 DBMS에서 숫자 0과 동일하게 처리된다."],
+      choiceExplanations: [
+        `정답입니다. ${spec.resultAngle} ${spec.correctRule}`,
+        `오답입니다. ${spec.trap} 이 선택지는 PDF형 SQL 결과 추론 문제에서 자주 쓰이는 함정 전제입니다.`,
+        "오답입니다. SQL은 문장 작성 순서와 논리 처리 순서가 다를 수 있습니다. WHERE, GROUP BY, HAVING, SELECT, ORDER BY의 의미를 구분해야 합니다.",
+        "오답입니다. NULL은 0이나 빈 문자열과 같은 값으로 단정할 수 없고, 비교 결과가 UNKNOWN으로 흘러 결과에서 제외될 수 있습니다."
+      ],
       hint: "SQL의 논리 처리 순서와 NULL 처리를 함께 보세요.",
       explanation: `${spec.resultAngle} ${spec.correctRule}`
     },
@@ -1484,6 +1556,12 @@ function sqlDrafts(spec: SqlSpec, index: number): DraftQuestion[] {
       passage: `[보기]\nㄱ. ${spec.correctRule}\nㄴ. ${spec.trap}\nㄷ. ${spec.resultAngle}`,
       code: spec.code,
       choices: ["ㄱ, ㄷ", "ㄱ, ㄴ", "ㄴ, ㄷ", "ㄱ, ㄴ, ㄷ"],
+      choiceExplanations: [
+        `정답입니다. ㄱ은 SQL 원리, ㄷ은 제시 SQL의 결과 해석으로 옳습니다. ㄴ은 ${spec.trap}`,
+        "오답입니다. ㄱ은 맞지만 ㄴ이 틀렸습니다. 보기 조합형에서는 틀린 문장 하나가 포함되면 전체 선택지가 오답입니다.",
+        "오답입니다. ㄷ은 맞지만 ㄴ이 틀렸고 ㄱ을 누락했습니다.",
+        "오답입니다. ㄴ이 틀렸으므로 ㄱ, ㄴ, ㄷ 전체를 고를 수 없습니다."
+      ],
       hint: "결과 건수나 NULL, 집계, 조인 보존 여부를 확인하세요.",
       explanation: `ㄱ과 ㄷ이 옳습니다. ㄴ은 ${spec.trap}`
     },
@@ -1494,6 +1572,12 @@ function sqlDrafts(spec: SqlSpec, index: number): DraftQuestion[] {
       passage: spec.scenario,
       code: spec.code,
       choices: [spec.fix, spec.trap, "조건을 모두 SELECT 절 별칭으로 옮긴다.", "결과가 달라도 실행계획만 빠르면 정답으로 본다."],
+      choiceExplanations: [
+        `정답입니다. ${spec.fix} SQLP 필기에서는 직접 SQL을 쓰지 않아도 어떤 방향으로 고쳐야 결과가 보존되는지 판단해야 합니다.`,
+        `오답입니다. ${spec.trap} 문제에서 요구한 결과와 SQL 논리 처리 순서를 깨뜨리는 설명입니다.`,
+        "오답입니다. SELECT 절 별칭은 논리 처리 순서상 WHERE, GROUP BY 등에서 바로 사용할 수 없는 경우가 많고, 모든 조건을 별칭으로 옮기는 것은 해결책이 아닙니다.",
+        "오답입니다. SQLP 튜닝에서도 결과 정합성이 먼저입니다. 결과가 달라지는 SQL은 빠르더라도 정답이 아닙니다."
+      ],
       hint: "문법보다 결과 보존과 논리 순서가 우선입니다.",
       explanation: spec.fix
     },
@@ -1501,11 +1585,19 @@ function sqlDrafts(spec: SqlSpec, index: number): DraftQuestion[] {
       topic: spec.topic,
       difficulty: "중간",
       stem: `${spec.topic} 관련 선택지 중 가장 부적절한 것은?`,
+      passage: `${spec.scenario}\n아래 선택지는 SQL 결과 추론 문제에서 자주 보이는 오답 전제를 섞은 것이다.`,
+      code: spec.code,
       choices: [
         spec.trap,
         spec.correctRule,
         spec.fix,
         "실제 시험에서는 결과 건수, NULL, 조인 조건 위치를 함께 묻는 경우가 많다."
+      ],
+      choiceExplanations: [
+        `정답입니다. ${spec.trap} 이 선택지는 ${spec.topic}의 핵심 원리를 뒤집은 부적절한 설명입니다.`,
+        `오답입니다. ${spec.correctRule} 이 설명은 옳으므로 부적절한 것을 묻는 문항의 정답이 아닙니다.`,
+        `오답입니다. ${spec.fix} 이는 결과 보존을 위한 적절한 작성 방향입니다.`,
+        "오답입니다. SQL 자격검정 실전문제는 SQL 하나만 보여주고도 NULL, 결과 건수, 조인 조건 위치를 함께 묻는 경우가 많으므로 적절한 설명입니다."
       ],
       hint: "단정적인 표현을 조심하세요.",
       explanation: spec.trap
@@ -1521,7 +1613,21 @@ function tuningDrafts(spec: TuningSpec, index: number): DraftQuestion[] {
       stem: `다음 ${spec.topic} 실행계획 해석으로 가장 적절한 것은?`,
       passage: spec.scenario,
       code: spec.code,
+      table: {
+        headers: ["Trace/Plan 항목", "읽어야 할 의미"],
+        rows: [
+          ["Rows / Starts", "반환 건수와 반복 수행 횟수의 차이를 확인한다."],
+          ["CR / PR", "논리 읽기와 물리 읽기가 어느 단계에서 커지는지 본다."],
+          ["Access / Filter", "인덱스 진입 조건인지 읽은 뒤 버리는 조건인지 구분한다."]
+        ]
+      },
       choices: [spec.planAngle, spec.trap, "힌트를 많이 쓰면 통계정보는 확인하지 않아도 된다.", "인덱스 스캔이 보이면 항상 최적 실행계획이다."],
+      choiceExplanations: [
+        `정답입니다. ${spec.planAngle} ${spec.correctRule}`,
+        `오답입니다. ${spec.trap} 이 선택지는 실행계획 명칭만 보고 Predicate, Starts, CR을 보지 않는 전형적인 오답입니다.`,
+        "오답입니다. 힌트는 의도를 전달하는 수단일 뿐이며 통계정보, 카디널리티, 선택도, 조인 순서 검증을 대체하지 못합니다.",
+        "오답입니다. 인덱스 스캔이 보여도 넓은 범위를 읽거나 테이블 랜덤 액세스가 과도하면 비효율 계획일 수 있습니다."
+      ],
       hint: "성능 판단은 실행계획 이름보다 근거가 중요합니다.",
       explanation: `${spec.planAngle} ${spec.correctRule}`
     },
@@ -1529,8 +1635,23 @@ function tuningDrafts(spec: TuningSpec, index: number): DraftQuestion[] {
       topic: spec.topic,
       difficulty: "실전",
       stem: `다음 ${spec.topic} SQL 또는 실행계획을 개선하는 방향으로 가장 적절한 것은?`,
+      passage: `${spec.scenario}\n아래 자료에서 병목이 생기는 Operation, Predicate 위치, 반복 횟수를 먼저 찾은 뒤 결과를 보존하는 개선 방향을 고른다.`,
       code: spec.code,
+      table: {
+        headers: ["Trace/Plan 항목", "개선 판단 기준"],
+        rows: [
+          ["Rows / Starts", "반복 호출이 큰 단계에서 선행 집합 축소 가능성을 확인한다."],
+          ["CR / PR", "논리 읽기와 물리 읽기가 큰 Operation이 병목 후보가 된다."],
+          ["Predicate", "filter로 밀린 조건을 access로 바꿀 수 있는지 검토한다."]
+        ]
+      },
       choices: [spec.fix, spec.trap, "결과가 달라져도 빠른 조인 방식으로 바꾼다.", "테이블명을 짧게 바꾸면 I/O가 줄어든다."],
+      choiceExplanations: [
+        `정답입니다. ${spec.fix} 개선안은 결과 보존과 실행계획 근거가 함께 맞아야 합니다.`,
+        `오답입니다. ${spec.trap} 이는 PDF 실기/튜닝형 문제에서 의도적으로 섞는 위험한 단정입니다.`,
+        "오답입니다. SQL 튜닝은 성능만이 아니라 결과 정합성을 보존해야 합니다. 조인 방식 변경으로 결과가 달라지면 정답이 아닙니다.",
+        "오답입니다. 테이블명 길이는 논리 읽기, 물리 읽기, 조인 반복 횟수와 무관합니다."
+      ],
       hint: "결과 보존, access predicate, 조인 순서를 함께 보세요.",
       explanation: spec.fix
     },
@@ -1538,13 +1659,27 @@ function tuningDrafts(spec: TuningSpec, index: number): DraftQuestion[] {
       topic: spec.topic,
       difficulty: spec.difficulty,
       stem: `다음 보기 중 ${spec.topic} 튜닝 판단으로 옳은 것만 모두 고른 것은?`,
-      passage: spec.scenario,
+      passage: `${spec.scenario}\n[보기]\nㄱ. ${spec.correctRule}\nㄴ. ${spec.trap}\nㄷ. ${spec.planAngle}`,
       code: spec.code,
+      table: {
+        headers: ["Trace/Plan 항목", "보기 판정에 쓰는 근거"],
+        rows: [
+          ["Operation", "작업 이름만 보지 않고 하위 Operation과 부모-자식 관계를 함께 본다."],
+          ["Rows / Starts", "추정/실제 행 수와 반복 횟수 차이를 확인한다."],
+          ["Access / Filter", "인덱스 탐색 범위가 줄었는지, 읽은 뒤 버리는지 구분한다."]
+        ]
+      },
       choices: [
         "ㄱ, ㄷ",
         "ㄱ, ㄴ",
         "ㄴ, ㄷ",
         "ㄱ, ㄴ, ㄷ"
+      ],
+      choiceExplanations: [
+        `정답입니다. ㄱ은 튜닝 원리, ㄷ은 실행계획/Trace 해석으로 옳습니다. ㄴ은 ${spec.trap}`,
+        "오답입니다. ㄱ은 맞지만 ㄴ이 틀렸습니다. SQLP 튜닝 보기 조합형은 '항상', '무조건' 같은 표현으로 함정을 만듭니다.",
+        "오답입니다. ㄷ은 맞지만 ㄴ이 틀렸고, ㄱ을 누락했습니다.",
+        "오답입니다. ㄴ이 틀린 문장이므로 전체 조합을 고르면 안 됩니다."
       ],
       hint: "Rows, Starts, Predicate, 인덱스 접근 조건을 보세요.",
       explanation: `ㄱ과 ㄷ이 옳습니다.\nㄱ. ${spec.correctRule}\nㄴ. ${spec.trap}\nㄷ. ${spec.planAngle}`
@@ -1553,11 +1688,27 @@ function tuningDrafts(spec: TuningSpec, index: number): DraftQuestion[] {
       topic: spec.topic,
       difficulty: "중간",
       stem: `${spec.topic}에서 가장 위험한 판단은?`,
+      passage: `${spec.scenario}\n실행계획과 Trace는 Operation 이름, Rows, Starts, CR/PR, Predicate를 함께 읽어야 한다.`,
+      code: spec.code,
+      table: {
+        headers: ["Trace/Plan 항목", "위험 신호"],
+        rows: [
+          ["Starts 과다", "후행 테이블 반복 접근이 예상보다 커질 수 있다."],
+          ["CR 과다", "결과 건수에 비해 논리 읽기가 크면 인덱스 효율 또는 랜덤 액세스를 의심한다."],
+          ["Filter 과다", "인덱스를 탔더라도 대부분 읽은 뒤 버리는 계획일 수 있다."]
+        ]
+      },
       choices: [
         spec.trap,
         spec.correctRule,
         spec.fix,
         "튜닝 후에도 결과 정합성과 제약 조건 만족 여부를 검증한다."
+      ],
+      choiceExplanations: [
+        `정답입니다. ${spec.trap} 이 판단은 실행계획이나 Trace를 단편적으로 읽는 위험한 접근입니다.`,
+        `오답입니다. ${spec.correctRule} 이는 ${spec.topic}에서 확인해야 할 기본 원리입니다.`,
+        `오답입니다. ${spec.fix} 이는 병목을 줄이기 위한 합리적인 개선 방향입니다.`,
+        "오답입니다. 결과 정합성과 제약 조건 검증은 SQLP 실기형 튜닝에서도 반드시 필요한 검증입니다."
       ],
       hint: "항상, 무조건 같은 표현을 의심하세요.",
       explanation: spec.trap
@@ -2797,12 +2948,22 @@ const sqlpLabSeed = `작성 규칙
 - 파티션 exchange, direct path insert 같은 Oracle 전용 답안은 Oracle/SQLP 관점 해설에서 따로 정리합니다.`;
 
 const commonOracleNotes = [
+  "SQL-자격검정 실전문제 스타일을 참고한 자체 제작 실습입니다. 원문 문제를 복제하지 않고 요구사항, Trace 해석, 실행계획 유도 사고 과정을 재구성했습니다.",
   "SQLP 실기형 답안은 결과가 먼저 맞아야 하고, 그 다음 실행계획 모양과 힌트 의도를 맞춥니다.",
   "힌트는 쿼리 블록과 테이블 별칭이 정확해야 적용됩니다. LEADING, USE_NL, USE_HASH, INDEX, NO_MERGE의 대상 별칭을 반드시 확인하세요.",
   "Access Predicate와 Filter Predicate를 나누어 설명하면 인덱스 효율을 훨씬 정확하게 판단할 수 있습니다."
 ];
 
-const commonRubric = ["요구 결과 보존", "부분범위/집합처리 의도", "인덱스 접근 조건", "조인 순서와 방식", "Oracle 힌트 별칭 정확성"];
+const commonRubric = [
+  "요구 결과 보존",
+  "부분범위/집합처리 의도",
+  "인덱스 접근 조건",
+  "조인 순서와 방식",
+  "Oracle 힌트 별칭 정확성",
+  "Trace Rows/Loop/CR/PR 수치와 병목 원인 설명",
+  "Access Predicate와 Filter Predicate 구분",
+  "허용 가능한 대안 SQL의 결과 보존 근거"
+];
 
 const labTraceProfiles = [
   {
@@ -3838,11 +3999,20 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
     ...base,
     id: `lab-extra-${String(count + 1).padStart(3, "0")}`,
     number,
-    title: `${base.title} 변형 ${variant}`,
-    scenario: `${base.scenario} 같은 유형을 다른 조건으로 다시 풀어보는 추가 실습입니다.`,
-    prompt: `${base.prompt}\n\n추가 조건: 같은 실행계획 의도를 유지하되 날짜 범위, 선행 집합, 조인 보존 조건이 바뀌어도 답안 구조가 흔들리지 않게 작성하세요.`,
-    schemaSql: `${env?.schemaSql ?? sqlpLabSchema}\n\n[추가 변형 조건]\n- 같은 유형의 다른 회차 복원 문제처럼 테이블명과 조건값이 달라졌다고 가정합니다.\n- 목표는 암기한 SQL을 복붙하는 것이 아니라 실행계획 의도를 재현하는 것입니다.`,
-    seedSql: `${env?.seedSql ?? sqlpLabSeed}\n\n[추가 출제 포인트]\n- 결과 보존 조건을 먼저 확인합니다.\n- 인덱스/힌트는 별칭이 바뀌어도 논리가 같아야 합니다.\n- COUNT STOPKEY, PSTART/PSTOP, OUTER JOIN 조건 위치, access/filter 구분을 설명할 수 있어야 합니다.`,
+    title: `${base.title} - PDF 실기형 추가 ${variant}`,
+    scenario: `${base.scenario} SQL-자격검정 실전문제 스타일을 반영해 같은 주제라도 업무 요구사항, 데이터 분포, 선행 집합 크기, 병목 Operation이 달라진 추가 실습입니다.`,
+    prompt: `${base.prompt}\n\nPDF 실기형 추가 조건: 기존 답안을 그대로 복사하지 말고, 새 업무 조건에서 어떤 행을 먼저 줄일지, 어떤 Predicate가 access가 되어야 하는지, 어떤 조인/정렬 작업을 줄일지 서술 가능한 SQL로 작성하세요.`,
+    schemaSql: `${env?.schemaSql ?? sqlpLabSchema}\n\n[PDF 실기형 추가 배치 조건]\n- 테이블명이나 조건값만 바꾼 문제가 아니라 데이터 분포와 병목 원인이 달라진 문제로 본다.\n- 선행 집합 크기, NULL/OUTER JOIN 보존, 파티션 키 조건, 인덱스 컬럼 순서 중 최소 하나가 채점 포인트가 된다.\n- 목표는 암기한 SQL 복붙이 아니라 실행계획 의도와 결과 보존 근거를 재현하는 것이다.`,
+    seedSql: `${env?.seedSql ?? sqlpLabSeed}\n\n[추가 출제 포인트]\n- 결과 보존 조건을 먼저 확인합니다.\n- 인덱스/힌트는 별칭이 바뀌어도 논리가 같아야 합니다.\n- COUNT STOPKEY, PSTART/PSTOP, OUTER JOIN 조건 위치, access/filter 구분을 설명할 수 있어야 합니다.\n- Trace의 Rows, Loop/Starts, CR, PR 중 어떤 수치가 줄어야 하는지 답안 해설에 연결합니다.`,
+    oracleNotes: [
+      ...base.oracleNotes,
+      "추가 20문제 배치 후보는 생성 즉시 정답으로 확정하지 않고 review_required 상태의 검수 대상으로 보아야 합니다."
+    ],
+    rubric: [
+      ...base.rubric,
+      "PDF 실기형 변형 조건에서 달라진 데이터 분포와 병목 근거 설명",
+      "모범 SQL과 다른 대안 SQL을 쓸 경우 결과 보존과 실행계획 의도 설명"
+    ],
     targetPlanExplanations: base.targetPlan.map(explainPlanItem),
     simulationNotice: "이 추가 실습의 실행계획과 Trace는 검수 전 학습용 설명 예시입니다. 관리자 검수 후 공개하는 배치 후보로 봅니다.",
     relatedConceptIds: relatedConceptsForLab(base)
