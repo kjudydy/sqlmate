@@ -1370,6 +1370,52 @@ const qualitySeedDrafts: Record<SubjectId, DraftQuestion[]> = {
   ]
 };
 
+function pdfSeedTable(subjectId: SubjectId, draft: DraftQuestion): ObjectiveQuestion["table"] {
+  if (subjectId === "tuning") {
+    return {
+      headers: ["Trace/Plan 항목", "1~10번 기준 문항 판정 근거"],
+      rows: [
+        ["Operation", "작업 이름만 보지 말고 하위 Operation, 조인 순서, 접근 경로를 함께 본다."],
+        ["Rows / Starts", "반환 행 수와 반복 수행 횟수 차이를 확인해 병목 후보를 찾는다."],
+        ["Access / Filter", `${draft.topic} 문항에서는 인덱스 진입 조건과 읽은 뒤 버리는 조건을 구분한다.`]
+      ]
+    };
+  }
+
+  if (subjectId === "sql-basic") {
+    return {
+      headers: ["SQL 실전 판단 지점", "1~10번 기준 문항 판정 근거"],
+      rows: [
+        ["논리 처리 순서", "작성 순서가 아니라 WHERE, GROUP BY, HAVING, SELECT, ORDER BY의 의미 순서로 해석한다."],
+        ["NULL / 집계 / 조인", `${draft.topic} 문항에서 결과 건수나 보존 행이 달라지는 조건을 찾는다.`],
+        ["오답 유도", "부분적으로 맞는 SQL 설명을 모든 상황에 일반화한 선택지를 경계한다."]
+      ]
+    };
+  }
+
+  return {
+    headers: ["모델링 실전 판단 지점", "1~10번 기준 문항 판정 근거"],
+    rows: [
+      ["업무 규칙", "지문에서 독립 관리 대상, 속성, 관계, 식별자 후보를 분리한다."],
+      ["모델 구조", `${draft.topic} 문항에서 ERD와 테이블 구조로 이어지는 근거를 확인한다.`],
+      ["SQL 영향", "모델링 선택이 조인 경로, NULL, 인덱스 후보, 결과 건수에 주는 영향을 함께 본다."]
+    ]
+  };
+}
+
+function strengthenQualitySeedDraft(subjectId: SubjectId, draft: DraftQuestion): DraftQuestion {
+  const seedNote =
+    "PDF 실전문제형 기준 문항: 이 1~10번 문제도 SQL-자격검정 실전문제의 구성 방식을 반영해 지문, 표, SQL/Trace 자료를 정답 판단 근거로 읽도록 보강했다.";
+
+  return {
+    ...draft,
+    passage: [draft.passage, seedNote].filter(Boolean).join("\n"),
+    table: draft.table ?? pdfSeedTable(subjectId, draft),
+    hint: `${draft.hint}\nPDF 실전형 체크: 문제 자료를 장식으로 보지 말고 정답과 오답을 가르는 근거를 먼저 표시하세요.`,
+    explanation: `${draft.explanation} PDF 실전문제형 기준에 맞춰, 정답뿐 아니라 왜 다른 선택지가 그럴듯하지만 틀렸는지까지 함께 복습해야 합니다.`
+  };
+}
+
 function buildDraftSequence<T>(config: SubjectConfig<T>): DraftQuestion[] {
   const groups = [
     ...examReconstructionDrafts[config.id].map((draft) => [draft]),
@@ -1378,8 +1424,9 @@ function buildDraftSequence<T>(config: SubjectConfig<T>): DraftQuestion[] {
   const maxGroupLength = Math.max(...groups.map((group) => group.length));
 
   const interleaved = Array.from({ length: maxGroupLength }, (_, draftIndex) => groups.map((group) => group[draftIndex]).filter(Boolean)).flat();
-  const qualitySeeds = qualitySeedDrafts[config.id] ?? [];
-  const qualitySeedStems = new Set(qualitySeeds.map((draft) => draft.stem));
+  const rawQualitySeeds = qualitySeedDrafts[config.id] ?? [];
+  const qualitySeeds = rawQualitySeeds.map((draft) => strengthenQualitySeedDraft(config.id, draft));
+  const qualitySeedStems = new Set(rawQualitySeeds.map((draft) => draft.stem));
   const generatedDrafts = mixDrafts(interleaved, config.id).filter((draft) => !qualitySeedStems.has(draft.stem));
 
   return [...qualitySeeds, ...generatedDrafts];

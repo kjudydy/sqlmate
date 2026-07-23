@@ -206,6 +206,21 @@ describe("SQLP problem bank", () => {
     expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(8);
   });
 
+  it("also upgrades the first ten approved seed questions with PDF-style materials", () => {
+    for (const subject of subjects) {
+      const firstTen = bySubject(subject.id).slice(0, 10);
+
+      expect(firstTen).toHaveLength(10);
+      expect(firstTen.every((question) => question.passage?.includes("PDF 실전문제형 기준 문항"))).toBe(true);
+      expect(firstTen.every((question) => question.hint.includes("PDF 실전형 체크"))).toBe(true);
+      expect(firstTen.every((question) => question.table)).toBe(true);
+
+      if (subject.id === "tuning") {
+        expect(firstTen.every((question) => question.table?.headers.join(" ").includes("Trace/Plan"))).toBe(true);
+      }
+    }
+  });
+
   it("generates local extra questions after the first 100 without id collisions", () => {
     for (const subject of subjects) {
       const extra = createLocalExtraQuestion(subject.id, 0);
