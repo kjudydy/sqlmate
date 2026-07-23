@@ -1,94 +1,80 @@
 # Content QA Report
 
-Date: 2026-07-20
-
 Updated: 2026-07-23
 
-## 범위
+## Current Build
 
-이번 QA는 현재 SQLMate 디자인과 메뉴 구조를 유지한 상태에서 다음 세 영역만 대상으로 한다.
+- Source version: `official-pdf-extracted-2026-07-23`
+- Objective questions: 300
+- SQL Practice questions: 20
+- Source mode: owner PDF Original / Safe Variant / Similar
+- UI scope: existing SQLMate UI preserved; problem bank and practice content source changed.
 
-- 문제풀이
-- SQL 실습
-- 개념정리
+## Counts
 
-## 필기 문제 QA
+| Area | Total | Original | Safe Variant | Similar |
+|---|---:|---:|---:|---:|
+| 1과목 | 100 | 34 | 33 | 33 |
+| 2과목 | 100 | 34 | 33 | 33 |
+| 3과목 | 100 | 34 | 33 | 33 |
+| SQL Practice | 20 | 7 | 7 | 6 |
 
-| 항목 | 결과 | 메모 |
+## Automated QA
+
+| Check | Result | Notes |
 |---|---|---|
-| 1~10번 승인 문제 유지 | PASS | 사용자가 만족한 문제는 삭제하지 않았다. |
-| 과목별 100문제 유지 | PASS | 테스트에서 과목별 100문제를 확인한다. |
-| 필기 문제 클릭형 객관식 유지 | PASS | 직접 SQL 작성/긴 서술은 필기 문제에 추가하지 않았다. |
-| 선택지별 해설 | PASS | 모든 문제에 whyWrong이 존재하도록 테스트한다. |
-| 관련 개념 연결 | PASS | seed 문제와 생성 문제 모두 관련 개념 ID를 갖도록 보강했다. |
-| 중복 검사 | PASS | signature 중복과 배치용 중복 후보 검사를 추가했다. |
-| 20문제 확장 구조 | PASS | 관리자 검수용 배치 계획 함수와 테스트를 추가했다. |
+| TypeScript | PASS | `tsc --noEmit` passed |
+| Unit tests | PASS | 29 tests passed |
+| Production build | PASS | `next build` passed |
+| 100 objective questions per subject | PASS | 1/2/3과목 each 100 |
+| SQL Practice 20 questions | PASS | Default lab bank has 20 |
+| Source metadata exists | PASS | source document/page/question/version/type/mode present |
+| Original/Variant/Similar mix | PASS | Objective bank has all three modes |
+| 20-question objective expansion | PASS | Extra batches are generated as review candidates |
+| 20-question practice expansion | PASS | Extra lab batches are generated as review candidates |
+| Wrong-note snapshot compatibility | PASS | Objective question shape remains compatible with snapshots |
+| Study-state stale reset | PASS | Old learning records reset when source version changes |
 
-## SQL 실습 QA
+## Content QA
 
-| 항목 | 결과 | 메모 |
+| Check | Result | Notes |
 |---|---|---|
-| 실습 20문제 유지 | PASS | 기존 실습 수량은 유지했다. |
-| 실행계획 한글 설명 | PASS | 목표 실행계획마다 Operation 원문과 한글 설명을 연결했다. |
-| Trace 요약 표 | PASS | Rows, Loop/Starts, PR, CR, Time 요약을 생성한다. |
-| 전체 Trace 원문 | PASS | 접기/펼치기 details 영역으로 분리했다. |
-| 실제 Oracle 실행값 오인 방지 | PASS | 설명용 예시 안내 문구를 추가했다. |
-| 관련 개념 연결 | PASS | 실습별 관련 개념 ID를 제공한다. |
+| PDF source extraction | PASS WITH REVIEW | 278 source units extracted; OCR quality varies |
+| Direct PDF item registration | PASS WITH REVIEW | Extracted stems/choices/answers are preserved when readable; incomplete OCR units carry status tags |
+| Original/Safe Variant/Similar structure | PASS | Active bank is built from source units in 34/33/33 composition per subject |
+| Duplicate prevention | PASS | Content hash, semantic fingerprint, and variant group id are generated |
+| Existing non-PDF question replacement | PASS | Exports now prefer PDF-derived bank over legacy generated bank |
+| SQL Practice readability | PASS | Trace summary, Predicate section, target plan explanations, and Korean operation notes are structured |
+| Actual Oracle execution labeling | PASS | Practice plans/traces are marked as learning examples, not live Oracle measurements |
 
-## 개념정리 QA
+## Review Required
 
-| 항목 | 결과 | 메모 |
-|---|---|---|
-| 과목 중심 구조 유지 | PASS | 1과목, 2과목, 3과목 최상위 구조를 유지한다. |
-| 획일적인 풀이 공식 제거 | PASS | `단권화 풀이 공식` 삽입 로직과 제목을 제거했다. |
-| 개념별 유연한 구성 | PASS | 기본 보강 블록은 개념 구조 중심으로 변경했다. |
-| PDF 기반 누락 분석 | REVIEW REQUIRED | PDF 전체 페이지 수와 주요 주제는 분석했으나, 인코딩 깨짐 구간은 추가 시각 검수가 필요하다. |
+- `original_ready` automatic extraction count is 26. The remaining units require manual review if exact PDF original fidelity is required.
+- Some OCR choices include spillover from nearby "핵심정리" or the next question. The app sanitizes obvious spillover for display, but manual corpus cleanup is still recommended.
+- The current objective UI is still single-choice. PDF units with multi-answer marks preserve the original answer text in explanation, but exact multi-select scoring should be added in a future pass.
+- SQL Practice extraction from the PDFs yielded only one explicit practice source unit in text; the first 20 labs are therefore reconstructed from that unit plus tuning-source units.
 
-## 아직 검수 필요한 콘텐츠
+## User Data Reset
 
-- 11~100번 문제의 세부 선택지 품질은 코드상 객관식/해설/중복 기준을 통과하지만, 모든 문항을 수작업 검수한 것은 아니다.
-- PDF 기반 개념 보강은 이번 작업에서 템플릿 제거와 핵심 문서 일부 정리를 우선 반영했다. 전체 단권화 수준의 확장은 다음 콘텐츠 배치에서 계속해야 한다.
-- 실제 Oracle 실행 환경이 없으므로 실습 Trace/실행계획은 설명용 예시로 유지한다.
+The user authorized resetting test learning data while keeping Auth, Google login, and profiles. The app now uses the PDF source version in `study_state.stateVersion`.
 
-## 2026-07-23 추가 PDF QA 기준
+When an existing cloud state has an older version, the app clears:
 
-새로 제공된 `SQL-자격검정-실전문제.pdf` 분석 결과를 반영해 다음 기준을 배치 생성 가드레일과 테스트에 추가했다.
+- objective answers
+- lab answers
+- attempts
+- wrong notes
+- dismissed wrong notes
+- concept marks
+- extra objective questions
+- extra lab questions
 
-| 항목 | 결과 | 메모 |
-|---|---|---|
-| PDF 원문 복제 방지 | PASS | 문제 본문, 선택지, 해설을 복사하지 않고 출제 의도와 사고 과정만 반영하도록 가드레일을 추가했다. |
-| 필기 객관식 유지 | PASS | 1·2·3과목은 클릭형 객관식, SQL 직접 작성은 SQL Practice로 분리한다. |
-| 자료 해석형 문제 보강 | PASS | 신규 배치는 표, ERD, SQL, 실행 결과, 실행계획, Trace 중 필요한 자료를 섞도록 기준을 추가했다. |
-| SQL Practice 품질 기준 | PASS | 요구사항, 데이터 구조, 실행계획 또는 Trace, 인덱스 설계, 모범 SQL 검수 기준을 추가했다. |
-| UI 변경 없음 | PASS | 이번 변경은 문서, 배치 가드레일, 테스트에 한정되며 화면 파일은 수정하지 않았다. |
+The app preserves:
 
-## 2026-07-23 문제은행/실습 반영 QA
+- Supabase Auth
+- Google login
+- user profile
+- personal notes
+- todo items
 
-분석 기준을 실제 콘텐츠 생성 로직에 반영했다. UI는 수정하지 않았고, 문제풀이·SQL 실습 데이터 계층만 변경했다.
-
-| 항목 | 결과 | 메모 |
-|---|---|---|
-| 1·2·3과목 객관식 유지 | PASS | 필기 문제는 여전히 클릭형 객관식이며 SQL 직접 작성은 SQL Practice에만 둔다. |
-| 11번 이후 문제 생성 템플릿 개선 | PASS | 모델링은 표/업무규칙/SQL 영향, SQL 기본은 SQL·판단표, 튜닝은 Trace/Plan 표를 포함하도록 강화했다. |
-| 1~10번 기준 문항 보강 | PASS | 이전에는 품질 기준으로 보존했으나, 최신 요청에 맞춰 1~10번도 PDF 실전문제형 기준 문항 문맥, 자료 판독 표, 힌트 보강을 적용했다. |
-| 선택지별 오답 유도 방식 | PASS | 공통 whyWrong에 오답 유도 포인트와 자료 판독 근거를 추가했다. |
-| PDF 스타일 해설 | PASS | 모든 객관식 해설에 `PDF 실전형 복습` 단락을 추가했다. |
-| 20문제 추가 배치 | PASS | 추가 객관식 배치는 `PDF 실전문제형 추가 사례` 문맥과 review_required 상태를 유지한다. |
-| SQL Practice 재구성 | PASS | 실습 공통 해설과 채점 기준에 Trace Rows/Loop/CR/PR, Predicate 구분, 대안 SQL 근거를 추가했다. |
-| 자동 테스트 | PASS | 객관식 300문제, 실습 20문제, 추가 배치, 중복 검사, PDF 스타일 자료 포함 기준이 테스트를 통과했다. |
-
-## 2026-07-23 공식 PDF 코퍼스 메타데이터 QA
-
-사용자가 추가 제공한 45~50회 기출 PDF와 `SQL-자격검정-실전문제.pdf`를 함께 분석하고 문제은행 관리 메타데이터에 반영했다.
-
-| 항목 | 결과 | 메모 |
-|---|---|---|
-| 접근 가능한 PDF 전체 분석 | PASS | 총 7개 PDF, 239페이지를 텍스트 추출했고 대표 페이지를 렌더링해 시각 확인했다. |
-| PDF별 추출 현황 문서화 | PASS | `docs/OFFICIAL_PDF_CORPUS_ANALYSIS.md`에 페이지 수, 후보 수, 저텍스트 페이지, 렌더링 확인 페이지를 기록했다. |
-| 객관식 출처 메타데이터 | PASS | 300개 객관식 문제에 sourceDocument, sourceType, generationMode, batchId, contentHash, semanticFingerprint를 부여한다. |
-| 원본·변형·유사형 혼합 | PASS | `owner_pdf`, `owner_pdf_variant`, `owner_pdf_similar`가 초기 문제 세트에 함께 포함되도록 검증한다. |
-| 추가 20문제 배치 추적 | PASS | 추가 객관식 배치는 과목별 `extra-*-n`, SQL Practice는 `extra-sql-practice-n` 배치로 추적한다. |
-| SQL Practice 추가 단위 | PASS | SQL Practice 추가 기본 배치 크기를 5문제에서 20문제로 변경했다. |
-| 검수 전 공개 방지 | PASS | 추가 배치는 review_required/validationStatus review_required 상태로 생성한다. |
-
-남은 제한: PDF 후보를 자동으로 정확한 공식 문제 번호와 1:1 매핑하지는 않았다. 현재 sourcePage는 과목별 참고 페이지 범위 또는 회차 PDF 페이지 순환 기준이며, 정식 원문 문항 번호 매핑은 별도 수작업 검수 배치에서 보강해야 한다.
+Direct destructive SQL against production tables was not required by this code change.

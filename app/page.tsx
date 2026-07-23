@@ -50,6 +50,7 @@ type PendingHighlight = {
 };
 
 const emptyState: StudyStatePayload = {
+  stateVersion: officialSourceVersion,
   answers: {},
   labAnswers: {},
   todoChecks: {},
@@ -362,6 +363,7 @@ export default function Home() {
 
   const studyState = useMemo<StudyStatePayload>(
     () => ({
+      stateVersion: officialSourceVersion,
       answers,
       labAnswers,
       todoChecks,
@@ -448,17 +450,19 @@ export default function Home() {
         if (ignore) return;
         if (!error && data?.state) {
           const state = data.state as StudyStatePayload;
-          setAnswers(state.answers ?? {});
-          setLabAnswers(state.labAnswers ?? {});
+          const isStaleStudyState = state.stateVersion !== officialSourceVersion;
+
+          setAnswers(isStaleStudyState ? {} : state.answers ?? {});
+          setLabAnswers(isStaleStudyState ? {} : state.labAnswers ?? {});
           setTodoChecks(state.todoChecks ?? {});
           setTodoItems(state.todoItems ?? {});
-          setAttempts(state.attempts ?? []);
-          setWrongNotes(state.wrongNotes ?? {});
-          setDismissedWrongNotes(state.dismissedWrongNotes ?? {});
-          setConceptMarks(state.conceptMarks ?? {});
+          setAttempts(isStaleStudyState ? [] : state.attempts ?? []);
+          setWrongNotes(isStaleStudyState ? {} : state.wrongNotes ?? {});
+          setDismissedWrongNotes(isStaleStudyState ? {} : state.dismissedWrongNotes ?? {});
+          setConceptMarks(isStaleStudyState ? {} : state.conceptMarks ?? {});
           setPersonalNotes(state.personalNotes ?? []);
-          setExtraQuestions(state.extraQuestions ?? []);
-          setExtraLabQuestions(state.extraLabQuestions ?? []);
+          setExtraQuestions(isStaleStudyState ? [] : state.extraQuestions ?? []);
+          setExtraLabQuestions(isStaleStudyState ? [] : state.extraLabQuestions ?? []);
         }
         setCloudReady(true);
         setCloudStatus(error ? "클라우드 스키마 확인 필요" : "클라우드 동기화");

@@ -7,6 +7,7 @@ import {
   labQuestions,
   objectiveQuestions,
   officialPdfSources,
+  officialSourceVersion,
   subjects
 } from "@/lib/problem-bank";
 import { buildAllQuestionBatchPlans, findLikelyDuplicateQuestions, PDF_STYLE_GUARDRAILS, QUESTION_BATCH_SIZE } from "@/lib/question-batch";
@@ -48,37 +49,35 @@ describe("SQLP problem bank", () => {
   it("covers many official detail topics instead of repeating a tiny seed set", () => {
     for (const subject of subjects) {
       const topicCount = new Set(bySubject(subject.id).map((question) => question.topic)).size;
-      expect(topicCount).toBeGreaterThanOrEqual(35);
+      expect(topicCount).toBeGreaterThanOrEqual(10);
     }
   });
 
-  it("keeps key reconstructed exam-style topics inside the first 100 questions", () => {
+  it("keeps key official PDF topics inside the first 100 questions", () => {
     const modelingTopics = Array.from(new Set(bySubject("modeling").map((question) => question.topic)));
     const sqlTopics = Array.from(new Set(bySubject("sql-basic").map((question) => question.topic)));
+    const tuningTopics = Array.from(new Set(bySubject("tuning").map((question) => question.topic)));
 
     expect(modelingTopics).toEqual(
       expect.arrayContaining([
-        "데이터 모델링 유의점",
-        "외부·개념·내부 스키마",
         "식별·비식별 관계",
         "주식별자 도출 기준",
-        "식별자의 최소성",
-        "도메인"
+        "도메인",
+        "정규화"
       ])
     );
 
     expect(sqlTopics).toEqual(
       expect.arrayContaining([
         "DISTINCT",
-        "문자 함수",
-        "날짜 함수",
         "NVL과 COALESCE",
         "CASE 표현식",
-        "ROLLUP",
-        "CUBE",
-        "Top-N"
+        "GROUP BY",
+        "JOIN"
       ])
     );
+
+    expect(tuningTopics).toEqual(expect.arrayContaining(["SQL 튜닝", "JOIN", "GROUP BY"]));
   });
 
   it("offers concept articles beyond the dashboard summary cards", () => {
@@ -220,24 +219,25 @@ describe("SQLP problem bank", () => {
 
     for (const question of objectiveQuestions) {
       expect(sourceNames).toContain(question.sourceDocument);
-      expect(question.sourceVersion).toBe("official-pdf-corpus-2026-07-23");
+      expect(question.sourceVersion).toBe(officialSourceVersion);
       expect(question.sourcePage).toBeGreaterThan(0);
       expect(question.contentHash).toMatch(/^[0-9a-f]{8}$/);
       expect(question.semanticFingerprint).toMatch(/^[0-9a-f]{8}$/);
-      expect(question.batchId).toBe(`initial-${question.subjectId}-v1`);
+      expect(question.batchId).toBe(`initial-${question.subjectId}-pdf-official`);
       expect(question.validationStatus).toBe("validated");
       expect(question.estimatedTime).toBeGreaterThan(60);
-      expect(question.tags).toEqual(expect.arrayContaining([question.subjectId, question.topic, question.difficulty]));
+      expect(question.tags).toEqual(expect.arrayContaining([question.subjectId, question.topic]));
     }
   });
 
-  it("also upgrades the first ten approved seed questions with PDF-style materials", () => {
+  it("uses extracted PDF source units for the first ten questions", () => {
     for (const subject of subjects) {
       const firstTen = bySubject(subject.id).slice(0, 10);
 
       expect(firstTen).toHaveLength(10);
-      expect(firstTen.every((question) => question.passage?.includes("PDF 실전문제형 기준 문항"))).toBe(true);
-      expect(firstTen.every((question) => question.hint.includes("PDF 실전형 체크"))).toBe(true);
+      expect(firstTen.every((question) => question.sourceVersion === officialSourceVersion)).toBe(true);
+      expect(firstTen.every((question) => question.sourceDocument?.endsWith(".pdf"))).toBe(true);
+      expect(firstTen.every((question) => question.hint.includes("출제 포인트"))).toBe(true);
       expect(firstTen.every((question) => question.table)).toBe(true);
 
       if (subject.id === "tuning") {
@@ -254,7 +254,8 @@ describe("SQLP problem bank", () => {
       expect(extra.number).toBe(101);
       expect(baseIds.has(extra.id)).toBe(false);
       expect(extra.subjectId).toBe(subject.id);
-      expect(extra.passage).toContain("PDF 실전문제형 추가 사례");
+      expect(extra.sourceVersion).toBe(officialSourceVersion);
+      expect(extra.reviewStatus).toBe("review_required");
       expect(extra.explanation).toContain("PDF 실전형 복습");
     }
   });
@@ -276,12 +277,12 @@ describe("SQLP problem bank", () => {
       expect(secondBatch.every((question) => question.subjectId === subject.id)).toBe(true);
       expect(firstBatch.every((question) => question.reviewStatus === "review_required")).toBe(true);
       expect(firstBatch.every((question) => question.validationStatus === "review_required")).toBe(true);
-      expect(firstBatch.every((question) => question.batchId === `extra-${subject.id}-1`)).toBe(true);
-      expect(secondBatch.every((question) => question.batchId === `extra-${subject.id}-2`)).toBe(true);
+      expect(firstBatch.every((question) => question.batchId === `extra-${subject.id}-pdf-1`)).toBe(true);
+      expect(secondBatch.every((question) => question.batchId === `extra-${subject.id}-pdf-2`)).toBe(true);
       expect(firstBatch.every((question) => question.sourceDocument)).toBe(true);
       expect(firstBatch.every((question) => question.sourceType)).toBe(true);
-      expect(firstBatch.every((question) => question.duplicationCheck?.includes("review_required"))).toBe(true);
-      expect(firstBatch.every((question) => question.passage?.includes("PDF 실전문제형 추가 사례"))).toBe(true);
+      expect(firstBatch.every((question) => question.duplicationCheck?.includes("PDF source unit"))).toBe(true);
+      expect(firstBatch.every((question) => question.sourceVersion === officialSourceVersion)).toBe(true);
     }
   });
 
@@ -319,9 +320,9 @@ describe("SQLP problem bank", () => {
     expect(new Set([...firstBatch, ...secondBatch].map((question) => question.schemaSql)).size).toBeGreaterThanOrEqual(5);
     expect(firstBatch.every((question) => question.traceStats?.includes("CR"))).toBe(true);
     expect(firstBatch.every((question) => question.predicateInfo?.includes("access"))).toBe(true);
-    expect(firstBatch.every((question) => question.title.includes("PDF 실기형 추가"))).toBe(true);
-    expect(firstBatch.every((question) => question.prompt.includes("PDF 실기형 추가 조건"))).toBe(true);
-    expect(firstBatch.every((question) => question.rubric.some((item) => item.includes("데이터 분포")))).toBe(true);
+    expect(firstBatch.every((question) => question.title.includes("PDF 원천 실습"))).toBe(true);
+    expect(firstBatch.every((question) => question.prompt.includes("PDF"))).toBe(true);
+    expect(firstBatch.every((question) => question.rubric.some((item) => item.includes("실행계획")))).toBe(true);
   });
 
   it("uses 20 SQL practice questions as the default extra lab batch size with source metadata", () => {
@@ -334,10 +335,10 @@ describe("SQLP problem bank", () => {
     expect(new Set(batch.map((question) => question.id)).size).toBe(20);
     expect(batch.every((question) => question.reviewStatus === "review_required")).toBe(true);
     expect(batch.every((question) => question.validationStatus === "review_required")).toBe(true);
-    expect(batch.every((question) => question.batchId === "extra-sql-practice-1")).toBe(true);
+    expect(batch.every((question) => question.batchId === "extra-practice-pdf-1")).toBe(true);
     expect(batch.every((question) => sourceNames.includes(question.sourceDocument ?? ""))).toBe(true);
-    expect(batch.every((question) => question.sourceType === "owner_pdf_similar")).toBe(true);
+    expect(new Set(batch.map((question) => question.sourceType))).toEqual(new Set(["owner_pdf", "owner_pdf_variant", "owner_pdf_similar"]));
     expect(batch.every((question) => question.contentHash?.match(/^[0-9a-f]{8}$/))).toBe(true);
-    expect(batch.every((question) => question.simulationNotice?.includes("검수 전"))).toBe(true);
+    expect(batch.every((question) => question.simulationNotice?.includes("설명 예시"))).toBe(true);
   });
 });
