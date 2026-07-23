@@ -3,6 +3,14 @@ import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 export const QUESTION_BATCH_SIZE = 20;
 
+export const PDF_STYLE_GUARDRAILS = [
+  "SQL-자격검정-실전문제 PDF의 문제 원문, 선택지, 해설은 복사하지 않고 출제 의도와 사고 과정만 반영한다.",
+  "새 필기 배치는 표, ERD, SQL, 실행 결과, 실행계획, Trace 중 문제 해결에 필요한 자료를 섞어 구성한다.",
+  "1·2·3과목 필기는 클릭형 객관식으로 유지하고 SQL 직접 작성은 SQL Practice로만 분리한다.",
+  "오답 선택지는 실제 SQLP 수험생이 헷갈릴 개념 차이를 기준으로 작성한다.",
+  "SQL Practice 배치는 요구사항, 데이터 구조, 실행계획 또는 Trace, 인덱스 설계, 모범 SQL을 함께 검수한다."
+];
+
 export type QuestionBatchPlan = {
   subjectId: SubjectId;
   subjectName: string;
@@ -73,7 +81,8 @@ export function buildQuestionBatchPlan(subjectId: SubjectId, batchSize = QUESTIO
       "필기 문제는 클릭형 객관식으로만 생성한다.",
       "기존 문제의 숫자, 테이블명, 선택지 순서만 바꾼 문제는 중복으로 본다.",
       "새 배치는 관리자 검수 전 review_required 상태로 둔다.",
-      "관련 개념 ID와 선택지별 해설이 없는 문제는 공개하지 않는다."
+      "관련 개념 ID와 선택지별 해설이 없는 문제는 공개하지 않는다.",
+      ...PDF_STYLE_GUARDRAILS
     ]
   };
 }
@@ -94,4 +103,3 @@ export function findLikelyDuplicateQuestions(questions: ObjectiveQuestion[] = ob
     .filter((bucket) => bucket.length > 1)
     .map((bucket) => bucket.map((question) => question.id));
 }
-

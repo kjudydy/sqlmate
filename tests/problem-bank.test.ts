@@ -8,7 +8,7 @@ import {
   objectiveQuestions,
   subjects
 } from "@/lib/problem-bank";
-import { buildAllQuestionBatchPlans, findLikelyDuplicateQuestions, QUESTION_BATCH_SIZE } from "@/lib/question-batch";
+import { buildAllQuestionBatchPlans, findLikelyDuplicateQuestions, PDF_STYLE_GUARDRAILS, QUESTION_BATCH_SIZE } from "@/lib/question-batch";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 function bySubject(subjectId: SubjectId) {
@@ -229,6 +229,9 @@ describe("SQLP problem bank", () => {
       expect(plan.nextEndNumber).toBe(120);
       expect(plan.reviewStatus).toBe("review_required");
       expect(plan.guardrails.join(" ")).toContain("객관식");
+      expect(plan.guardrails).toEqual(expect.arrayContaining(PDF_STYLE_GUARDRAILS));
+      expect(plan.guardrails.join(" ")).toContain("Trace");
+      expect(plan.guardrails.join(" ")).toContain("SQL Practice");
       expect(plan.underrepresentedTopics.length).toBeGreaterThan(0);
     }
   });
