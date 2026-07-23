@@ -21,7 +21,7 @@ import {
   Sparkles,
   XCircle
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
 import { conceptArticles, createLocalExtraLabQuestions, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
@@ -55,6 +55,7 @@ const emptyState: StudyStatePayload = {
   todoItems: {},
   attempts: [],
   wrongNotes: {},
+  dismissedWrongNotes: {},
   conceptMarks: {},
   personalNotes: [],
   extraQuestions: [],
@@ -96,6 +97,28 @@ function formatFullDate(date: Date) {
     day: "numeric",
     weekday: "long"
   }).format(date);
+}
+
+function formatChoiceIds(choiceIds: ChoiceId[]) {
+  return choiceIds.length ? choiceIds.join(", ") : "이전 선택 답 정보 없음";
+}
+
+function getChoiceStatusText(choiceId: ChoiceId, selectedIds: ChoiceId[], correctId: ChoiceId) {
+  const selected = selectedIds.includes(choiceId);
+  const correct = choiceId === correctId;
+
+  if (selected && correct) return "내가 선택한 정답";
+  if (selected) return "내가 선택한 답 · 오답";
+  if (correct) return "선택하지 않은 정답";
+  return "오답";
+}
+
+function getMaterialLabel(code: string) {
+  if (/Rows|Loop|Starts|CR|PR|Predicate|Operation|PLAN|Trace|TKPROF/i.test(code)) {
+    return "SQL / 실행계획 / Trace";
+  }
+
+  return "SQL";
 }
 
 function toDateKey(date: Date) {
@@ -230,6 +253,7 @@ export default function Home() {
   const [newTodoText, setNewTodoText] = useState("");
   const [attempts, setAttempts] = usePersistentState<AttemptRecord[]>("sqlmate.attempts", emptyState.attempts);
   const [wrongNotes, setWrongNotes] = usePersistentState<Record<string, WrongNote>>("sqlmate.wrongNotes", emptyState.wrongNotes);
+  const [dismissedWrongNotes, setDismissedWrongNotes] = usePersistentState<Record<string, string>>("sqlmate.dismissedWrongNotes", emptyState.dismissedWrongNotes);
   const [conceptMarks, setConceptMarks] = usePersistentState<Record<string, ConceptMark>>("sqlmate.conceptMarks", emptyState.conceptMarks);
   const [personalNotes, setPersonalNotes] = usePersistentState<PersonalNote[]>("sqlmate.personalNotes", emptyState.personalNotes);
   const [extraQuestions, setExtraQuestions] = usePersistentState<ObjectiveQuestion[]>("sqlmate.extraQuestions", emptyState.extraQuestions);
@@ -254,6 +278,9 @@ export default function Home() {
   const [authChecked, setAuthChecked] = useState(false);
   const [cloudStatus, setCloudStatus] = useState("데모 저장");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [wrongNoteSaveStatus, setWrongNoteSaveStatus] = useState<Record<string, "idle" | "saving" | "saved" | "failed">>({});
+  const [pendingWrongDeleteId, setPendingWrongDeleteId] = useState<string | null>(null);
+  const wrongMemoTimers = useRef<Record<string, number>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const allQuestions = useMemo(() => [...objectiveQuestions, ...extraQuestions], [extraQuestions]);
@@ -330,12 +357,13 @@ export default function Home() {
       todoItems,
       attempts,
       wrongNotes,
+      dismissedWrongNotes,
       conceptMarks,
       personalNotes,
       extraQuestions,
       extraLabQuestions
     }),
-    [answers, labAnswers, todoChecks, todoItems, attempts, wrongNotes, conceptMarks, personalNotes, extraQuestions, extraLabQuestions]
+    [answers, labAnswers, todoChecks, todoItems, attempts, wrongNotes, dismissedWrongNotes, conceptMarks, personalNotes, extraQuestions, extraLabQuestions]
   );
 
   useEffect(() => {
@@ -415,6 +443,7 @@ export default function Home() {
           setTodoItems(state.todoItems ?? {});
           setAttempts(state.attempts ?? []);
           setWrongNotes(state.wrongNotes ?? {});
+          setDismissedWrongNotes(state.dismissedWrongNotes ?? {});
           setConceptMarks(state.conceptMarks ?? {});
           setPersonalNotes(state.personalNotes ?? []);
           setExtraQuestions(state.extraQuestions ?? []);
@@ -427,7 +456,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setExtraLabQuestions, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setTodoItems, setWrongNotes, supabase]);
+  }, [cloudUser, setAnswers, setAttempts, setConceptMarks, setDismissedWrongNotes, setExtraLabQuestions, setExtraQuestions, setLabAnswers, setPersonalNotes, setTodoChecks, setTodoItems, setWrongNotes, supabase]);
 
   useEffect(() => {
     if (!supabase || !cloudUser || !cloudReady) return;
@@ -445,6 +474,12 @@ export default function Home() {
 
     return () => window.clearTimeout(timer);
   }, [cloudReady, cloudUser, studyState, supabase]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(wrongMemoTimers.current).forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
 
   async function signInWithGoogle() {
     if (!supabase) {
@@ -499,14 +534,31 @@ export default function Home() {
     ]);
 
     if (!answerIsCorrect) {
-      setWrongNotes((prev) => ({
-        ...prev,
-        [currentQuestion.id]: prev[currentQuestion.id] ?? {
-          questionId: currentQuestion.id,
-          memo: "",
-          updatedAt: answeredAt
-        }
-      }));
+      setDismissedWrongNotes((prev) => {
+        if (!prev[currentQuestion.id]) return prev;
+        const next = { ...prev };
+        delete next[currentQuestion.id];
+        return next;
+      });
+
+      setWrongNotes((prev) => {
+        const previous = prev[currentQuestion.id];
+
+        return {
+          ...prev,
+          [currentQuestion.id]: {
+            questionId: currentQuestion.id,
+            memo: previous?.memo ?? "",
+            updatedAt: answeredAt,
+            selectedChoiceId: selectedChoice,
+            correctChoiceId: currentQuestion.answer,
+            questionSnapshot: currentQuestion,
+            wrongCount: (previous?.wrongCount ?? 0) + 1,
+            firstWrongAt: previous?.firstWrongAt ?? answeredAt,
+            lastWrongAt: answeredAt
+          }
+        };
+      });
     }
   }
 
@@ -796,7 +848,102 @@ export default function Home() {
     }));
   }
 
-  const wrongQuestionIds = Array.from(new Set(attempts.filter((attempt) => !attempt.correct).map((attempt) => attempt.questionId)));
+  const latestWrongAttemptsByQuestion = useMemo(() => {
+    const latest = new Map<string, AttemptRecord>();
+
+    for (const attempt of attempts) {
+      if (!attempt.correct && !latest.has(attempt.questionId)) {
+        latest.set(attempt.questionId, attempt);
+      }
+    }
+
+    return latest;
+  }, [attempts]);
+  const wrongQuestionIds = useMemo(() => {
+    const ids = new Set([...Object.keys(wrongNotes), ...Array.from(latestWrongAttemptsByQuestion.keys())]);
+
+    return Array.from(ids)
+      .filter((questionId) => !dismissedWrongNotes[questionId])
+      .sort((left, right) => {
+        const leftTime = wrongNotes[left]?.lastWrongAt ?? latestWrongAttemptsByQuestion.get(left)?.answeredAt ?? wrongNotes[left]?.updatedAt ?? "";
+        const rightTime = wrongNotes[right]?.lastWrongAt ?? latestWrongAttemptsByQuestion.get(right)?.answeredAt ?? wrongNotes[right]?.updatedAt ?? "";
+        return rightTime.localeCompare(leftTime);
+      });
+  }, [dismissedWrongNotes, latestWrongAttemptsByQuestion, wrongNotes]);
+
+  function getWrongQuestion(questionId: string) {
+    return wrongNotes[questionId]?.questionSnapshot ?? allQuestions.find((item) => item.id === questionId);
+  }
+
+  function getWrongSelectedChoiceIds(note: WrongNote | undefined, attempt: AttemptRecord | undefined) {
+    if (note?.selectedChoiceIds?.length) return note.selectedChoiceIds;
+    if (note?.selectedChoiceId) return [note.selectedChoiceId];
+    if (attempt?.selectedChoiceId) return [attempt.selectedChoiceId];
+    return [];
+  }
+
+  function updateWrongMemo(questionId: string, memo: string, question?: ObjectiveQuestion) {
+    const updatedAt = nowIso();
+    setWrongNoteSaveStatus((prev) => ({ ...prev, [questionId]: "saving" }));
+    setWrongNotes((prev) => ({
+      ...prev,
+      [questionId]: {
+        ...(prev[questionId] ?? { questionId, wrongCount: 0 }),
+        questionId,
+        memo,
+        updatedAt,
+        questionSnapshot: prev[questionId]?.questionSnapshot ?? question
+      }
+    }));
+
+    if (wrongMemoTimers.current[questionId]) {
+      window.clearTimeout(wrongMemoTimers.current[questionId]);
+    }
+
+    wrongMemoTimers.current[questionId] = window.setTimeout(() => {
+      setWrongNoteSaveStatus((prev) => ({ ...prev, [questionId]: "saved" }));
+    }, 800);
+  }
+
+  function confirmDeleteWrongNote() {
+    if (!pendingWrongDeleteId) return;
+    const questionId = pendingWrongDeleteId;
+    const deletedAt = nowIso();
+
+    setWrongNotes((prev) => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    setDismissedWrongNotes((prev) => ({
+      ...prev,
+      [questionId]: deletedAt
+    }));
+    setWrongNoteSaveStatus((prev) => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    setPendingWrongDeleteId(null);
+    setCloudStatus("오답노트 삭제 저장 중");
+  }
+
+  function retryWrongQuestion(question: ObjectiveQuestion) {
+    setSection("practice");
+    setActiveSubject(question.subjectId);
+    const nextQuestions = allQuestions.filter((item) => item.subjectId === question.subjectId);
+    const nextIndex = Math.max(0, nextQuestions.findIndex((item) => item.id === question.id));
+    setQuestionIndex(nextIndex);
+    setSelectedChoice(null);
+    setHintVisible(false);
+    setAnswers((prev) => {
+      if (!prev[question.id]) return prev;
+      const next = { ...prev };
+      delete next[question.id];
+      return next;
+    });
+  }
+
   const navItems = [
     { id: "dashboard" as Section, label: "대시보드", icon: BarChart3 },
     { id: "practice" as Section, label: "문제풀이", icon: Brain },
@@ -1399,30 +1546,194 @@ export default function Home() {
             <div className="review-list">
               {wrongQuestionIds.length === 0 && <p className="empty">아직 오답이 없습니다. 문제풀이에서 틀린 문항이 자동으로 쌓입니다.</p>}
               {wrongQuestionIds.map((questionId) => {
-                const question = allQuestions.find((item) => item.id === questionId);
-                if (!question) return null;
+                const question = getWrongQuestion(questionId);
                 const note = wrongNotes[questionId];
+                const latestAttempt = latestWrongAttemptsByQuestion.get(questionId);
+                const selectedIds = getWrongSelectedChoiceIds(note, latestAttempt);
+                const lastWrongAt = note?.lastWrongAt ?? latestAttempt?.answeredAt ?? note?.updatedAt;
+                const wrongAttemptsForQuestion = attempts.filter((attempt) => attempt.questionId === questionId && !attempt.correct).length;
+                const wrongCountForQuestion = note?.wrongCount ?? wrongAttemptsForQuestion;
+                const memo = note?.memo ?? "";
+                const saveStatus = wrongNoteSaveStatus[questionId];
+
+                if (!question) {
+                  return (
+                    <article className="review-item" key={questionId}>
+                      <div className="wrong-note-main">
+                        <span className="pill">원본 문제 연결 필요</span>
+                        <h3>문제 ID: {questionId}</h3>
+                        <p className="small-muted">기존 오답 기록에 원본 문제 정보가 부족합니다. 확인 가능한 메모는 그대로 보존했습니다.</p>
+                      </div>
+                      <aside className="wrong-note-side">
+                        <label className="wrong-memo-label" htmlFor={`wrong-memo-${questionId}`}>
+                          다시 틀리지 않기 위한 나만의 포인트
+                        </label>
+                        <textarea
+                          id={`wrong-memo-${questionId}`}
+                          value={memo}
+                          onChange={(event) => updateWrongMemo(questionId, event.target.value)}
+                          placeholder="다시 틀리지 않기 위한 나만의 포인트"
+                        />
+                        <span className="wrong-save-status">{saveStatus === "saving" ? "저장 중..." : saveStatus === "saved" ? "저장 완료" : "클라우드 동기화"}</span>
+                        <button className="danger-button" onClick={() => setPendingWrongDeleteId(questionId)}>
+                          <Trash2 size={16} />
+                          오답노트에서 삭제
+                        </button>
+                      </aside>
+                    </article>
+                  );
+                }
+
                 return (
                   <article className="review-item" key={questionId}>
-                    <div>
-                      <span className="pill">{question.subjectName}</span>
-                      <h3>{question.stem}</h3>
-                      <p>{question.explanation}</p>
+                    <div className="wrong-note-main">
+                      <div className="wrong-note-meta">
+                        <span className="pill">{question.subjectName}</span>
+                        <span className="pill">{question.majorTopic ?? question.topic}</span>
+                        <span className="pill">{question.difficulty}</span>
+                        {lastWrongAt && <span className="pill">최근 오답 {formatDateTime(lastWrongAt)}</span>}
+                      </div>
+
+                      <section className="wrong-note-section">
+                        <p className="eyebrow">문제 {question.number}</p>
+                        <h3>{question.stem}</h3>
+                        {question.passage && <p className="wrong-note-passage">{question.passage}</p>}
+                      </section>
+
+                      {(question.table || question.code) && (
+                        <section className="wrong-note-section">
+                          <h4>문제 자료</h4>
+                          {question.table && (
+                            <div className="exam-table-wrap wrong-table-wrap">
+                              <table className="exam-table">
+                                <thead>
+                                  <tr>
+                                    {question.table.headers.map((header) => (
+                                      <th key={`${question.id}-wrong-header-${header}`}>{header}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {question.table.rows.map((row, rowIndex) => (
+                                    <tr key={`${question.id}-wrong-row-${rowIndex}`}>
+                                      {row.map((cell, cellIndex) => (
+                                        <td key={`${question.id}-wrong-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {question.code && (
+                            <div className="wrong-code-block">
+                              <span>{getMaterialLabel(question.code)}</span>
+                              <pre className="exam-code">{question.code}</pre>
+                            </div>
+                          )}
+                        </section>
+                      )}
+
+                      <section className="wrong-note-section">
+                        <h4>선택지</h4>
+                        <div className="wrong-choice-list">
+                          {question.choices.map((choice) => {
+                            const selected = selectedIds.includes(choice.id);
+                            const correctChoice = question.answer === choice.id;
+                            const statusText = getChoiceStatusText(choice.id, selectedIds, question.answer);
+                            return (
+                              <div
+                                key={`${question.id}-wrong-choice-${choice.id}`}
+                                className={`wrong-choice ${selected ? "selected-wrong" : ""} ${correctChoice ? "answer" : ""} ${selected && correctChoice ? "selected-correct" : ""}`}
+                              >
+                                <div className="wrong-choice-label">
+                                  <strong>{choice.id}</strong>
+                                  <span>{choice.text}</span>
+                                </div>
+                                <em>{statusText}</em>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+
+                      <section className="wrong-note-section">
+                        <h4>채점 결과</h4>
+                        <div className="wrong-result-grid">
+                          <div>
+                            <span>내가 선택한 답</span>
+                            <strong>{formatChoiceIds(selectedIds)}</strong>
+                          </div>
+                          <div>
+                            <span>실제 정답</span>
+                            <strong>{question.answer}</strong>
+                          </div>
+                          <div>
+                            <span>틀린 횟수</span>
+                            <strong>{wrongCountForQuestion}회</strong>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="wrong-note-section">
+                        <h4>선택지별 해설</h4>
+                        <div className="wrong-explanation-list">
+                          {question.choices.map((choice) => {
+                            const selected = selectedIds.includes(choice.id);
+                            const correctChoice = question.answer === choice.id;
+                            const explanation = question.whyWrong?.[choice.id];
+                            return (
+                              <div
+                                key={`${question.id}-wrong-explanation-${choice.id}`}
+                                className={`choice-explanation ${correctChoice ? "answer" : ""} ${selected && !correctChoice ? "selected-miss" : ""}`}
+                              >
+                                <b>{choice.id}</b>
+                                <strong>{getChoiceStatusText(choice.id, selectedIds, question.answer)}</strong>
+                                <p>{explanation || "이 선택지의 개별 해설은 아직 없습니다. 아래 정답 근거를 함께 확인해 주세요."}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+
+                      <section className="wrong-note-section">
+                        <h4>정답 근거</h4>
+                        <p>{question.explanation}</p>
+                      </section>
+
+                      {question.relatedConceptId && (
+                        <section className="wrong-note-section compact">
+                          <h4>관련 개념</h4>
+                          <button className="ghost-button" onClick={() => openRelatedConcept(question.relatedConceptId!)}>
+                            <BookOpen size={17} />
+                            관련 개념 보기
+                          </button>
+                        </section>
+                      )}
                     </div>
-                    <textarea
-                      value={note?.memo ?? ""}
-                      onChange={(event) =>
-                        setWrongNotes((prev) => ({
-                          ...prev,
-                          [questionId]: {
-                            questionId,
-                            memo: event.target.value,
-                            updatedAt: nowIso()
-                          }
-                        }))
-                      }
-                      placeholder="다시 틀리지 않기 위한 나만의 포인트"
-                    />
+
+                    <aside className="wrong-note-side">
+                      <label className="wrong-memo-label" htmlFor={`wrong-memo-${questionId}`}>
+                        다시 틀리지 않기 위한 나만의 포인트
+                      </label>
+                      <textarea
+                        id={`wrong-memo-${questionId}`}
+                        value={memo}
+                        onChange={(event) => updateWrongMemo(questionId, event.target.value, question)}
+                        placeholder="예: Access Predicate와 Filter Predicate를 먼저 구분하기"
+                      />
+                      <span className="wrong-save-status">{saveStatus === "saving" ? "저장 중..." : saveStatus === "saved" ? "저장 완료" : "클라우드 동기화"}</span>
+                      <div className="wrong-note-actions">
+                        <button className="ghost-button" onClick={() => retryWrongQuestion(question)}>
+                          <RotateCcw size={16} />
+                          문제 다시 풀기
+                        </button>
+                        <button className="danger-button" onClick={() => setPendingWrongDeleteId(questionId)}>
+                          <Trash2 size={16} />
+                          오답노트에서 삭제
+                        </button>
+                      </div>
+                    </aside>
                   </article>
                 );
               })}
@@ -1712,6 +2023,26 @@ export default function Home() {
           </section>
         )}
       </section>
+      {pendingWrongDeleteId && (
+        <div className="confirm-backdrop" role="presentation">
+          <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="wrong-delete-title">
+            <div>
+              <p className="eyebrow">Delete Review Item</p>
+              <h3 id="wrong-delete-title">이 문제를 오답노트에서 삭제할까요?</h3>
+              <p>작성한 나만의 포인트도 함께 삭제됩니다. 원본 문제와 풀이 기록, 다른 사용자의 데이터는 삭제되지 않습니다.</p>
+            </div>
+            <div className="confirm-actions">
+              <button className="ghost-button" onClick={() => setPendingWrongDeleteId(null)}>
+                취소
+              </button>
+              <button className="danger-button" onClick={confirmDeleteWrongNote}>
+                <Trash2 size={16} />
+                삭제
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

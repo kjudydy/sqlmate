@@ -139,6 +139,13 @@ export type WrongNote = {
   questionId: string;
   memo: string;
   updatedAt: string;
+  selectedChoiceId?: ChoiceId;
+  selectedChoiceIds?: ChoiceId[];
+  correctChoiceId?: ChoiceId;
+  questionSnapshot?: ObjectiveQuestion;
+  wrongCount?: number;
+  firstWrongAt?: string;
+  lastWrongAt?: string;
 };
 
 export type ConceptMark = {
@@ -177,6 +184,7 @@ export type StudyStatePayload = {
   todoItems: Record<string, TodoItem[]>;
   attempts: AttemptRecord[];
   wrongNotes: Record<string, WrongNote>;
+  dismissedWrongNotes: Record<string, string>;
   conceptMarks: Record<string, ConceptMark>;
   personalNotes: PersonalNote[];
   extraQuestions: ObjectiveQuestion[];
