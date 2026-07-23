@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
-import { conceptArticles, createLocalExtraLabQuestions, createLocalExtraQuestions, labQuestions, objectiveQuestions, subjects } from "@/lib/problem-bank";
+import { conceptArticles, createLocalExtraLabQuestions, createLocalExtraQuestions, labQuestions, objectiveQuestions, officialSourceVersion, subjects } from "@/lib/problem-bank";
+import { filterCurrentAnswers, filterCurrentAttempts } from "@/lib/study-versioning";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { FormEvent, ReactNode } from "react";
 import type {
@@ -283,22 +284,32 @@ export default function Home() {
   const wrongMemoTimers = useRef<Record<string, number>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const allQuestions = useMemo(() => [...objectiveQuestions, ...extraQuestions], [extraQuestions]);
-  const allLabQuestions = useMemo(() => [...labQuestions, ...extraLabQuestions], [extraLabQuestions]);
+  const activeExtraQuestions = useMemo(
+    () => extraQuestions.filter((question) => question.sourceVersion === officialSourceVersion && Boolean(question.contentHash)),
+    [extraQuestions]
+  );
+  const activeExtraLabQuestions = useMemo(
+    () => extraLabQuestions.filter((question) => question.sourceVersion === officialSourceVersion && Boolean(question.contentHash)),
+    [extraLabQuestions]
+  );
+  const allQuestions = useMemo(() => [...objectiveQuestions, ...activeExtraQuestions], [activeExtraQuestions]);
+  const allLabQuestions = useMemo(() => [...labQuestions, ...activeExtraLabQuestions], [activeExtraLabQuestions]);
+  const currentAnswers = useMemo(() => filterCurrentAnswers(answers, allQuestions), [answers, allQuestions]);
+  const currentAttempts = useMemo(() => filterCurrentAttempts(attempts, allQuestions), [attempts, allQuestions]);
   const baseSubjectQuestions = useMemo(
     () => objectiveQuestions.filter((question) => question.subjectId === activeSubject),
     [activeSubject]
   );
   const subjectExtraQuestions = useMemo(
-    () => extraQuestions.filter((question) => question.subjectId === activeSubject),
-    [activeSubject, extraQuestions]
+    () => activeExtraQuestions.filter((question) => question.subjectId === activeSubject),
+    [activeSubject, activeExtraQuestions]
   );
   const subjectQuestions = useMemo(
     () => [...baseSubjectQuestions, ...subjectExtraQuestions].map((question, index) => ({ ...question, number: index + 1 })),
     [baseSubjectQuestions, subjectExtraQuestions]
   );
   const currentQuestion = subjectQuestions[clampIndex(questionIndex, subjectQuestions.length)];
-  const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
+  const currentAnswer = currentQuestion ? currentAnswers[currentQuestion.id] : undefined;
   const conceptSubjectTabs = useMemo(
     () =>
       [
@@ -329,10 +340,10 @@ export default function Home() {
   const activeLab = allLabQuestions[clampIndex(activeLabIndex, allLabQuestions.length)];
   const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
 
-  const completed = Object.keys(answers).length;
-  const correct = Object.values(answers).filter((answer) => answer.correct).length;
+  const completed = Object.keys(currentAnswers).length;
+  const correct = Object.values(currentAnswers).filter((answer) => answer.correct).length;
   const accuracy = completed ? Math.round((correct / completed) * 100) : 0;
-  const wrongCount = attempts.filter((attempt) => !attempt.correct).length;
+  const wrongCount = currentAttempts.filter((attempt) => !attempt.correct).length;
   const highlightedCount = Object.values(conceptMarks).reduce((sum, mark) => sum + (mark.highlights?.length ?? (mark.highlighted ? 1 : 0)), 0);
   const today = new Date();
   const todayKey = toDateKey(today);
@@ -342,8 +353,8 @@ export default function Home() {
   const completedTodos = todaysTodos.filter((todo) => todo.checked).length;
   const labCompleted = allLabQuestions.filter((lab) => labAnswers[lab.id]).length;
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
-  const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, attempts, labAnswers), [attempts, labAnswers, todayKey]);
-  const subjectAnsweredCount = subjectQuestions.filter((question) => answers[question.id]).length;
+  const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, currentAttempts, labAnswers), [currentAttempts, labAnswers, todayKey]);
+  const subjectAnsweredCount = subjectQuestions.filter((question) => currentAnswers[question.id]).length;
   const canGenerateExtraBatch = subjectQuestions.length > 0 && subjectAnsweredCount === subjectQuestions.length;
   const canGenerateExtraLabBatch = allLabQuestions.length > 0 && labCompleted === allLabQuestions.length;
   const nextExtraBatchStart = subjectQuestions.length + 1;
@@ -515,7 +526,9 @@ export default function Home() {
         selectedChoiceId: selectedChoice,
         correct: answerIsCorrect,
         answeredAt,
-        hintUsed: hintVisible
+        hintUsed: hintVisible,
+        questionContentHash: currentQuestion.contentHash,
+        questionSourceVersion: currentQuestion.sourceVersion
       }
     }));
 
@@ -528,7 +541,9 @@ export default function Home() {
         selectedChoiceId: selectedChoice,
         correct: answerIsCorrect,
         answeredAt,
-        stem: currentQuestion.stem
+        stem: currentQuestion.stem,
+        questionContentHash: currentQuestion.contentHash,
+        questionSourceVersion: currentQuestion.sourceVersion
       },
       ...prev
     ]);
@@ -567,7 +582,7 @@ export default function Home() {
     const firstNewQuestionIndex = subjectQuestions.length;
     try {
       setExtraQuestions((prev) => {
-        const nextStartCount = getNextExtraStartCount(prev, activeSubject);
+        const nextStartCount = getNextExtraStartCount(activeExtraQuestions, activeSubject);
         const batch = createLocalExtraQuestions(activeSubject, nextStartCount, 20);
         return [...prev, ...batch];
       });
@@ -581,7 +596,7 @@ export default function Home() {
     setIsGenerating(true);
     const firstNewLabIndex = allLabQuestions.length;
     try {
-      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(prev.length, 20)]);
+      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(activeExtraLabQuestions.length, 20)]);
       setActiveLabIndex(firstNewLabIndex);
       setLabSql("");
       setLabResult(null);
@@ -1060,12 +1075,12 @@ export default function Home() {
                   <p className="eyebrow">Progress</p>
                   <h2>과목별 진행률</h2>
                 </div>
-                <span className="pill">{completed} / {objectiveQuestions.length + extraQuestions.length}</span>
+                <span className="pill">{completed} / {objectiveQuestions.length + activeExtraQuestions.length}</span>
               </div>
               <div className="dashboard-progress-list">
                 {subjects.map((subject) => {
                   const subjectTotal = allQuestions.filter((question) => question.subjectId === subject.id).length;
-                  const subjectDone = allQuestions.filter((question) => question.subjectId === subject.id && answers[question.id]).length;
+                  const subjectDone = allQuestions.filter((question) => question.subjectId === subject.id && currentAnswers[question.id]).length;
                   const percent = subjectTotal ? Math.round((subjectDone / subjectTotal) * 100) : 0;
                   return (
                     <button
@@ -1191,7 +1206,7 @@ export default function Home() {
                 {subjectQuestions.map((question, index) => (
                   <button
                     key={question.id}
-                    className={`mini-question ${index === questionIndex ? "active" : ""} ${answers[question.id]?.correct ? "correct" : answers[question.id] ? "wrong" : ""}`}
+                    className={`mini-question ${index === questionIndex ? "active" : ""} ${currentAnswers[question.id]?.correct ? "correct" : currentAnswers[question.id] ? "wrong" : ""}`}
                     onClick={() => setQuestionIndex(index)}
                   >
                     {question.number}

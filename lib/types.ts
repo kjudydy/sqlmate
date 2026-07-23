@@ -139,6 +139,8 @@ export type AnswerRecord = {
   correct: boolean;
   answeredAt: string;
   hintUsed: boolean;
+  questionContentHash?: string;
+  questionSourceVersion?: string;
 };
 
 export type LabAnswerRecord = {
@@ -157,6 +159,8 @@ export type AttemptRecord = {
   correct: boolean;
   answeredAt: string;
   stem: string;
+  questionContentHash?: string;
+  questionSourceVersion?: string;
 };
 
 export type WrongNote = {

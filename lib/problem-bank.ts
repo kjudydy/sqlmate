@@ -100,6 +100,8 @@ type OfficialPdfSource = {
 
 const OFFICIAL_SOURCE_VERSION = "official-pdf-corpus-2026-07-23";
 
+export const officialSourceVersion = OFFICIAL_SOURCE_VERSION;
+
 export const officialPdfSources: OfficialPdfSource[] = [
   {
     name: "SQL-자격검정-실전문제.pdf",
