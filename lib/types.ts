@@ -4,12 +4,36 @@ export type Difficulty = "기본" | "중간" | "실전";
 
 export type ChoiceId = "A" | "B" | "C" | "D";
 
+export type SourceType = "owner_pdf" | "owner_pdf_variant" | "owner_pdf_similar";
+
+export type GenerationMode = "original" | "shuffled" | "transformed" | "generated_similar";
+
+export type ValidationStatus = "validated" | "review_required";
+
+export type ContentSourceMetadata = {
+  sourceDocument?: string;
+  sourceVersion?: string;
+  sourcePage?: number;
+  sourceQuestionNumber?: number;
+  sourceType?: SourceType;
+  generationMode?: GenerationMode;
+  parentQuestionId?: string;
+  variantGroupId?: string;
+  contentHash?: string;
+  semanticFingerprint?: string;
+  batchId?: string;
+  reviewStatus?: "approved" | "review_required";
+  validationStatus?: ValidationStatus;
+  estimatedTime?: number;
+  tags?: string[];
+};
+
 export type Choice = {
   id: ChoiceId;
   text: string;
 };
 
-export type ObjectiveQuestion = {
+export type ObjectiveQuestion = ContentSourceMetadata & {
   id: string;
   number: number;
   subjectId: SubjectId;
@@ -48,7 +72,7 @@ export type LabPlanExplanation = {
   note: string;
 };
 
-export type LabQuestion = {
+export type LabQuestion = ContentSourceMetadata & {
   id: string;
   number: number;
   title: string;

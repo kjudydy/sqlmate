@@ -76,3 +76,19 @@ Updated: 2026-07-23
 | 20문제 추가 배치 | PASS | 추가 객관식 배치는 `PDF 실전문제형 추가 사례` 문맥과 review_required 상태를 유지한다. |
 | SQL Practice 재구성 | PASS | 실습 공통 해설과 채점 기준에 Trace Rows/Loop/CR/PR, Predicate 구분, 대안 SQL 근거를 추가했다. |
 | 자동 테스트 | PASS | 객관식 300문제, 실습 20문제, 추가 배치, 중복 검사, PDF 스타일 자료 포함 기준이 테스트를 통과했다. |
+
+## 2026-07-23 공식 PDF 코퍼스 메타데이터 QA
+
+사용자가 추가 제공한 45~50회 기출 PDF와 `SQL-자격검정-실전문제.pdf`를 함께 분석하고 문제은행 관리 메타데이터에 반영했다.
+
+| 항목 | 결과 | 메모 |
+|---|---|---|
+| 접근 가능한 PDF 전체 분석 | PASS | 총 7개 PDF, 239페이지를 텍스트 추출했고 대표 페이지를 렌더링해 시각 확인했다. |
+| PDF별 추출 현황 문서화 | PASS | `docs/OFFICIAL_PDF_CORPUS_ANALYSIS.md`에 페이지 수, 후보 수, 저텍스트 페이지, 렌더링 확인 페이지를 기록했다. |
+| 객관식 출처 메타데이터 | PASS | 300개 객관식 문제에 sourceDocument, sourceType, generationMode, batchId, contentHash, semanticFingerprint를 부여한다. |
+| 원본·변형·유사형 혼합 | PASS | `owner_pdf`, `owner_pdf_variant`, `owner_pdf_similar`가 초기 문제 세트에 함께 포함되도록 검증한다. |
+| 추가 20문제 배치 추적 | PASS | 추가 객관식 배치는 과목별 `extra-*-n`, SQL Practice는 `extra-sql-practice-n` 배치로 추적한다. |
+| SQL Practice 추가 단위 | PASS | SQL Practice 추가 기본 배치 크기를 5문제에서 20문제로 변경했다. |
+| 검수 전 공개 방지 | PASS | 추가 배치는 review_required/validationStatus review_required 상태로 생성한다. |
+
+남은 제한: PDF 후보를 자동으로 정확한 공식 문제 번호와 1:1 매핑하지는 않았다. 현재 sourcePage는 과목별 참고 페이지 범위 또는 회차 PDF 페이지 순환 기준이며, 정식 원문 문항 번호 매핑은 별도 수작업 검수 배치에서 보강해야 한다.

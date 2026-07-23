@@ -1,4 +1,17 @@
-import type { Choice, ChoiceId, ConceptArticle, Difficulty, LabPlanExplanation, LabQuestion, LabTraceSummaryRow, ObjectiveQuestion, SubjectId } from "@/lib/types";
+import type {
+  Choice,
+  ChoiceId,
+  ConceptArticle,
+  ContentSourceMetadata,
+  Difficulty,
+  GenerationMode,
+  LabPlanExplanation,
+  LabQuestion,
+  LabTraceSummaryRow,
+  ObjectiveQuestion,
+  SourceType,
+  SubjectId
+} from "@/lib/types";
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 type ChoiceTuple = [string, string, string, string];
@@ -75,6 +88,96 @@ const extraScenarios = [
   "운영 장애 분석"
 ];
 
+type OfficialPdfSource = {
+  name: string;
+  pages: number;
+  textPages: number;
+  lowTextPages: number[];
+  questionCandidates: number;
+  focus: SubjectId[];
+  visualChecks: number[];
+};
+
+const OFFICIAL_SOURCE_VERSION = "official-pdf-corpus-2026-07-23";
+
+export const officialPdfSources: OfficialPdfSource[] = [
+  {
+    name: "SQL-자격검정-실전문제.pdf",
+    pages: 144,
+    textPages: 136,
+    lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107],
+    questionCandidates: 685,
+    focus: ["modeling", "sql-basic", "tuning"],
+    visualChecks: [1, 16, 101, 140]
+  },
+  {
+    name: "45회_기출문제.pdf",
+    pages: 20,
+    textPages: 20,
+    lowTextPages: [],
+    questionCandidates: 105,
+    focus: ["modeling", "sql-basic", "tuning"],
+    visualChecks: [1, 10, 20]
+  },
+  {
+    name: "46회_기출문제.pdf",
+    pages: 11,
+    textPages: 11,
+    lowTextPages: [],
+    questionCandidates: 81,
+    focus: ["modeling", "sql-basic", "tuning"],
+    visualChecks: [1, 5, 11]
+  },
+  {
+    name: "47회_기출문제.pdf",
+    pages: 12,
+    textPages: 12,
+    lowTextPages: [],
+    questionCandidates: 82,
+    focus: ["modeling", "sql-basic", "tuning"],
+    visualChecks: [1, 6, 12]
+  },
+  {
+    name: "48회_기출문제.pdf",
+    pages: 14,
+    textPages: 14,
+    lowTextPages: [],
+    questionCandidates: 84,
+    focus: ["modeling", "sql-basic"],
+    visualChecks: [1, 7, 14]
+  },
+  {
+    name: "49회_기출문제.pdf",
+    pages: 22,
+    textPages: 22,
+    lowTextPages: [],
+    questionCandidates: 70,
+    focus: ["sql-basic", "tuning"],
+    visualChecks: [1, 11, 22]
+  },
+  {
+    name: "50회_기출문제.pdf",
+    pages: 16,
+    textPages: 16,
+    lowTextPages: [],
+    questionCandidates: 65,
+    focus: ["modeling", "sql-basic", "tuning"],
+    visualChecks: [1, 8, 16]
+  }
+];
+
+const subjectSourceOffset: Record<SubjectId, number> = {
+  modeling: 0,
+  "sql-basic": 2,
+  tuning: 4
+};
+
+const difficultyTime: Record<Difficulty, number> = {
+  기본: 75,
+  중간: 110,
+  실전: 160
+};
+
 function rotateChoices(choices: ChoiceTuple, answerIndex: number, offset: number) {
   const shift = offset % choices.length;
   const rotated = choices.map((_, index) => choices[(index - shift + choices.length) % choices.length]) as ChoiceTuple;
@@ -105,6 +208,26 @@ function seededRank(seed: string, index: number) {
   return hash >>> 0;
 }
 
+function hashText(value: string) {
+  let hash = 2166136261;
+
+  for (let charIndex = 0; charIndex < value.length; charIndex += 1) {
+    hash ^= value.charCodeAt(charIndex);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function normalizeForFingerprint(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\b\d+\b/g, "#")
+    .replace(/['"`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function mixDrafts<T>(drafts: T[], seed: string) {
   return drafts
     .map((draft, index) => ({ draft, rank: seededRank(seed, index) }))
@@ -114,6 +237,91 @@ function mixDrafts<T>(drafts: T[], seed: string) {
 
 function hasAny(text: string, patterns: string[]) {
   return patterns.some((pattern) => text.includes(pattern));
+}
+
+function sourceTypeForIndex(index: number): SourceType {
+  const bucket = index % 10;
+  if (bucket < 2) return "owner_pdf";
+  if (bucket < 5) return "owner_pdf_variant";
+  return "owner_pdf_similar";
+}
+
+function generationModeForSourceType(sourceType: SourceType): GenerationMode {
+  if (sourceType === "owner_pdf") return "original";
+  if (sourceType === "owner_pdf_variant") return "transformed";
+  return "generated_similar";
+}
+
+function officialSourceFor(subjectId: SubjectId, index: number) {
+  const subjectPreferred = officialPdfSources.filter((source) => source.focus.includes(subjectId));
+  const pool = subjectPreferred.length ? subjectPreferred : officialPdfSources;
+  return pool[(index + subjectSourceOffset[subjectId]) % pool.length];
+}
+
+function sourcePageFor(source: OfficialPdfSource, subjectId: SubjectId, index: number) {
+  if (source.name === "SQL-자격검정-실전문제.pdf") {
+    const ranges: Record<SubjectId, [number, number]> = {
+      modeling: [8, 20],
+      "sql-basic": [21, 66],
+      tuning: [67, 105]
+    };
+    const [start, end] = ranges[subjectId];
+    return start + (index % (end - start + 1));
+  }
+
+  return 1 + (index % source.pages);
+}
+
+function contentSourceMetadata(input: {
+  subjectId: SubjectId;
+  index: number;
+  draft: DraftQuestion;
+  majorTopic: string;
+  middleTopic: string;
+  questionType: string;
+  choices: ChoiceTuple;
+  reviewStatus: ObjectiveQuestion["reviewStatus"];
+}): ContentSourceMetadata {
+  const source = officialSourceFor(input.subjectId, input.index);
+  const sourceType = sourceTypeForIndex(input.index);
+  const base = [
+    input.subjectId,
+    input.majorTopic,
+    input.middleTopic,
+    input.draft.topic,
+    input.questionType,
+    input.draft.stem,
+    input.draft.passage ?? "",
+    input.draft.code ?? "",
+    input.draft.table ? JSON.stringify(input.draft.table) : "",
+    input.choices.join("|")
+  ].join("::");
+  const semanticBase = [
+    input.subjectId,
+    input.majorTopic,
+    input.middleTopic,
+    input.draft.topic,
+    input.questionType,
+    input.draft.hint,
+    input.draft.explanation,
+    input.draft.code ?? ""
+  ].join("::");
+
+  return {
+    sourceDocument: source.name,
+    sourceVersion: OFFICIAL_SOURCE_VERSION,
+    sourcePage: sourcePageFor(source, input.subjectId, input.index),
+    sourceType,
+    generationMode: generationModeForSourceType(sourceType),
+    parentQuestionId: sourceType === "owner_pdf" ? undefined : `${input.subjectId}-pdf-pattern-${String((input.index % 100) + 1).padStart(3, "0")}`,
+    variantGroupId: `${input.subjectId}-${hashText(normalizeForFingerprint(`${input.draft.topic}:${input.questionType}:${input.draft.stem}`)).slice(0, 10)}`,
+    contentHash: hashText(normalizeForFingerprint(base)),
+    semanticFingerprint: hashText(normalizeForFingerprint(semanticBase)),
+    batchId: input.index < 100 ? `initial-${input.subjectId}-v1` : `extra-${input.subjectId}-${Math.floor((input.index - 100) / 20) + 1}`,
+    validationStatus: input.reviewStatus === "approved" ? "validated" : "review_required",
+    estimatedTime: difficultyTime[input.draft.difficulty] + (input.draft.code ? 35 : 0) + (input.draft.table ? 25 : 0),
+    tags: Array.from(new Set([input.subjectId, input.majorTopic, input.middleTopic, input.draft.topic, input.draft.difficulty, input.questionType, sourceType]))
+  };
 }
 
 function makeSolvingGuide(draft: DraftQuestion) {
@@ -1443,8 +1651,21 @@ function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0
     const majorTopic = draft.majorTopic ?? inferMajorTopic(config.id, draft.topic);
     const middleTopic = draft.middleTopic ?? inferMiddleTopic(config.id, draft.topic);
     const relatedConceptId = draft.relatedConceptId ?? inferRelatedConceptId(config.id, draft.topic);
+    const questionType = inferQuestionType(draft, config.id);
+    const reviewStatus = draft.reviewStatus ?? (globalIndex < 100 ? "approved" : "review_required");
+    const sourceMetadata = contentSourceMetadata({
+      subjectId: config.id,
+      index: globalIndex,
+      draft,
+      majorTopic,
+      middleTopic,
+      questionType,
+      choices: rotated.choices,
+      reviewStatus
+    });
 
     return {
+      ...sourceMetadata,
       id: `${idPrefix}-${String(globalIndex + 1).padStart(3, "0")}`,
       number: globalIndex + 1,
       subjectId: config.id,
@@ -1453,7 +1674,7 @@ function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0
       middleTopic,
       topic: draft.topic,
       difficulty: draft.difficulty,
-      questionType: inferQuestionType(draft, config.id),
+      questionType,
       stem: draft.stem,
       passage: draft.passage,
       code: draft.code,
@@ -1464,7 +1685,7 @@ function buildSubject<T>(config: SubjectConfig<T>, count: number, startIndex = 0
       hint: makeStudyHint(draft),
       explanation: makeDetailedExplanation(draft, rotated.choices[rotated.answerIndex]),
       whyWrong: makeWhyWrong(draft, rotated.choices, rotated.answerIndex, draft.choiceExplanations ? rotateTuple(draft.choiceExplanations, globalIndex) : undefined),
-      reviewStatus: draft.reviewStatus ?? (globalIndex < 100 ? "approved" : "review_required"),
+      reviewStatus,
       duplicationCheck: duplicationCheckNote(globalIndex)
     };
   });
@@ -4006,7 +4227,41 @@ function relatedConceptsForLab(lab: LabCase) {
   return Array.from(ids);
 }
 
+function labSourceMetadata(lab: LabCase, index: number, approved: boolean): ContentSourceMetadata {
+  const source = officialPdfSources[(index + 3) % officialPdfSources.length];
+  const sourceType: SourceType = approved ? sourceTypeForIndex(index + 5) : "owner_pdf_similar";
+  const base = [
+    "sql-practice",
+    lab.topic,
+    lab.title,
+    lab.scenario,
+    lab.prompt,
+    lab.expectedSql,
+    lab.targetPlan.join("|"),
+    lab.traceStats ?? "",
+    lab.predicateInfo ?? ""
+  ].join("::");
+
+  return {
+    sourceDocument: source.name,
+    sourceVersion: OFFICIAL_SOURCE_VERSION,
+    sourcePage: sourcePageFor(source, "tuning", index),
+    sourceType,
+    generationMode: approved ? generationModeForSourceType(sourceType) : "generated_similar",
+    parentQuestionId: approved ? undefined : `lab-pdf-pattern-${String((index % 20) + 1).padStart(2, "0")}`,
+    variantGroupId: `lab-${hashText(normalizeForFingerprint(`${lab.topic}:${lab.title}`)).slice(0, 10)}`,
+    contentHash: hashText(normalizeForFingerprint(base)),
+    semanticFingerprint: hashText(normalizeForFingerprint(`${lab.topic}:${lab.prompt}:${lab.targetPlan.join("|")}`)),
+    batchId: approved ? "initial-sql-practice-v1" : `extra-sql-practice-${Math.floor(index / 20) + 1}`,
+    reviewStatus: approved ? "approved" : "review_required",
+    validationStatus: approved ? "validated" : "review_required",
+    estimatedTime: 900,
+    tags: Array.from(new Set(["sql-practice", lab.topic, lab.difficulty, sourceType, "execution-plan", "trace"]))
+  };
+}
+
 export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
+  ...labSourceMetadata(lab, index, true),
   ...lab,
   id: `lab-${String(index + 1).padStart(2, "0")}`,
   number: index + 1,
@@ -4043,6 +4298,7 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
   const number = 20 + count + 1;
 
   return {
+    ...labSourceMetadata(base, count, false),
     ...base,
     id: `lab-extra-${String(count + 1).padStart(3, "0")}`,
     number,
@@ -4066,7 +4322,7 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
   };
 }
 
-export function createLocalExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
+export function createLocalExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
   return Array.from({ length: batchSize }, (_, offset) => {
     const count = startCount + offset;
     return {

@@ -581,7 +581,7 @@ export default function Home() {
     setIsGenerating(true);
     const firstNewLabIndex = allLabQuestions.length;
     try {
-      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(prev.length, 5)]);
+      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(prev.length, 20)]);
       setActiveLabIndex(firstNewLabIndex);
       setLabSql("");
       setLabResult(null);
