@@ -59,26 +59,26 @@ function questionSignature(question: ObjectiveQuestion) {
 }
 
 describe("SQLMate verified production problem bank", () => {
-  it("publishes 100 objective questions per subject", () => {
-    expect(objectiveQuestions).toHaveLength(300);
+  it("publishes only the page-reviewed objective questions per subject until the next PDF QA batch is approved", () => {
+    expect(objectiveQuestions).toHaveLength(30);
     for (const subject of subjects) {
-      expect(bySubject(subject.id)).toHaveLength(100);
-      expect(bySubject(subject.id).map((question) => question.number)).toEqual(Array.from({ length: 100 }, (_, index) => index + 1));
+      expect(bySubject(subject.id)).toHaveLength(10);
+      expect(bySubject(subject.id).map((question) => question.number)).toEqual(Array.from({ length: 10 }, (_, index) => index + 1));
     }
   });
 
-  it("keeps the approved PDF review seeds and expands them with Variant and Similar questions", () => {
+  it("keeps the approved PDF review seed distribution without counting template-generated 11-100 questions as published", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBe(300);
+    expect(summary.objectiveTotal).toBe(30);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
-      expect(subjectSummary.total).toBe(100);
+      expect(subjectSummary.total).toBe(10);
       expect(subjectSummary.original).toBe(5);
-      expect(subjectSummary.variant).toBeGreaterThanOrEqual(30);
-      expect(subjectSummary.similar).toBeGreaterThanOrEqual(60);
-      expect(subjectSummary.topics).toBeGreaterThanOrEqual(35);
-      expect(subjectSummary.types).toBeGreaterThanOrEqual(6);
+      expect(subjectSummary.variant).toBe(3);
+      expect(subjectSummary.similar).toBe(2);
+      expect(subjectSummary.topics).toBeGreaterThanOrEqual(9);
+      expect(subjectSummary.types).toBeGreaterThanOrEqual(1);
     }
   });
 
@@ -150,22 +150,18 @@ describe("SQLMate verified production problem bank", () => {
   it("includes exam-style materials across SQL, model, plan, and Trace questions", () => {
     const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
     const withCode = objectiveQuestions.filter((question) => question.code);
-    const withTable = objectiveQuestions.filter((question) => question.table);
-    const tuningWithPlan = bySubject("tuning").filter((question) => question.table?.headers.includes("Operation"));
 
-    expect(withMaterial.length).toBeGreaterThanOrEqual(270);
-    expect(withCode.length).toBeGreaterThanOrEqual(150);
-    expect(withTable.length).toBeGreaterThanOrEqual(220);
-    expect(tuningWithPlan.length).toBeGreaterThanOrEqual(80);
-    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(8);
+    expect(withMaterial.length).toBeGreaterThanOrEqual(5);
+    expect(withCode.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });
 
-  it("publishes 20 structurally different SQL Practice questions", () => {
-    expect(labQuestions).toHaveLength(20);
-    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(20);
-    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(18);
-    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(20);
-    expect(new Set(labQuestions.map((lab) => lab.expectedSql)).size).toBe(20);
+  it("publishes only the page-reviewed SQL Practice cases until varied lab batches are approved", () => {
+    expect(labQuestions).toHaveLength(5);
+    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(5);
+    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
+    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(5);
+    expect(new Set(labQuestions.map((lab) => lab.expectedSql)).size).toBe(5);
 
     for (const lab of labQuestions) {
       expect(lab.traceStats).toContain("Rows");

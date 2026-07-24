@@ -43,6 +43,8 @@ import type {
 
 type Section = "dashboard" | "practice" | "lab" | "wrong" | "concepts" | "notes";
 
+const verifiedExpansionReady = false;
+
 type PendingHighlight = {
   text: string;
   fieldKey: string;
@@ -1196,10 +1198,10 @@ export default function Home() {
                   {subjectAnsweredCount}/{subjectQuestions.length} 완료
                   {subjectExtraQuestions.length > 0 ? ` · 추가 ${subjectExtraQuestions.length}문제` : ""}
                 </span>
-                <p>원할 때마다 기출 변형 20문제를 추가해서 같은 과목을 계속 반복할 수 있어요.</p>
-                <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating}>
+                <p>11번 이후 문제는 PDF 원문 대조 검수 후 다시 열 예정입니다.</p>
+                <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Plus size={17} />
-                  {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 문제 추가`}
+                  {isGenerating ? "생성 중" : "추가 문제 검수 중"}
                 </button>
               </div>
               <div className="question-list">
@@ -1328,11 +1330,11 @@ export default function Home() {
               <div className="bottom-add-panel">
                 <div>
                   <strong>문제 풀이 풀 확장</strong>
-                  <span>현재 과목에 복원형 변형 20문제를 바로 추가합니다.</span>
+                  <span>PDF 원문 대조 검수 완료 후 20문제 단위로 다시 제공합니다.</span>
                 </div>
-                <button className="primary-button" onClick={addExtraQuestionBatch} disabled={isGenerating}>
+                <button className="primary-button" onClick={addExtraQuestionBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Plus size={17} />
-                  문제 추가
+                  검수 중
                 </button>
               </div>
             </section>
@@ -1362,10 +1364,10 @@ export default function Home() {
               ))}
               <div className="extra-gate">
                 <span>{labCompleted}/{allLabQuestions.length} 시도 · 실습 풀 확장</span>
-                <p>최근 SQLP 실기 복기형 Trace/Predicate 변형 20문제를 바로 추가합니다.</p>
-                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
+                <p>추가 실습은 숫자만 바뀐 문제를 제외하고 원문 대조 검수 후 다시 엽니다.</p>
+                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Sparkles size={17} />
-                  실습 20문제 추가
+                  실습 검수 중
                 </button>
               </div>
             </section>
@@ -1493,11 +1495,11 @@ export default function Home() {
               <div className="bottom-add-panel">
                 <div>
                   <strong>실습 문제 풀 확장</strong>
-                  <span>50~53회 복기형 실행계획 변형 20문제를 추가합니다.</span>
+                  <span>실습 추가 배치는 원문 대조 검수 완료 후 제공합니다.</span>
                 </div>
-                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
+                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Plus size={17} />
-                  문제 추가
+                  검수 중
                 </button>
               </div>
 

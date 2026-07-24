@@ -517,11 +517,9 @@ function conceptIdForQuestion(question: PdfReviewQuestion) {
 }
 
 function buildSubjectBank(subjectId: SubjectId) {
-  const reviewSeeds = pdfReviewQuestions
+  return pdfReviewQuestions
     .filter((question) => question.subjectId === subjectId)
     .map((question, index) => convertReviewQuestion(question, index + 1));
-  const generated = Array.from({ length: 100 - reviewSeeds.length }, (_, index) => buildGeneratedQuestion(subjectId, index, true));
-  return [...reviewSeeds, ...generated].map((question, index) => ({ ...question, number: index + 1, id: `prod-${subjectId}-${String(index + 1).padStart(3, "0")}` }));
 }
 
 const operationExplanations: Record<string, string> = {
@@ -775,9 +773,7 @@ export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
 ];
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-const generatedLabs = Array.from({ length: 20 - convertedReviewLabs.length }, (_, index) => buildPracticeLab(index + convertedReviewLabs.length, index + convertedReviewLabs.length + 1, true));
-
-export const verifiedLabQuestions: LabQuestion[] = [...convertedReviewLabs, ...generatedLabs];
+export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   return buildGeneratedQuestion(subjectId, count, false);
