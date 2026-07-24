@@ -61,6 +61,8 @@ Rendered PNGs used for visual checks:
 - `tmp/pdfs/sql-exam-p-074.png`
 - `tmp/pdfs/sql-exam-p-075.png`
 
+These files were temporary visual QA artifacts and were removed before deployment so Vercel does not upload source PDFs or large rendered images. Re-render the same pages when additional Original verification is needed.
+
 Answer/explanation pages inspected with text extraction and page comparison:
 
 - 1과목: pages 110-111
