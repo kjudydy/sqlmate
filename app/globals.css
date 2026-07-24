@@ -2543,3 +2543,149 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.pdf-review-page {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.pdf-review-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pdf-review-summary > div,
+.pdf-review-status,
+.pdf-review-card,
+.pdf-user-preview,
+.pdf-review-meta {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.pdf-review-summary > div {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.pdf-review-summary span,
+.pdf-review-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pdf-review-summary strong {
+  font-size: 28px;
+}
+
+.pdf-review-status {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.pdf-review-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pdf-review-list {
+  display: grid;
+  gap: 18px;
+}
+
+.pdf-review-card {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.32fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+}
+
+.pdf-review-meta,
+.pdf-user-preview {
+  padding: 16px;
+}
+
+.pdf-review-meta {
+  align-self: start;
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+  background: rgba(248, 242, 247, 0.74);
+}
+
+.pdf-review-meta dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.pdf-review-meta dl > div {
+  display: grid;
+  gap: 3px;
+}
+
+.pdf-review-meta dd,
+.pdf-review-meta p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.pdf-review-meta ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.pdf-user-preview {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.pdf-user-preview h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.42;
+}
+
+.pdf-user-preview .choice-list {
+  margin-top: 0;
+}
+
+.pdf-user-preview .wrong-code-block pre {
+  max-height: 360px;
+}
+
+@media (max-width: 920px) {
+  .pdf-review-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pdf-review-card {
+    grid-template-columns: 1fr;
+  }
+
+  .pdf-review-meta {
+    position: static;
+  }
+}
+
+@media (max-width: 620px) {
+  .pdf-review-page {
+    padding: 24px 16px;
+  }
+
+  .pdf-review-summary {
+    grid-template-columns: 1fr;
+  }
+}
