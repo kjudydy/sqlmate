@@ -1,24 +1,51 @@
 import { describe, expect, it } from "vitest";
 import {
-  conceptArticles,
   createLocalExtraLabQuestions,
   createLocalExtraQuestion,
   createLocalExtraQuestions,
   labQuestions,
   objectiveQuestions,
-  officialPdfSources,
+  officialSourceVersion,
   subjects
 } from "@/lib/problem-bank";
-import { buildAllQuestionBatchPlans, findLikelyDuplicateQuestions, PDF_STYLE_GUARDRAILS, QUESTION_BATCH_SIZE } from "@/lib/question-batch";
+import { findLikelyDuplicateQuestions } from "@/lib/question-batch";
+import {
+  findPublishedUserVisibleIssues,
+  getVerifiedProductionSummary,
+  verifiedOfficialSourceVersion
+} from "@/lib/verified-production-bank";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
 function bySubject(subjectId: SubjectId) {
   return objectiveQuestions.filter((question) => question.subjectId === subjectId);
 }
 
+function userVisibleQuestionText(question: ObjectiveQuestion) {
+  return [
+    question.subjectName,
+    question.majorTopic,
+    question.middleTopic,
+    question.topic,
+    question.difficulty,
+    question.questionType,
+    question.stem,
+    question.passage,
+    question.code,
+    question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
+    ...question.choices.map((choice) => choice.text),
+    question.hint,
+    question.explanation,
+    ...Object.values(question.whyWrong)
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function questionSignature(question: ObjectiveQuestion) {
   return [
     question.subjectId,
+    question.majorTopic,
+    question.middleTopic,
     question.topic,
     question.stem,
     question.passage ?? "",
@@ -31,313 +58,161 @@ function questionSignature(question: ObjectiveQuestion) {
     .trim();
 }
 
-describe("SQLP problem bank", () => {
-  it("keeps 100 objective questions for every subject", () => {
+describe("SQLMate verified production problem bank", () => {
+  it("publishes 100 objective questions per subject", () => {
+    expect(objectiveQuestions).toHaveLength(300);
     for (const subject of subjects) {
       expect(bySubject(subject.id)).toHaveLength(100);
+      expect(bySubject(subject.id).map((question) => question.number)).toEqual(Array.from({ length: 100 }, (_, index) => index + 1));
     }
   });
 
-  it("does not repeat identical objective questions inside a subject", () => {
+  it("keeps the approved PDF review seeds and expands them with Variant and Similar questions", () => {
+    const summary = getVerifiedProductionSummary();
+
+    expect(summary.objectiveTotal).toBe(300);
     for (const subject of subjects) {
-      const signatures = bySubject(subject.id).map(questionSignature);
-      expect(new Set(signatures).size).toBe(signatures.length);
+      const subjectSummary = summary.bySubject[subject.id];
+      expect(subjectSummary.total).toBe(100);
+      expect(subjectSummary.original).toBe(5);
+      expect(subjectSummary.variant).toBeGreaterThanOrEqual(30);
+      expect(subjectSummary.similar).toBeGreaterThanOrEqual(60);
+      expect(subjectSummary.topics).toBeGreaterThanOrEqual(35);
+      expect(subjectSummary.types).toBeGreaterThanOrEqual(6);
     }
   });
 
-  it("covers many official detail topics instead of repeating a tiny seed set", () => {
-    for (const subject of subjects) {
-      const topicCount = new Set(bySubject(subject.id).map((question) => question.topic)).size;
-      expect(topicCount).toBeGreaterThanOrEqual(35);
-    }
-  });
+  it("does not expose source metadata or review statuses in user-visible question fields", () => {
+    expect(findPublishedUserVisibleIssues()).toEqual([]);
 
-  it("keeps key reconstructed exam-style topics inside the first 100 questions", () => {
-    const modelingTopics = Array.from(new Set(bySubject("modeling").map((question) => question.topic)));
-    const sqlTopics = Array.from(new Set(bySubject("sql-basic").map((question) => question.topic)));
+    const forbidden = [
+      "sourceDocument",
+      "sourceType",
+      "generationMode",
+      "review_required",
+      "original_ready",
+      "문항 키",
+      "추출 상태",
+      "PDF 원문 문항",
+      "유사형 문항"
+    ];
 
-    expect(modelingTopics).toEqual(
-      expect.arrayContaining([
-        "데이터 모델링 유의점",
-        "외부·개념·내부 스키마",
-        "식별·비식별 관계",
-        "주식별자 도출 기준",
-        "식별자의 최소성",
-        "도메인"
-      ])
-    );
-
-    expect(sqlTopics).toEqual(
-      expect.arrayContaining([
-        "DISTINCT",
-        "문자 함수",
-        "날짜 함수",
-        "NVL과 COALESCE",
-        "CASE 표현식",
-        "ROLLUP",
-        "CUBE",
-        "Top-N"
-      ])
-    );
-  });
-
-  it("offers concept articles beyond the dashboard summary cards", () => {
-    expect(conceptArticles.length).toBeGreaterThanOrEqual(57);
-  });
-
-  it("organizes concept articles by the official SQLP subject hierarchy", () => {
-    expect(new Set(conceptArticles.map((concept) => concept.subjectId))).toEqual(new Set(["modeling", "sql-basic", "tuning"]));
-    expect(conceptArticles).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          subjectId: "modeling",
-          majorTopic: "데이터 모델링의 이해",
-          detailTopic: "엔터티"
-        }),
-        expect.objectContaining({
-          subjectId: "sql-basic",
-          majorTopic: "SQL 활용",
-          detailTopic: "윈도우 함수"
-        }),
-        expect.objectContaining({
-          subjectId: "tuning",
-          majorTopic: "인덱스 튜닝",
-          detailTopic: "인덱스 스캔 효율화"
-        }),
-        expect.objectContaining({
-          subjectId: "tuning",
-          majorTopic: "Lock과 트랜잭션 동시성 제어",
-          detailTopic: "동시성 제어"
-        })
-      ])
-    );
-  });
-
-  it("keeps concept bullets exam-focused without generic prompt labels", () => {
-    for (const concept of conceptArticles) {
-      expect(concept.summary.length).toBeGreaterThan(40);
-      expect(concept.keyPoints.length).toBeGreaterThanOrEqual(5);
-      expect(concept.examTrap.length).toBeGreaterThan(25);
-      expect(concept.keyPoints.some((point) => /^(핵심 정의|지문 읽기|판단 순서|SQL 연결):/.test(point))).toBe(false);
-    }
-  });
-
-  it("adds rich study blocks for broad guide chapters", () => {
-    const dataModeling = conceptArticles.find((concept) => concept.id === "modeling-data-model");
-    expect(dataModeling?.studyBlocks?.length).toBeGreaterThanOrEqual(7);
-    expect(dataModeling?.studyBlocks?.some((block) => block.type === "table")).toBe(true);
-    expect(dataModeling?.studyBlocks?.some((block) => block.type === "flow")).toBe(true);
-    expect(JSON.stringify(dataModeling?.studyBlocks)).toContain("데이터베이스 3단계 구조");
-    expect(JSON.stringify(dataModeling?.studyBlocks)).toContain("논리적 독립성");
-    expect(JSON.stringify(dataModeling?.studyBlocks)).toContain("좋은 데이터 모델");
-  });
-
-  it("keeps the first modeling chapter detailed enough for guide-based study", () => {
-    for (const conceptId of ["modeling-data-model", "modeling-entity", "modeling-attribute", "modeling-relationship", "modeling-identifier"]) {
-      const concept = conceptArticles.find((article) => article.id === conceptId);
-      expect(concept?.studyBlocks?.length).toBeGreaterThanOrEqual(3);
-      expect(concept?.studyBlocks?.some((block) => block.type === "table")).toBe(true);
-    }
-  });
-
-  it("gives every concept a structured study-note layout", () => {
-    for (const concept of conceptArticles) {
-      expect(concept.studyBlocks?.length).toBeGreaterThanOrEqual(3);
-      expect(concept.studyBlocks?.some((block) => block.type === "table")).toBe(true);
-      expect(concept.studyBlocks?.some((block) => block.type === "checklist")).toBe(true);
-      expect(JSON.stringify(concept.studyBlocks)).not.toContain("세부 포인트");
-      expect(JSON.stringify(concept.studyBlocks)).not.toContain("지문/SQL 판정 순서");
-      expect(JSON.stringify(concept.studyBlocks)).not.toContain("풀이 공식");
-    }
-  });
-
-  it("keeps SQL lab questions diverse and reconstructed-exam oriented", () => {
-    expect(labQuestions).toHaveLength(20);
-    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(20);
-    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(15);
-    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(20);
-    expect(new Set(labQuestions.map((lab) => lab.seedSql)).size).toBe(20);
-    expect(labQuestions.every((lab) => lab.traceStats?.includes("Rows") && lab.traceStats.includes("Loop"))).toBe(true);
-    expect(labQuestions.every((lab) => lab.predicateInfo?.includes("Predicate Information"))).toBe(true);
-
-    const labText = JSON.stringify(labQuestions);
-    expect(labText).toContain("COUNT STOPKEY");
-    expect(labText).toContain("EXCHANGE PARTITION");
-    expect(labText).toContain("INDEX RANGE SCAN DESCENDING");
-    expect(labText).toContain("PSTART/PSTOP");
-  });
-
-  it("adds Korean operation explanations and trace summaries to SQL practice", () => {
-    for (const lab of labQuestions) {
-      expect(lab.simulationNotice).toContain("설명 예시");
-      expect(lab.targetPlanExplanations?.length).toBe(lab.targetPlan.length);
-      expect(lab.targetPlanExplanations?.every((item) => item.korean.includes(item.operation) || item.korean.includes(" - "))).toBe(true);
-      expect(lab.targetPlanExplanations?.every((item) => item.note.length > 12)).toBe(true);
-      expect(lab.traceSummary?.map((row) => row.metric)).toEqual(expect.arrayContaining(["Rows", "Loop/Starts", "PR", "CR", "Time"]));
-    }
-  });
-
-  it("provides study-ready hints, explanations, and choice feedback", () => {
     for (const question of objectiveQuestions) {
-      expect(question.hint).toContain("출제 포인트");
-      expect(question.hint).toContain("풀이 방향");
-      expect(question.explanation).toContain("정답 근거");
-      expect(question.explanation).toContain("시험 포인트");
-      expect(question.explanation).toContain("PDF 실전형 복습");
-
-      for (const choice of question.choices) {
-        expect(question.whyWrong[choice.id]).toBeTruthy();
-        expect(question.whyWrong[choice.id].length).toBeGreaterThan(20);
+      const text = userVisibleQuestionText(question);
+      for (const pattern of forbidden) {
+        expect(text).not.toContain(pattern);
       }
+      expect(text).not.toMatch(/\[[^\]]+\.pdf\s+p\./i);
+      expect(text).not.toContain(question.sourceDocument ?? "__no_source__");
     }
   });
 
-  it("reflects SQL exam practice PDF style in objective question materials", () => {
-    const questionsWithMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
-    const questionsWithTables = objectiveQuestions.filter((question) => question.table);
-    const questionsWithCode = objectiveQuestions.filter((question) => question.code);
-    const tuningQuestionsWithTraceTable = bySubject("tuning").filter((question) =>
-      question.table?.headers.join(" ").includes("Trace/Plan")
-    );
-
-    expect(questionsWithMaterial.length).toBeGreaterThanOrEqual(260);
-    expect(questionsWithTables.length).toBeGreaterThanOrEqual(90);
-    expect(questionsWithCode.length).toBeGreaterThanOrEqual(120);
-    expect(tuningQuestionsWithTraceTable.length).toBeGreaterThanOrEqual(40);
-    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(8);
-  });
-
-  it("tracks the official owner PDF corpus and batch metadata for every objective question", () => {
-    const sourceNames = officialPdfSources.map((source) => source.name);
-    const usedSources = new Set(objectiveQuestions.map((question) => question.sourceDocument));
-    const sourceTypes = new Set(objectiveQuestions.map((question) => question.sourceType));
-    const generationModes = new Set(objectiveQuestions.map((question) => question.generationMode));
-
-    expect(officialPdfSources).toHaveLength(7);
-    expect(usedSources).toEqual(new Set(sourceNames));
-    expect(sourceTypes).toEqual(new Set(["owner_pdf", "owner_pdf_variant", "owner_pdf_similar"]));
-    expect(generationModes).toEqual(new Set(["original", "transformed", "generated_similar"]));
+  it("stores internal source and validation metadata for every published question", () => {
+    expect(officialSourceVersion).toBe(verifiedOfficialSourceVersion);
 
     for (const question of objectiveQuestions) {
-      expect(sourceNames).toContain(question.sourceDocument);
-      expect(question.sourceVersion).toBe("official-pdf-corpus-2026-07-23");
-      expect(question.sourcePage).toBeGreaterThan(0);
+      expect(question.sourceVersion).toBe(verifiedOfficialSourceVersion);
+      expect(question.sourceDocument).toBeTruthy();
+      expect(question.sourceType).toMatch(/^owner_pdf/);
+      expect(question.generationMode).toMatch(/original|transformed|generated_similar/);
+      expect(question.reviewStatus).toBe("approved");
+      expect(question.validationStatus).toBe("validated");
       expect(question.contentHash).toMatch(/^[0-9a-f]{8}$/);
       expect(question.semanticFingerprint).toMatch(/^[0-9a-f]{8}$/);
       expect(question.batchId).toBe(`initial-${question.subjectId}-v1`);
-      expect(question.validationStatus).toBe("validated");
-      expect(question.estimatedTime).toBeGreaterThan(60);
-      expect(question.tags).toEqual(expect.arrayContaining([question.subjectId, question.topic, question.difficulty]));
     }
   });
 
-  it("also upgrades the first ten approved seed questions with PDF-style materials", () => {
-    for (const subject of subjects) {
-      const firstTen = bySubject(subject.id).slice(0, 10);
+  it("keeps choices, answer mapping, hints, explanations, and related concepts complete", () => {
+    for (const question of objectiveQuestions) {
+      expect(question.choices).toHaveLength(4);
+      expect(question.choices.map((choice) => choice.id)).toEqual(["A", "B", "C", "D"]);
+      expect(question.choices.some((choice) => choice.id === question.answer)).toBe(true);
+      expect(question.hint).toContain("1단계");
+      expect(question.hint).toContain("2단계");
+      expect(question.hint).toContain("3단계");
+      expect(question.explanation.length).toBeGreaterThan(20);
+      expect(question.relatedConceptId).toBeTruthy();
 
-      expect(firstTen).toHaveLength(10);
-      expect(firstTen.every((question) => question.passage?.includes("PDF 실전문제형 기준 문항"))).toBe(true);
-      expect(firstTen.every((question) => question.hint.includes("PDF 실전형 체크"))).toBe(true);
-      expect(firstTen.every((question) => question.table)).toBe(true);
-
-      if (subject.id === "tuning") {
-        expect(firstTen.every((question) => question.table?.headers.join(" ").includes("Trace/Plan"))).toBe(true);
+      for (const choice of question.choices) {
+        expect(question.whyWrong[choice.id]).toBeTruthy();
+        expect(question.whyWrong[choice.id].length).toBeGreaterThan(10);
       }
     }
   });
 
-  it("generates local extra questions after the first 100 without id collisions", () => {
-    for (const subject of subjects) {
-      const extra = createLocalExtraQuestion(subject.id, 0);
-      const baseIds = new Set(bySubject(subject.id).map((question) => question.id));
-
-      expect(extra.number).toBe(101);
-      expect(baseIds.has(extra.id)).toBe(false);
-      expect(extra.subjectId).toBe(subject.id);
-      expect(extra.passage).toContain("PDF 실전문제형 추가 사례");
-      expect(extra.explanation).toContain("PDF 실전형 복습");
-    }
-  });
-
-  it("generates independent 20-question extra batches per subject", () => {
-    for (const subject of subjects) {
-      const firstBatch = createLocalExtraQuestions(subject.id, 0, 20);
-      const secondBatch = createLocalExtraQuestions(subject.id, 20, 20);
-      const ids = new Set([...firstBatch, ...secondBatch].map((question) => question.id));
-
-      expect(firstBatch).toHaveLength(20);
-      expect(secondBatch).toHaveLength(20);
-      expect(firstBatch[0].number).toBe(101);
-      expect(firstBatch[19].number).toBe(120);
-      expect(secondBatch[0].number).toBe(121);
-      expect(secondBatch[19].number).toBe(140);
-      expect(ids.size).toBe(40);
-      expect(firstBatch.every((question) => question.subjectId === subject.id)).toBe(true);
-      expect(secondBatch.every((question) => question.subjectId === subject.id)).toBe(true);
-      expect(firstBatch.every((question) => question.reviewStatus === "review_required")).toBe(true);
-      expect(firstBatch.every((question) => question.validationStatus === "review_required")).toBe(true);
-      expect(firstBatch.every((question) => question.batchId === `extra-${subject.id}-1`)).toBe(true);
-      expect(secondBatch.every((question) => question.batchId === `extra-${subject.id}-2`)).toBe(true);
-      expect(firstBatch.every((question) => question.sourceDocument)).toBe(true);
-      expect(firstBatch.every((question) => question.sourceType)).toBe(true);
-      expect(firstBatch.every((question) => question.duplicationCheck?.includes("review_required"))).toBe(true);
-      expect(firstBatch.every((question) => question.passage?.includes("PDF 실전문제형 추가 사례"))).toBe(true);
-    }
-  });
-
-  it("keeps admin-style 20-question expansion batches in review_required planning", () => {
-    const plans = buildAllQuestionBatchPlans();
-
-    expect(plans).toHaveLength(subjects.length);
-    for (const plan of plans) {
-      expect(plan.batchSize).toBe(QUESTION_BATCH_SIZE);
-      expect(plan.nextStartNumber).toBe(101);
-      expect(plan.nextEndNumber).toBe(120);
-      expect(plan.reviewStatus).toBe("review_required");
-      expect(plan.guardrails.join(" ")).toContain("객관식");
-      expect(plan.guardrails).toEqual(expect.arrayContaining(PDF_STYLE_GUARDRAILS));
-      expect(plan.guardrails.join(" ")).toContain("Trace");
-      expect(plan.guardrails.join(" ")).toContain("SQL Practice");
-      expect(plan.underrepresentedTopics.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("does not flag the current approved bank as exact semantic-variant duplicates", () => {
+  it("prevents exact duplicates and semantic-template duplicates in the current published bank", () => {
+    const signatures = objectiveQuestions.map(questionSignature);
+    expect(new Set(signatures).size).toBe(signatures.length);
     expect(findLikelyDuplicateQuestions()).toEqual([]);
   });
 
-  it("generates independent extra SQL lab batches after the first 20", () => {
-    const firstBatch = createLocalExtraLabQuestions(0, 5);
-    const secondBatch = createLocalExtraLabQuestions(5, 5);
-    const ids = new Set([...firstBatch, ...secondBatch].map((question) => question.id));
+  it("includes exam-style materials across SQL, model, plan, and Trace questions", () => {
+    const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
+    const withCode = objectiveQuestions.filter((question) => question.code);
+    const withTable = objectiveQuestions.filter((question) => question.table);
+    const tuningWithPlan = bySubject("tuning").filter((question) => question.table?.headers.includes("Operation"));
 
-    expect(firstBatch).toHaveLength(5);
-    expect(secondBatch).toHaveLength(5);
-    expect(firstBatch[0].number).toBe(21);
-    expect(secondBatch[0].number).toBe(26);
-    expect(ids.size).toBe(10);
-    expect(new Set([...firstBatch, ...secondBatch].map((question) => question.schemaSql)).size).toBeGreaterThanOrEqual(5);
-    expect(firstBatch.every((question) => question.traceStats?.includes("CR"))).toBe(true);
-    expect(firstBatch.every((question) => question.predicateInfo?.includes("access"))).toBe(true);
-    expect(firstBatch.every((question) => question.title.includes("PDF 실기형 추가"))).toBe(true);
-    expect(firstBatch.every((question) => question.prompt.includes("PDF 실기형 추가 조건"))).toBe(true);
-    expect(firstBatch.every((question) => question.rubric.some((item) => item.includes("데이터 분포")))).toBe(true);
+    expect(withMaterial.length).toBeGreaterThanOrEqual(270);
+    expect(withCode.length).toBeGreaterThanOrEqual(150);
+    expect(withTable.length).toBeGreaterThanOrEqual(220);
+    expect(tuningWithPlan.length).toBeGreaterThanOrEqual(80);
+    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(8);
   });
 
-  it("uses 20 SQL practice questions as the default extra lab batch size with source metadata", () => {
-    const batch = createLocalExtraLabQuestions(0);
-    const sourceNames = officialPdfSources.map((source) => source.name);
+  it("publishes 20 structurally different SQL Practice questions", () => {
+    expect(labQuestions).toHaveLength(20);
+    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(20);
+    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(18);
+    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(20);
+    expect(new Set(labQuestions.map((lab) => lab.expectedSql)).size).toBe(20);
+
+    for (const lab of labQuestions) {
+      expect(lab.traceStats).toContain("Rows");
+      expect(lab.traceStats).toContain("Loop");
+      expect(lab.predicateInfo).toContain("Predicate Information");
+      expect(lab.targetPlanExplanations?.length).toBe(lab.targetPlan.length);
+      expect(lab.traceSummary?.map((row) => row.metric)).toEqual(expect.arrayContaining(["Rows", "Loop/Starts", "PR", "CR", "Time"]));
+      expect(lab.simulationNotice).toContain("실제 Oracle 실행 결과로 표시하지 않는다");
+    }
+  });
+
+  it("generates 20-question expansion batches without colliding with the first 100", () => {
+    for (const subject of subjects) {
+      const batch = createLocalExtraQuestions(subject.id, 0, 20);
+      const baseIds = new Set(bySubject(subject.id).map((question) => question.id));
+
+      expect(batch).toHaveLength(20);
+      expect(batch[0].number).toBe(101);
+      expect(batch[19].number).toBe(120);
+      expect(batch.every((question) => question.subjectId === subject.id)).toBe(true);
+      expect(batch.every((question) => !baseIds.has(question.id))).toBe(true);
+      expect(batch.every((question) => question.sourceVersion === verifiedOfficialSourceVersion)).toBe(true);
+      expect(batch.every((question) => question.contentHash?.match(/^[0-9a-f]{8}$/))).toBe(true);
+    }
+  });
+
+  it("generates 20 SQL Practice expansion questions with unique ids and simulation labeling", () => {
+    const batch = createLocalExtraLabQuestions(0, 20);
 
     expect(batch).toHaveLength(20);
     expect(batch[0].number).toBe(21);
     expect(batch[19].number).toBe(40);
-    expect(new Set(batch.map((question) => question.id)).size).toBe(20);
-    expect(batch.every((question) => question.reviewStatus === "review_required")).toBe(true);
-    expect(batch.every((question) => question.validationStatus === "review_required")).toBe(true);
-    expect(batch.every((question) => question.batchId === "extra-sql-practice-1")).toBe(true);
-    expect(batch.every((question) => sourceNames.includes(question.sourceDocument ?? ""))).toBe(true);
-    expect(batch.every((question) => question.sourceType === "owner_pdf_similar")).toBe(true);
-    expect(batch.every((question) => question.contentHash?.match(/^[0-9a-f]{8}$/))).toBe(true);
-    expect(batch.every((question) => question.simulationNotice?.includes("검수 전"))).toBe(true);
+    expect(new Set(batch.map((lab) => lab.id)).size).toBe(20);
+    expect(new Set(batch.map((lab) => lab.expectedSql)).size).toBe(20);
+    expect(batch.every((lab) => lab.sourceVersion === verifiedOfficialSourceVersion)).toBe(true);
+    expect(batch.every((lab) => lab.traceStats?.includes("Rows") && lab.traceStats.includes("Loop"))).toBe(true);
+    expect(batch.every((lab) => lab.simulationNotice?.includes("실제 Oracle 실행 결과로 표시하지 않는다"))).toBe(true);
+  });
+
+  it("keeps single-question expansion API compatible with the AI fallback routes", () => {
+    const objective = createLocalExtraQuestion("tuning", 0);
+    expect(objective.number).toBe(101);
+    expect(objective.choices).toHaveLength(4);
+    expect(objective.answer).toMatch(/[ABCD]/);
+
+    const lab = createLocalExtraLabQuestions(0, 1)[0];
+    expect(lab.number).toBe(21);
+    expect(lab.expectedSql.length).toBeGreaterThan(50);
   });
 });

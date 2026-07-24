@@ -1362,10 +1362,10 @@ export default function Home() {
               ))}
               <div className="extra-gate">
                 <span>{labCompleted}/{allLabQuestions.length} 시도 · 실습 풀 확장</span>
-                <p>최근 SQLP 실기 복기형 Trace/Predicate 변형 5문제를 바로 추가합니다.</p>
+                <p>최근 SQLP 실기 복기형 Trace/Predicate 변형 20문제를 바로 추가합니다.</p>
                 <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
                   <Sparkles size={17} />
-                  실습 5문제 추가
+                  실습 20문제 추가
                 </button>
               </div>
             </section>
@@ -1493,7 +1493,7 @@ export default function Home() {
               <div className="bottom-add-panel">
                 <div>
                   <strong>실습 문제 풀 확장</strong>
-                  <span>50~53회 복기형 실행계획 변형 5문제를 추가합니다.</span>
+                  <span>50~53회 복기형 실행계획 변형 20문제를 추가합니다.</span>
                 </div>
                 <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating}>
                   <Plus size={17} />

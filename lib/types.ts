@@ -1,6 +1,6 @@
 export type SubjectId = "modeling" | "sql-basic" | "tuning";
 
-export type Difficulty = "기본" | "중간" | "실전";
+export type Difficulty = "기본" | "중간" | "중급" | "상급" | "실전" | "최상급";
 
 export type ChoiceId = "A" | "B" | "C" | "D";
 

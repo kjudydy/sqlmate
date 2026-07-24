@@ -12,6 +12,15 @@ import type {
   SourceType,
   SubjectId
 } from "@/lib/types";
+import {
+  createVerifiedExtraLabQuestion,
+  createVerifiedExtraLabQuestions,
+  createVerifiedExtraQuestion,
+  createVerifiedExtraQuestions,
+  verifiedLabQuestions,
+  verifiedObjectiveQuestions,
+  verifiedOfficialSourceVersion
+} from "@/lib/verified-production-bank";
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 type ChoiceTuple = [string, string, string, string];
@@ -98,7 +107,7 @@ type OfficialPdfSource = {
   visualChecks: number[];
 };
 
-const OFFICIAL_SOURCE_VERSION = "official-pdf-corpus-2026-07-23";
+const OFFICIAL_SOURCE_VERSION = verifiedOfficialSourceVersion;
 
 export const officialSourceVersion = OFFICIAL_SOURCE_VERSION;
 
@@ -176,8 +185,11 @@ const subjectSourceOffset: Record<SubjectId, number> = {
 
 const difficultyTime: Record<Difficulty, number> = {
   기본: 75,
+  중급: 110,
   중간: 110,
-  실전: 160
+  상급: 145,
+  실전: 160,
+  최상급: 210
 };
 
 function rotateChoices(choices: ChoiceTuple, answerIndex: number, offset: number) {
@@ -3171,11 +3183,7 @@ const configs = [modeling, sqlBasic, tuning] as const;
 
 export const subjects = configs.map((config) => ({ id: config.id, name: config.name }));
 
-export const objectiveQuestions: ObjectiveQuestion[] = [
-  ...buildSubject(modeling, 100),
-  ...buildSubject(sqlBasic, 100),
-  ...buildSubject(tuning, 100)
-];
+export const objectiveQuestions: ObjectiveQuestion[] = verifiedObjectiveQuestions;
 
 export { conceptArticles } from "./concepts";
 
@@ -4262,7 +4270,7 @@ function labSourceMetadata(lab: LabCase, index: number, approved: boolean): Cont
   };
 }
 
-export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
+const legacyLabQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, index) => ({
   ...labSourceMetadata(lab, index, true),
   ...lab,
   id: `lab-${String(index + 1).padStart(2, "0")}`,
@@ -4277,7 +4285,9 @@ export const labQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, i
   relatedConceptIds: relatedConceptsForLab(lab)
 }));
 
-export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
+export const labQuestions: LabQuestion[] = verifiedLabQuestions;
+
+function legacyCreateLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   if (subjectId === "modeling") {
     return buildSubject(modeling, 1, 100 + count, "extra-modeling")[0];
   }
@@ -4289,11 +4299,11 @@ export function createLocalExtraQuestion(subjectId: SubjectId, count: number): O
   return buildSubject(tuning, 1, 100 + count, "extra-tuning")[0];
 }
 
-export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
+function legacyCreateLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
   return Array.from({ length: batchSize }, (_, offset) => createLocalExtraQuestion(subjectId, startCount + offset));
 }
 
-export function createLocalExtraLabQuestion(count: number): LabQuestion {
+function legacyCreateLocalExtraLabQuestion(count: number): LabQuestion {
   const base = sqlpLabCases[count % sqlpLabCases.length];
   const env = sqlpLabEnvironments[count % sqlpLabEnvironments.length];
   const variant = Math.floor(count / sqlpLabCases.length) + 1;
@@ -4324,7 +4334,7 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
   };
 }
 
-export function createLocalExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
+function legacyCreateLocalExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
   return Array.from({ length: batchSize }, (_, offset) => {
     const count = startCount + offset;
     return {
@@ -4334,4 +4344,20 @@ export function createLocalExtraLabQuestions(startCount: number, batchSize = 20)
       traceSummary: buildTraceSummary(labTrace(count, offset))
     };
   });
+}
+
+export function createLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
+  return createVerifiedExtraQuestion(subjectId, count);
+}
+
+export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
+  return createVerifiedExtraQuestions(subjectId, startCount, batchSize);
+}
+
+export function createLocalExtraLabQuestion(count: number): LabQuestion {
+  return createVerifiedExtraLabQuestion(count);
+}
+
+export function createLocalExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
+  return createVerifiedExtraLabQuestions(startCount, batchSize);
 }
