@@ -773,7 +773,7 @@ export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
 ];
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
+export const verifiedLabQuestions: LabQuestion[] = [];
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   return buildGeneratedQuestion(subjectId, count, false);

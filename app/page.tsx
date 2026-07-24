@@ -354,6 +354,7 @@ export default function Home() {
   const todaysTodos = todoItems[todayKey] ?? [];
   const completedTodos = todaysTodos.filter((todo) => todo.checked).length;
   const labCompleted = allLabQuestions.filter((lab) => labAnswers[lab.id]).length;
+  const labProgressPercent = allLabQuestions.length ? Math.round((labCompleted / allLabQuestions.length) * 100) : 0;
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
   const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, currentAttempts, labAnswers), [currentAttempts, labAnswers, todayKey]);
   const subjectAnsweredCount = subjectQuestions.filter((question) => currentAnswers[question.id]).length;
@@ -1104,7 +1105,7 @@ export default function Home() {
                 <button className="progress-row" onClick={() => setSection("lab")}>
                   <span>실습 SQL 작성형</span>
                   <div className="progress-track">
-                    <div style={{ width: `${Math.round((labCompleted / allLabQuestions.length) * 100)}%` }} />
+                    <div style={{ width: `${labProgressPercent}%` }} />
                   </div>
                   <strong>{labCompleted}/{allLabQuestions.length}</strong>
                 </button>
@@ -1341,7 +1342,44 @@ export default function Home() {
           </div>
         )}
 
-        {section === "lab" && (
+        {section === "lab" && !activeLab && (
+          <div className="lab-layout">
+            <section className="subject-panel">
+              <button className="subject-tab" onClick={() => setSection("practice")}>
+                <span>필기 문제풀이</span>
+                <strong>1과목 · 2과목 · 3과목 객관식으로 돌아가기</strong>
+              </button>
+              <div className="extra-gate">
+                <span>SQL 실습 재검수 중</span>
+                <p>아까 예시 수준과 다른 실습 문제는 운영에서 내렸습니다.</p>
+                <button className="primary-button" disabled>
+                  <Sparkles size={17} />
+                  원문 대조 중
+                </button>
+              </div>
+            </section>
+
+            <section className="lab-main">
+              <div className="question-meta">
+                <span>SQL Practice</span>
+                <span>실행계획 · Trace · SQL Rewrite</span>
+                <span>검수 중</span>
+              </div>
+              <h2>SQL 실습 문제를 다시 검수하고 있어요</h2>
+              <p className="lead">
+                숫자만 바뀐 실습이나 예시와 다른 구성은 공개하지 않도록 내렸습니다. 다음 배치는 업무 상황, 테이블 구조, SQL, 실행계획, Trace, 채점 기준을 한 문제씩 대조한 뒤 다시 공개합니다.
+              </p>
+              <div className="prompt-box">
+                <strong>재작성 기준</strong>
+                <p>
+                  실습은 원문 자료를 기준으로 서로 다른 풀이 능력을 평가해야 합니다. JOIN 작성, 서브쿼리, 집계, 분석 함수, 인덱스 설계, 실행계획 분석, SQL Trace 분석, Lock/동시성 같은 유형을 숫자만 바꾸지 않고 별도 문제로 구성합니다.
+                </p>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {section === "lab" && activeLab && (
           <div className="lab-layout">
             <section className="subject-panel">
               <button className="subject-tab" onClick={() => setSection("practice")}>

@@ -156,21 +156,8 @@ describe("SQLMate verified production problem bank", () => {
     expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });
 
-  it("publishes only the page-reviewed SQL Practice cases until varied lab batches are approved", () => {
-    expect(labQuestions).toHaveLength(5);
-    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(5);
-    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
-    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(5);
-    expect(new Set(labQuestions.map((lab) => lab.expectedSql)).size).toBe(5);
-
-    for (const lab of labQuestions) {
-      expect(lab.traceStats).toContain("Rows");
-      expect(lab.traceStats).toContain("Loop");
-      expect(lab.predicateInfo).toContain("Predicate Information");
-      expect(lab.targetPlanExplanations?.length).toBe(lab.targetPlan.length);
-      expect(lab.traceSummary?.map((row) => row.metric)).toEqual(expect.arrayContaining(["Rows", "Loop/Starts", "PR", "CR", "Time"]));
-      expect(lab.simulationNotice).toContain("실제 Oracle 실행 결과로 표시하지 않는다");
-    }
+  it("does not publish SQL Practice cases until they match the restored exam-style rubric", () => {
+    expect(labQuestions).toHaveLength(0);
   });
 
   it("generates 20-question expansion batches without colliding with the first 100", () => {
