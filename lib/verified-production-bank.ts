@@ -381,8 +381,8 @@ order by o.order_dt desc`,
 function buildGeneratedQuestion(subjectId: SubjectId, generatedIndex: number, approved: boolean): ObjectiveQuestion {
   const seeds = topicSeeds[subjectId];
   const seed = seeds[generatedIndex % seeds.length];
-  const number = approved ? generatedIndex + 11 : generatedIndex + 101;
-  const mode: GenerationBucket = approved ? (generatedIndex < 30 ? "variant" : "similar") : "similar";
+  const number = generatedIndex + 11;
+  const mode: GenerationBucket = approved ? (generatedIndex < 30 ? "variant" : "similar") : (generatedIndex % 3 === 0 ? "variant" : "similar");
   const questionType = questionTypes[subjectId][generatedIndex % questionTypes[subjectId].length];
   const material = materialForQuestion(subjectId, seed, number, mode, questionType);
   const tone = ["다음 업무 상황", "다음 SQL 검토 상황", "다음 성능 점검 상황"][number % 3];
@@ -773,21 +773,21 @@ export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
 ];
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-export const verifiedLabQuestions: LabQuestion[] = [];
+export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   return buildGeneratedQuestion(subjectId, count, false);
 }
 
-export function createVerifiedExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
+export function createVerifiedExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 10): ObjectiveQuestion[] {
   return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraQuestion(subjectId, startCount + offset));
 }
 
 export function createVerifiedExtraLabQuestion(count: number): LabQuestion {
-  return buildPracticeLab(count, 21 + count, false);
+  return buildPracticeLab(count, 6 + count, false);
 }
 
-export function createVerifiedExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
+export function createVerifiedExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
   return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraLabQuestion(startCount + offset));
 }
 

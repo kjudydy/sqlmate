@@ -43,7 +43,9 @@ import type {
 
 type Section = "dashboard" | "practice" | "lab" | "wrong" | "concepts" | "notes";
 
-const verifiedExpansionReady = false;
+const verifiedExpansionReady = true;
+const objectiveExtraBatchSize = 10;
+const labExtraBatchSize = 5;
 
 type PendingHighlight = {
   text: string;
@@ -175,7 +177,7 @@ function clampIndex(index: number, length: number) {
 function getNextExtraStartCount(questions: ObjectiveQuestion[], subjectId: SubjectId) {
   return questions
     .filter((question) => question.subjectId === subjectId)
-    .reduce((max, question) => Math.max(max, Math.max(0, question.number - 100)), 0);
+    .reduce((max, question) => Math.max(max, Math.max(0, question.number - 10)), 0);
 }
 
 function findNthOccurrence(text: string, needle: string, occurrenceIndex: number) {
@@ -361,7 +363,7 @@ export default function Home() {
   const canGenerateExtraBatch = subjectQuestions.length > 0 && subjectAnsweredCount === subjectQuestions.length;
   const canGenerateExtraLabBatch = allLabQuestions.length > 0 && labCompleted === allLabQuestions.length;
   const nextExtraBatchStart = subjectQuestions.length + 1;
-  const nextExtraBatchEnd = subjectQuestions.length + 20;
+  const nextExtraBatchEnd = subjectQuestions.length + objectiveExtraBatchSize;
 
   const studyState = useMemo<StudyStatePayload>(
     () => ({
@@ -586,7 +588,7 @@ export default function Home() {
     try {
       setExtraQuestions((prev) => {
         const nextStartCount = getNextExtraStartCount(activeExtraQuestions, activeSubject);
-        const batch = createLocalExtraQuestions(activeSubject, nextStartCount, 20);
+        const batch = createLocalExtraQuestions(activeSubject, nextStartCount, objectiveExtraBatchSize);
         return [...prev, ...batch];
       });
       setQuestionIndex(firstNewQuestionIndex);
@@ -599,7 +601,7 @@ export default function Home() {
     setIsGenerating(true);
     const firstNewLabIndex = allLabQuestions.length;
     try {
-      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(activeExtraLabQuestions.length, 20)]);
+      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(activeExtraLabQuestions.length, labExtraBatchSize)]);
       setActiveLabIndex(firstNewLabIndex);
       setLabSql("");
       setLabResult(null);
@@ -1199,10 +1201,10 @@ export default function Home() {
                   {subjectAnsweredCount}/{subjectQuestions.length} 완료
                   {subjectExtraQuestions.length > 0 ? ` · 추가 ${subjectExtraQuestions.length}문제` : ""}
                 </span>
-                <p>11번 이후 문제는 PDF 원문 대조 검수 후 다시 열 예정입니다.</p>
+                <p>PDF 기반 Variant / Similar 문제를 10문제씩 추가합니다.</p>
                 <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Plus size={17} />
-                  {isGenerating ? "생성 중" : "추가 문제 검수 중"}
+                  {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 문제 추가`}
                 </button>
               </div>
               <div className="question-list">
@@ -1331,11 +1333,11 @@ export default function Home() {
               <div className="bottom-add-panel">
                 <div>
                   <strong>문제 풀이 풀 확장</strong>
-                  <span>PDF 원문 대조 검수 완료 후 20문제 단위로 다시 제공합니다.</span>
+                  <span>현재 과목에 PDF 기반 문제 10문제를 추가합니다.</span>
                 </div>
                 <button className="primary-button" onClick={addExtraQuestionBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Plus size={17} />
-                  검수 중
+                  문제 추가
                 </button>
               </div>
             </section>
@@ -1402,10 +1404,10 @@ export default function Home() {
               ))}
               <div className="extra-gate">
                 <span>{labCompleted}/{allLabQuestions.length} 시도 · 실습 풀 확장</span>
-                <p>추가 실습은 숫자만 바뀐 문제를 제외하고 원문 대조 검수 후 다시 엽니다.</p>
+                <p>실행계획·Trace 중심 실습을 5문제씩 추가합니다.</p>
                 <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Sparkles size={17} />
-                  실습 검수 중
+                  실습 5문제 추가
                 </button>
               </div>
             </section>
@@ -1533,11 +1535,11 @@ export default function Home() {
               <div className="bottom-add-panel">
                 <div>
                   <strong>실습 문제 풀 확장</strong>
-                  <span>실습 추가 배치는 원문 대조 검수 완료 후 제공합니다.</span>
+                  <span>실행계획·Trace·SQL Rewrite 실습 5문제를 추가합니다.</span>
                 </div>
                 <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating || !verifiedExpansionReady}>
                   <Plus size={17} />
-                  검수 중
+                  문제 추가
                 </button>
               </div>
 

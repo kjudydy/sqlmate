@@ -4350,7 +4350,7 @@ export function createLocalExtraQuestion(subjectId: SubjectId, count: number): O
   return createVerifiedExtraQuestion(subjectId, count);
 }
 
-export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
+export function createLocalExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 10): ObjectiveQuestion[] {
   return createVerifiedExtraQuestions(subjectId, startCount, batchSize);
 }
 
@@ -4358,6 +4358,6 @@ export function createLocalExtraLabQuestion(count: number): LabQuestion {
   return createVerifiedExtraLabQuestion(count);
 }
 
-export function createLocalExtraLabQuestions(startCount: number, batchSize = 20): LabQuestion[] {
+export function createLocalExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
   return createVerifiedExtraLabQuestions(startCount, batchSize);
 }

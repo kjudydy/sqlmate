@@ -156,18 +156,31 @@ describe("SQLMate verified production problem bank", () => {
     expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });
 
-  it("does not publish SQL Practice cases until they match the restored exam-style rubric", () => {
-    expect(labQuestions).toHaveLength(0);
+  it("publishes the five page-reviewed SQL Practice cases from the preview-style set", () => {
+    expect(labQuestions).toHaveLength(5);
+    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(5);
+    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
+    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(5);
+    expect(new Set(labQuestions.map((lab) => lab.expectedSql)).size).toBe(5);
+
+    for (const lab of labQuestions) {
+      expect(lab.traceStats).toContain("Rows");
+      expect(lab.traceStats).toContain("Loop");
+      expect(lab.predicateInfo).toContain("Predicate Information");
+      expect(lab.targetPlanExplanations?.length).toBe(lab.targetPlan.length);
+      expect(lab.traceSummary?.map((row) => row.metric)).toEqual(expect.arrayContaining(["Rows", "Loop/Starts", "PR", "CR", "Time"]));
+      expect(lab.simulationNotice).toContain("실제 Oracle 실행 결과로 표시하지 않는다");
+    }
   });
 
-  it("generates 20-question expansion batches without colliding with the first 100", () => {
+  it("generates 10-question objective expansion batches after the first ten reviewed questions", () => {
     for (const subject of subjects) {
-      const batch = createLocalExtraQuestions(subject.id, 0, 20);
+      const batch = createLocalExtraQuestions(subject.id, 0, 10);
       const baseIds = new Set(bySubject(subject.id).map((question) => question.id));
 
-      expect(batch).toHaveLength(20);
-      expect(batch[0].number).toBe(101);
-      expect(batch[19].number).toBe(120);
+      expect(batch).toHaveLength(10);
+      expect(batch[0].number).toBe(11);
+      expect(batch[9].number).toBe(20);
       expect(batch.every((question) => question.subjectId === subject.id)).toBe(true);
       expect(batch.every((question) => !baseIds.has(question.id))).toBe(true);
       expect(batch.every((question) => question.sourceVersion === verifiedOfficialSourceVersion)).toBe(true);
@@ -175,14 +188,14 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
-  it("generates 20 SQL Practice expansion questions with unique ids and simulation labeling", () => {
-    const batch = createLocalExtraLabQuestions(0, 20);
+  it("generates 5 SQL Practice expansion questions with unique ids and simulation labeling", () => {
+    const batch = createLocalExtraLabQuestions(0, 5);
 
-    expect(batch).toHaveLength(20);
-    expect(batch[0].number).toBe(21);
-    expect(batch[19].number).toBe(40);
-    expect(new Set(batch.map((lab) => lab.id)).size).toBe(20);
-    expect(new Set(batch.map((lab) => lab.expectedSql)).size).toBe(20);
+    expect(batch).toHaveLength(5);
+    expect(batch[0].number).toBe(6);
+    expect(batch[4].number).toBe(10);
+    expect(new Set(batch.map((lab) => lab.id)).size).toBe(5);
+    expect(new Set(batch.map((lab) => lab.expectedSql)).size).toBe(5);
     expect(batch.every((lab) => lab.sourceVersion === verifiedOfficialSourceVersion)).toBe(true);
     expect(batch.every((lab) => lab.traceStats?.includes("Rows") && lab.traceStats.includes("Loop"))).toBe(true);
     expect(batch.every((lab) => lab.simulationNotice?.includes("실제 Oracle 실행 결과로 표시하지 않는다"))).toBe(true);
@@ -190,12 +203,12 @@ describe("SQLMate verified production problem bank", () => {
 
   it("keeps single-question expansion API compatible with the AI fallback routes", () => {
     const objective = createLocalExtraQuestion("tuning", 0);
-    expect(objective.number).toBe(101);
+    expect(objective.number).toBe(11);
     expect(objective.choices).toHaveLength(4);
     expect(objective.answer).toMatch(/[ABCD]/);
 
     const lab = createLocalExtraLabQuestions(0, 1)[0];
-    expect(lab.number).toBe(21);
+    expect(lab.number).toBe(6);
     expect(lab.expectedSql.length).toBeGreaterThan(50);
   });
 });
