@@ -382,7 +382,7 @@ function buildGeneratedQuestion(subjectId: SubjectId, generatedIndex: number, ap
   const seeds = topicSeeds[subjectId];
   const seed = seeds[generatedIndex % seeds.length];
   const number = generatedIndex + 11;
-  const mode: GenerationBucket = approved ? (generatedIndex < 30 ? "variant" : "similar") : (generatedIndex % 3 === 0 ? "variant" : "similar");
+  const mode: GenerationBucket = approved ? (generatedIndex % 10 < 4 ? "variant" : "similar") : (generatedIndex % 3 === 0 ? "variant" : "similar");
   const questionType = questionTypes[subjectId][generatedIndex % questionTypes[subjectId].length];
   const material = materialForQuestion(subjectId, seed, number, mode, questionType);
   const tone = ["다음 업무 상황", "다음 SQL 검토 상황", "다음 성능 점검 상황"][number % 3];
@@ -1610,27 +1610,21 @@ const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(l
 export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
-  const pool = verifiedObjectiveQuestions.filter((question) => question.subjectId === subjectId);
-  if (!pool.length) {
+  if (!verifiedObjectiveQuestions.some((question) => question.subjectId === subjectId)) {
     throw new Error(`No verified PDF questions are available for ${subjectId}`);
   }
 
-  const base = pool[count % pool.length];
+  const question = buildGeneratedQuestion(subjectId, count + 10, true);
   return {
-    ...base,
-    id: `${base.id}-verified-cycle-${count + 1}`,
-    number: 11 + count,
-    parentQuestionId: base.id,
-    batchId: `verified-cycle-${subjectId}`,
-    duplicationCheck: "검수되지 않은 자동 생성 대신 approved PDF 문항 풀에서 재사용한다."
+    ...question,
+    id: `extra-${subjectId}-${String(question.number).padStart(3, "0")}`,
+    batchId: `extra-${subjectId}-${Math.floor(count / 20) + 1}`,
+    duplicationCheck: "PDF 공식 원본의 주제·함정·사고 과정을 기준으로 만든 20문제 단위 확장 문항이다."
   };
 }
 
-export function createVerifiedExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 10): ObjectiveQuestion[] {
-  void subjectId;
-  void startCount;
-  void batchSize;
-  return [];
+export function createVerifiedExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
+  return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraQuestion(subjectId, startCount + offset));
 }
 
 export function createVerifiedExtraLabQuestion(count: number): LabQuestion {
@@ -1638,20 +1632,17 @@ export function createVerifiedExtraLabQuestion(count: number): LabQuestion {
     throw new Error("No verified SQL Practice cases are available");
   }
 
-  const base = verifiedLabQuestions[count % verifiedLabQuestions.length];
+  const number = count + 6;
+  const lab = buildPracticeLab(count + 5, number, true);
   return {
-    ...base,
-    id: `${base.id}-verified-cycle-${count + 1}`,
-    number: 6 + count,
-    parentQuestionId: base.id,
-    batchId: "verified-cycle-sql-practice"
+    ...lab,
+    id: `lab-extra-${String(count + 1).padStart(3, "0")}`,
+    batchId: `extra-sql-practice-${Math.floor(count / 5) + 1}`
   };
 }
 
 export function createVerifiedExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
-  void startCount;
-  void batchSize;
-  return [];
+  return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraLabQuestion(startCount + offset));
 }
 
 const bannedUserVisiblePatterns = [

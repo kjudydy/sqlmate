@@ -23,7 +23,15 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect, isStaticDesignSql } from "@/lib/grading";
-import { conceptArticles, labQuestions, objectiveQuestions, officialSourceVersion, subjects } from "@/lib/problem-bank";
+import {
+  conceptArticles,
+  createLocalExtraLabQuestions,
+  createLocalExtraQuestions,
+  labQuestions,
+  objectiveQuestions,
+  officialSourceVersion,
+  subjects
+} from "@/lib/problem-bank";
 import { filterCurrentAnswers, filterCurrentAttempts } from "@/lib/study-versioning";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { FormEvent, ReactNode } from "react";
@@ -173,10 +181,69 @@ function clampIndex(index: number, length: number) {
   return Math.max(0, Math.min(index, length - 1));
 }
 
-function getNextExtraStartCount(questions: ObjectiveQuestion[], subjectId: SubjectId) {
-  return questions
-    .filter((question) => question.subjectId === subjectId)
-    .reduce((max, question) => Math.max(max, Math.max(0, question.number - 10)), 0);
+const blockedUserVisiblePatterns = [
+  /�/,
+  /占/,
+  /㉧/,
+  /review_required/i,
+  /original_ready/i,
+  /sourceDocument/i,
+  /sourceType/i,
+  /generationMode/i,
+  /문항 키/,
+  /추출 상태/,
+  /PDF 원문 문항/,
+  /유사형 문항/,
+  /\[[^\]]+\.pdf\s+p\./i,
+  /\.pdf/i
+];
+
+function hasBlockedUserVisibleText(text: string) {
+  return blockedUserVisiblePatterns.some((pattern) => pattern.test(text));
+}
+
+function objectiveUserVisibleText(question: ObjectiveQuestion) {
+  return [
+    question.subjectName,
+    question.majorTopic,
+    question.middleTopic,
+    question.topic,
+    question.difficulty,
+    question.questionType,
+    question.stem,
+    question.passage,
+    question.code,
+    question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
+    ...question.choices.map((choice) => `${choice.id} ${choice.text}`),
+    question.hint,
+    question.explanation,
+    ...Object.values(question.whyWrong)
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function labUserVisibleText(lab: LabQuestion) {
+  return [
+    lab.title,
+    lab.difficulty,
+    lab.topic,
+    lab.scenario,
+    lab.schemaSql,
+    lab.seedSql,
+    lab.traceStats,
+    lab.predicateInfo,
+    lab.prompt,
+    lab.expectedSql,
+    lab.targetPlan.join("\n"),
+    lab.targetPlanExplanations?.map((item) => `${item.operation} ${item.korean} ${item.note}`).join("\n"),
+    lab.oracleNotes.join("\n"),
+    lab.hints.join("\n"),
+    lab.rubric.join("\n"),
+    lab.simulationNotice
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
@@ -184,7 +251,8 @@ function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
     question.sourceVersion === officialSourceVersion &&
     question.reviewStatus === "approved" &&
     question.validationStatus === "validated" &&
-    Boolean(question.contentHash)
+    Boolean(question.contentHash) &&
+    !hasBlockedUserVisibleText(objectiveUserVisibleText(question))
   );
 }
 
@@ -193,7 +261,8 @@ function isPublishedLabQuestion(question: LabQuestion) {
     question.sourceVersion === officialSourceVersion &&
     question.reviewStatus === "approved" &&
     question.validationStatus === "validated" &&
-    Boolean(question.contentHash)
+    Boolean(question.contentHash) &&
+    !hasBlockedUserVisibleText(labUserVisibleText(question))
   );
 }
 
@@ -305,8 +374,8 @@ export default function Home() {
   const wrongMemoTimers = useRef<Record<string, number>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const activeExtraQuestions = useMemo<ObjectiveQuestion[]>(() => [], [extraQuestions]);
-  const activeExtraLabQuestions = useMemo<LabQuestion[]>(() => [], [extraLabQuestions]);
+  const activeExtraQuestions = useMemo<ObjectiveQuestion[]>(() => extraQuestions.filter(isPublishedObjectiveQuestion), [extraQuestions]);
+  const activeExtraLabQuestions = useMemo<LabQuestion[]>(() => extraLabQuestions.filter(isPublishedLabQuestion), [extraLabQuestions]);
   const allQuestions = useMemo(() => [...objectiveQuestions, ...activeExtraQuestions], [activeExtraQuestions]);
   const allLabQuestions = useMemo(() => [...labQuestions, ...activeExtraLabQuestions], [activeExtraLabQuestions]);
   const currentAnswers = useMemo(() => filterCurrentAnswers(answers, allQuestions), [answers, allQuestions]);
@@ -323,7 +392,7 @@ export default function Home() {
     () => [...baseSubjectQuestions, ...subjectExtraQuestions].map((question, index) => ({ ...question, number: index + 1 })),
     [baseSubjectQuestions, subjectExtraQuestions]
   );
-  const getQuestionForRunIndex = (runIndex: number) => (subjectQuestions.length ? subjectQuestions[runIndex % subjectQuestions.length] : undefined);
+  const getQuestionForRunIndex = (runIndex: number) => subjectQuestions[runIndex];
   const getQuestionRunKey = (runIndex: number, question?: ObjectiveQuestion) => `${activeSubject}:${runIndex}:${question?.id ?? "empty"}`;
   const currentQuestionBase = getQuestionForRunIndex(questionIndex);
   const currentQuestion = currentQuestionBase ? { ...currentQuestionBase, number: questionIndex + 1 } : undefined;
@@ -356,7 +425,7 @@ export default function Home() {
   );
   const selectedConcept = visibleConceptArticles.find((concept) => concept.id === selectedConceptId) ?? visibleConceptArticles[0];
   const selectedPersonalNote = personalNotes.find((note) => note.id === selectedPersonalNoteId) ?? personalNotes[0];
-  const activeLabBase = allLabQuestions.length ? allLabQuestions[activeLabIndex % allLabQuestions.length] : undefined;
+  const activeLabBase = allLabQuestions[activeLabIndex];
   const activeLab = activeLabBase ? { ...activeLabBase, number: activeLabIndex + 1 } : undefined;
   const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
 
@@ -604,8 +673,35 @@ export default function Home() {
     }
   }
 
+  function selectSubject(subjectId: SubjectId) {
+    setActiveSubject(subjectId);
+    setQuestionIndex(0);
+    setSelectedChoice(null);
+    setHintVisible(false);
+  }
+
+  function appendNextQuestionBatch(subjectId: SubjectId) {
+    setExtraQuestions((prev) => {
+      const publishedPrevious = prev.filter(isPublishedObjectiveQuestion);
+      const existingQuestions = [...objectiveQuestions, ...publishedPrevious];
+      const existingIds = new Set(existingQuestions.map((question) => question.id));
+      const existingHashes = new Set(existingQuestions.map((question) => question.contentHash).filter(Boolean));
+      const subjectExtraCount = publishedPrevious.filter((question) => question.subjectId === subjectId).length;
+      const batch = createLocalExtraQuestions(subjectId, subjectExtraCount, 20).filter(isPublishedObjectiveQuestion);
+      const uniqueBatch = batch.filter((question) => !existingIds.has(question.id) && !existingHashes.has(question.contentHash));
+
+      if (!uniqueBatch.length) return publishedPrevious;
+      return [...publishedPrevious, ...uniqueBatch];
+    });
+    setCloudStatus("다음 20문제 추가 준비");
+  }
+
   function goToNextQuestion() {
-    setQuestionIndex((prev) => prev + 1);
+    const nextIndex = questionIndex + 1;
+    if (nextIndex >= subjectQuestions.length) {
+      appendNextQuestionBatch(activeSubject);
+    }
+    setQuestionIndex(nextIndex);
     setSelectedChoice(null);
     setHintVisible(false);
   }
@@ -614,8 +710,27 @@ export default function Home() {
     goToNextQuestion();
   }
 
+  function appendNextLabBatch() {
+    setExtraLabQuestions((prev) => {
+      const publishedPrevious = prev.filter(isPublishedLabQuestion);
+      const existingLabs = [...labQuestions, ...publishedPrevious];
+      const existingIds = new Set(existingLabs.map((lab) => lab.id));
+      const existingHashes = new Set(existingLabs.map((lab) => lab.contentHash).filter(Boolean));
+      const batch = createLocalExtraLabQuestions(publishedPrevious.length, 5).filter(isPublishedLabQuestion);
+      const uniqueBatch = batch.filter((lab) => !existingIds.has(lab.id) && !existingHashes.has(lab.contentHash));
+
+      if (!uniqueBatch.length) return publishedPrevious;
+      return [...publishedPrevious, ...uniqueBatch];
+    });
+    setCloudStatus("다음 실기 5문제 추가 준비");
+  }
+
   function goToNextLab() {
-    setActiveLabIndex((prev) => prev + 1);
+    const nextIndex = activeLabIndex + 1;
+    if (nextIndex >= allLabQuestions.length) {
+      appendNextLabBatch();
+    }
+    setActiveLabIndex(nextIndex);
     setLabSql("");
     setLabResult(null);
     setRemotePlan(null);
@@ -1106,7 +1221,7 @@ export default function Home() {
                       className="progress-row"
                       key={subject.id}
                       onClick={() => {
-                        setActiveSubject(subject.id);
+                        selectSubject(subject.id);
                         setSection("practice");
                       }}
                     >
@@ -1201,7 +1316,7 @@ export default function Home() {
                 <button
                   key={subject.id}
                   className={subject.id === activeSubject ? "subject-tab active" : "subject-tab"}
-                  onClick={() => setActiveSubject(subject.id)}
+                  onClick={() => selectSubject(subject.id)}
                 >
                   {subject.name}
                 </button>
@@ -1239,7 +1354,7 @@ export default function Home() {
                 <button
                   key={subject.id}
                   className={subject.id === activeSubject ? "subject-tab active" : "subject-tab"}
-                  onClick={() => setActiveSubject(subject.id)}
+                  onClick={() => selectSubject(subject.id)}
                 >
                   {subject.name}
                 </button>
@@ -1262,6 +1377,7 @@ export default function Home() {
               <div className="question-list">
                 {questionMarkers.map((runIndex) => {
                   const markerQuestion = getQuestionForRunIndex(runIndex);
+                  if (!markerQuestion) return null;
                   const markerAnswer = markerQuestion ? sessionAnswers[getQuestionRunKey(runIndex, markerQuestion)] : undefined;
                   return (
                     <button
@@ -1453,7 +1569,7 @@ export default function Home() {
                 <strong>1과목 · 2과목 · 3과목 객관식으로 돌아가기</strong>
               </button>
               {labMarkers.map((runIndex) => {
-                const markerLab = allLabQuestions.length ? allLabQuestions[runIndex % allLabQuestions.length] : undefined;
+                const markerLab = allLabQuestions[runIndex];
                 if (!markerLab) return null;
 
                 return (

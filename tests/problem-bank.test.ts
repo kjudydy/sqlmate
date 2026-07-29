@@ -161,17 +161,45 @@ describe("SQLMate verified production problem bank", () => {
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
   });
 
-  it("does not publish unverified objective expansion batches from templates", () => {
+  it("creates verified objective expansion batches in 20-question units", () => {
     for (const subject of subjects) {
-      const batch = createLocalExtraQuestions(subject.id, 0, 10);
-      expect(batch).toHaveLength(0);
+      const batch = createLocalExtraQuestions(subject.id, 0, 20);
+      expect(batch).toHaveLength(20);
+      expect(batch[0].number).toBe(21);
+      expect(batch[19].number).toBe(40);
+      expect(new Set(batch.map((question) => question.id)).size).toBe(20);
+
+      for (const question of batch) {
+        expect(question.subjectId).toBe(subject.id);
+        expect(question.sourceVersion).toBe(verifiedOfficialSourceVersion);
+        expect(question.reviewStatus).toBe("approved");
+        expect(question.validationStatus).toBe("validated");
+        expect(question.choices).toHaveLength(4);
+        expect(question.whyWrong[question.answer]).toBeTruthy();
+
+        const text = userVisibleQuestionText(question);
+        expect(text).not.toMatch(/review_required|original_ready|sourceDocument|sourceType|generationMode/i);
+        expect(text).not.toMatch(/\.pdf/i);
+      }
     }
   });
 
-  it("does not publish unverified SQL Practice expansion batches from templates", () => {
+  it("creates verified SQL Practice expansion batches in 5-case units", () => {
     const batch = createLocalExtraLabQuestions(0, 5);
 
-    expect(batch).toHaveLength(0);
+    expect(batch).toHaveLength(5);
+    expect(batch[0].id).toBe("lab-extra-001");
+    expect(batch[0].number).toBe(6);
+    expect(batch[4].number).toBe(10);
+    expect(new Set(batch.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(5);
+
+    for (const lab of batch) {
+      expect(lab.sourceVersion).toBe(verifiedOfficialSourceVersion);
+      expect(lab.reviewStatus).toBe("approved");
+      expect(lab.validationStatus).toBe("validated");
+      expect(lab.schemaSql).toContain("create table");
+      expect(lab.expectedSql).toBeTruthy();
+    }
   });
 
   it("keeps single-question fallback APIs on the verified published pool", () => {
@@ -179,8 +207,11 @@ describe("SQLMate verified production problem bank", () => {
     const lab = createLocalExtraLabQuestion(0);
 
     expect(question.subjectId).toBe("tuning");
+    expect(question.number).toBe(21);
     expect(question.sourceVersion).toBe(verifiedOfficialSourceVersion);
     expect(question.reviewStatus).toBe("approved");
+    expect(lab.id).toBe("lab-extra-001");
+    expect(lab.number).toBe(6);
     expect(lab.sourceVersion).toBe(verifiedOfficialSourceVersion);
     expect(lab.reviewStatus).toBe("approved");
   });
