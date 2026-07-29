@@ -2821,6 +2821,270 @@ FROM 점수;`,
   }
 ] as ManualPublishedQuestion[]).map(makeManualQuestion);
 
+const manualVerifiedTuningPartitionAndTraceQuestions: ObjectiveQuestion[] = ([
+  {
+    subjectId: "tuning",
+    number: 41,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "파티션 튜닝",
+    topic: "Local Prefixed 파티션 인덱스",
+    difficulty: "상급",
+    questionType: "DDL 기반 인덱스 유형 판단형",
+    mode: "original",
+    sourcePage: 99,
+    sourceQuestionNumber: 78,
+    stem: "거래 테이블이 거래일시 기준 Range Partition으로 구성되어 있다. 다음 중 Local Prefixed 파티션 인덱스로 가장 적절한 것은?",
+    code: `CREATE TABLE 거래 (
+  고객번호 VARCHAR2(10),
+  종목코드 VARCHAR2(20),
+  거래일시 DATE
+)
+PARTITION BY RANGE (거래일시) (
+  PARTITION p2010 VALUES LESS THAN (TO_DATE('20110101','YYYYMMDD')),
+  PARTITION p2011 VALUES LESS THAN (TO_DATE('20120101','YYYYMMDD')),
+  PARTITION p2012 VALUES LESS THAN (TO_DATE('20130101','YYYYMMDD')),
+  PARTITION pmax  VALUES LESS THAN (MAXVALUE)
+);`,
+    choices: [
+      { id: "A", text: "CREATE INDEX 거래_N1 ON 거래(거래일시) LOCAL", explanation: "정답입니다. 테이블 파티션 키인 거래일시가 인덱스 선두 컬럼이므로 Local Prefixed 인덱스입니다." },
+      { id: "B", text: "CREATE INDEX 거래_N2 ON 거래(고객번호) LOCAL", explanation: "오답입니다. LOCAL이지만 테이블 파티션 키 거래일시가 선두 컬럼이 아니므로 Local Nonprefixed입니다." },
+      { id: "C", text: "CREATE INDEX 거래_N3 ON 거래(종목코드) LOCAL", explanation: "오답입니다. LOCAL이지만 파티션 키가 인덱스 선두에 없습니다." },
+      { id: "D", text: "CREATE INDEX 거래_N4 ON 거래(종목코드, 거래일시) LOCAL", explanation: "오답입니다. 거래일시가 포함되어도 선두 컬럼이 종목코드이므로 Prefixed가 아닙니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "tuning-partition-pruning",
+    hint: "1단계: 테이블 파티션 키가 무엇인지 확인합니다.\n2단계: LOCAL 여부와 Prefixed 여부는 다른 개념입니다.\n3단계: 파티션 키가 인덱스 선두 컬럼이면 Local Prefixed입니다.",
+    explanation: "Local Prefixed 파티션 인덱스는 로컬 인덱스이면서 인덱스 선두 컬럼이 테이블 파티션 키로 시작한다. 거래일시 기준 파티션이므로 (거래일시) LOCAL 인덱스가 해당한다."
+  },
+  {
+    subjectId: "tuning",
+    number: 42,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "파티션 튜닝",
+    topic: "Global/Local Prefixed 분류",
+    difficulty: "상급",
+    questionType: "DDL 기반 복합 판단형",
+    mode: "variant",
+    sourcePage: 99,
+    sourceQuestionNumber: 79,
+    stem: "아래 DDL에서 거래_IDX1과 거래_IDX2의 인덱스 유형 조합으로 가장 적절한 것은?",
+    code: `CREATE TABLE 거래 (
+  계좌번호 NUMBER,
+  상품번호 VARCHAR2(6),
+  거래일자 VARCHAR2(8),
+  거래량 NUMBER,
+  거래금액 NUMBER
+)
+PARTITION BY RANGE (거래일자) (
+  PARTITION p1 VALUES LESS THAN ('20110101'),
+  PARTITION p2 VALUES LESS THAN ('20120101'),
+  PARTITION px VALUES LESS THAN (MAXVALUE)
+);
+
+CREATE INDEX 거래_IDX1 ON 거래(거래일자, 상품번호) GLOBAL
+PARTITION BY RANGE (거래일자) (
+  PARTITION p1 VALUES LESS THAN ('20120101'),
+  PARTITION px VALUES LESS THAN (MAXVALUE)
+);
+
+CREATE INDEX 거래_IDX2 ON 거래(계좌번호, 거래일자) LOCAL;`,
+    choices: [
+      { id: "A", text: "거래_IDX1: Global Prefixed, 거래_IDX2: Local Nonprefixed", explanation: "정답입니다. IDX1은 GLOBAL 파티션 인덱스이며 파티션 키 거래일자가 선두입니다. IDX2는 LOCAL이지만 테이블 파티션 키 거래일자가 선두가 아닙니다." },
+      { id: "B", text: "거래_IDX1: Global Nonprefixed, 거래_IDX2: Local Prefixed", explanation: "오답입니다. IDX1은 거래일자가 선두라 Prefixed이고, IDX2는 계좌번호가 선두라 Nonprefixed입니다." },
+      { id: "C", text: "거래_IDX1: Local Prefixed, 거래_IDX2: Global Nonprefixed", explanation: "오답입니다. IDX1은 GLOBAL로 선언되어 있고 IDX2는 LOCAL로 선언되어 있습니다." },
+      { id: "D", text: "거래_IDX1: Nonpartitioned, 거래_IDX2: Local Prefixed", explanation: "오답입니다. IDX1은 GLOBAL PARTITION BY가 있으므로 비파티션 인덱스가 아닙니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "tuning-partition-pruning",
+    hint: "1단계: GLOBAL/LOCAL 선언을 먼저 확인합니다.\n2단계: Prefixed는 인덱스 파티션 키 또는 테이블 파티션 키가 인덱스 선두에 있는지 봅니다.\n3단계: LOCAL 인덱스라도 파티션 키가 후행이면 Nonprefixed입니다.",
+    explanation: "거래_IDX1은 GLOBAL 파티션 인덱스이고 인덱스 파티션 키인 거래일자가 인덱스 선두이므로 Global Prefixed다. 거래_IDX2는 LOCAL이지만 테이블 파티션 키 거래일자가 두 번째 컬럼이므로 Local Nonprefixed다."
+  },
+  {
+    subjectId: "tuning",
+    number: 43,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "SQL Rewrite",
+    topic: "최신 이력 조회",
+    difficulty: "최상급",
+    questionType: "최적 SQL 선택형",
+    mode: "similar",
+    sourcePage: 96,
+    sourceQuestionNumber: 69,
+    stem: "고객변경이력에서 기준일자 이전의 최신 이력 한 건을 고객별로 조회하려 한다. 전체 고객을 대상으로 하며 고객별 변경순번은 증가 값이다. 가장 효과적인 SQL 형태는?",
+    choices: [
+      { id: "A", text: "고객마다 상관 서브쿼리로 MAX(변경순번)을 반복 조회한다.", explanation: "오답입니다. 전체 고객 대상이면 고객 수만큼 이력 테이블 탐색이 반복될 수 있습니다." },
+      { id: "B", text: "기준일자 이전 이력을 한 번 읽고 ROW_NUMBER() OVER(PARTITION BY 고객번호 ORDER BY 변경순번 DESC) = 1로 최신 행을 고른다.", explanation: "정답입니다. 대상 이력을 한 번 처리하면서 고객별 최신 행을 안정적으로 선택할 수 있습니다." },
+      { id: "C", text: "변경일자가 기준일자와 같은 행만 조회한다.", explanation: "오답입니다. 기준일자에 변경이 없는 고객의 직전 이력을 놓칩니다." },
+      { id: "D", text: "고객 테이블을 먼저 Full Scan한 후 고객별로 이력 테이블을 무조건 Nested Loops 반복 조회한다.", explanation: "오답입니다. 전체 고객 대상에서는 반복 탐색 비용이 커질 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "sql-window-functions",
+    hint: "1단계: 기준일자 당일 이력이 아니라 기준일자 이전 최신 이력입니다.\n2단계: 전체 고객 대상이면 고객별 반복 서브쿼리 비용을 봅니다.\n3단계: 고객별 순위를 한 번 계산해 rnum=1을 고르는 방식이 적절합니다.",
+    explanation: "전체 고객의 특정 시점 최신 이력은 기준일자 이전 이력을 한 번 필터링한 뒤 고객별 ROW_NUMBER를 계산해 최신 행을 선택하는 방식이 효과적이다. 상관 서브쿼리는 고객 수만큼 반복될 수 있어 대량 처리에 불리하다."
+  },
+  {
+    subjectId: "tuning",
+    number: 44,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "병렬 처리",
+    topic: "PQ_DISTRIBUTE 힌트",
+    difficulty: "최상급",
+    questionType: "병렬 실행계획 힌트 선택형",
+    mode: "variant",
+    sourcePage: 100,
+    sourceQuestionNumber: 82,
+    stem: "주문 테이블은 고객번호 기준 Hash Subpartition을 가지고 있고 고객 테이블은 상대적으로 작은 비파티션 테이블이다. 병렬 Hash Join에서 주문을 고객번호 기준으로 다시 재분배해 비용이 커졌다. 개선 방향으로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "큰 주문 테이블을 조인 키로 다시 HASH HASH 재분배하도록 강제한다.", explanation: "오답입니다. 이미 주문이 고객번호 기준으로 분산되어 있는데 다시 재분배하면 통신량이 커질 수 있습니다." },
+      { id: "B", text: "작은 고객 집합을 각 주문 파티션 쪽으로 Broadcast하고 주문의 기존 분산을 최대한 활용한다.", explanation: "정답입니다. 큰 사실 테이블의 재분배를 피하고 작은 차원 집합을 Broadcast하는 것이 유리할 수 있습니다." },
+      { id: "C", text: "병렬도를 1로 낮추면 항상 가장 빠르다.", explanation: "오답입니다. 병렬도 1은 통신은 줄지만 대량 처리 병렬 효과를 잃을 수 있어 항상 정답이 아닙니다." },
+      { id: "D", text: "조인 조건을 제거해 Cartesian Join으로 바꾼다.", explanation: "오답입니다. 조인 조건 제거는 결과와 성능 모두를 망칠 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-parallel",
+    hint: "1단계: 병렬 조인에서 가장 비싼 데이터 이동이 무엇인지 봅니다.\n2단계: 큰 테이블과 작은 테이블 중 어느 쪽을 이동시키는 것이 싼지 판단합니다.\n3단계: 기존 파티션/서브파티션 분산을 활용하는 방향을 고릅니다.",
+    explanation: "병렬 조인에서는 데이터 재분배 비용이 핵심이다. 큰 주문 테이블이 이미 조인 키와 맞는 분산 구조를 갖고 있다면 주문을 다시 HASH 분배하기보다 작은 고객 집합을 Broadcast해 큰 데이터 이동을 줄이는 전략을 검토한다."
+  },
+  {
+    subjectId: "tuning",
+    number: 45,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "대량 DML",
+    topic: "Direct Path Insert와 병렬 DML Lock",
+    difficulty: "상급",
+    questionType: "동시성 상황 판단형",
+    mode: "original",
+    sourcePage: 96,
+    sourceQuestionNumber: 70,
+    stem: "INSERT /*+ APPEND */ 또는 병렬 DML을 사용하는 배치가 같은 대상 테이블에 대해 동시에 수행될 때 주의해야 할 설명으로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "Direct Path Insert는 항상 행 단위 TX Lock만 사용하므로 다른 DML과 충돌하지 않는다.", explanation: "오답입니다. APPEND/병렬 DML은 테이블 수준 잠금과 세그먼트 확장 특성 때문에 동시 DML에 제약이 생길 수 있습니다." },
+      { id: "B", text: "병렬 DML은 대상 테이블에 강한 TM Lock을 유발할 수 있어 동시에 같은 테이블을 갱신하는 트랜잭션을 블로킹할 수 있다.", explanation: "정답입니다. 대량 적재 성능과 동시성 제약을 함께 고려해야 합니다." },
+      { id: "C", text: "APPEND 힌트를 사용하면 Redo와 Undo가 어떤 환경에서도 0이 된다.", explanation: "오답입니다. NOLOGGING, FORCE LOGGING, 인덱스 유지 여부 등 조건에 따라 달라집니다." },
+      { id: "D", text: "Direct Path Insert는 항상 버퍼 캐시를 더 많이 사용하므로 OLTP 단건 INSERT에 적합하다.", explanation: "오답입니다. Direct Path는 대량 적재에 적합한 방식이며 OLTP 단건 처리와는 목적이 다릅니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-dml",
+    hint: "1단계: APPEND/병렬 DML은 대량 적재 성능을 위한 기능입니다.\n2단계: 성능 향상과 함께 잠금 범위가 커질 수 있습니다.\n3단계: 같은 대상 테이블의 동시 DML 블로킹 가능성을 봅니다.",
+    explanation: "Direct Path Insert와 병렬 DML은 대량 적재 성능을 높일 수 있지만 대상 테이블에 강한 TM Lock을 유발해 동시 갱신과 충돌할 수 있다. 배치 시간, 대상 테이블 접근 패턴, 로그 정책을 함께 검토해야 한다."
+  },
+  {
+    subjectId: "tuning",
+    number: 46,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "SQL Trace",
+    topic: "Wait Event",
+    difficulty: "중급",
+    questionType: "대기 이벤트 매칭형",
+    mode: "original",
+    sourcePage: 95,
+    sourceQuestionNumber: 77,
+    stem: "Full Table Scan 또는 Index Fast Full Scan처럼 Multi-Block I/O를 수행하는 과정에서 주로 관찰되는 대기 이벤트는?",
+    choices: [
+      { id: "A", text: "db file sequential read", explanation: "오답입니다. 주로 인덱스 탐색 후 ROWID로 테이블 블록을 읽는 Single Block I/O와 관련됩니다." },
+      { id: "B", text: "db file scattered read", explanation: "정답입니다. Multi-Block I/O로 읽은 블록들이 버퍼 캐시에 흩어져 적재되는 상황과 관련됩니다." },
+      { id: "C", text: "log file sync", explanation: "오답입니다. 커밋 시 LGWR 동기화 대기와 관련됩니다." },
+      { id: "D", text: "latch: cache buffers chains", explanation: "오답입니다. 버퍼 체인 래치 경합과 관련되며 Multi-Block I/O 대기 이벤트 자체는 아닙니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-sql-trace",
+    hint: "1단계: Single Block I/O와 Multi-Block I/O를 구분합니다.\n2단계: Full Scan은 여러 블록을 한 번에 읽을 수 있습니다.\n3단계: scattered read가 Multi-Block I/O와 연결됩니다.",
+    explanation: "db file scattered read는 Full Table Scan, Index Fast Full Scan 등에서 Multi-Block I/O가 발생할 때 자주 관찰된다. db file sequential read는 주로 Single Block I/O와 관련된다."
+  },
+  {
+    subjectId: "tuning",
+    number: 47,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "쿼리 변환",
+    topic: "PUSH_PRED 힌트",
+    difficulty: "상급",
+    questionType: "힌트 역할 판단형",
+    mode: "original",
+    sourcePage: 92,
+    sourceQuestionNumber: 72,
+    stem: "인라인 뷰 튜닝에서 PUSH_PRED 힌트가 수행하는 역할로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "메인 쿼리의 조건절을 뷰 내부로 밀어 넣어 뷰 안에서 먼저 처리 대상 건수를 줄이도록 유도한다.", explanation: "정답입니다. Predicate Pushing은 외부 조건을 내부로 전달해 조기 필터링을 유도합니다." },
+      { id: "B", text: "뷰 내부 GROUP BY를 항상 제거하고 조인으로 바꾼다.", explanation: "오답입니다. GROUP BY 제거가 아니라 조건절 밀어넣기가 핵심입니다." },
+      { id: "C", text: "서브쿼리를 무조건 FILTER 방식으로 남긴다.", explanation: "오답입니다. FILTER 방식 유지가 아니라 뷰 내부 처리 범위 축소와 관련됩니다." },
+      { id: "D", text: "파티션 테이블의 모든 파티션을 스캔하도록 강제한다.", explanation: "오답입니다. 불필요한 접근을 늘리는 힌트가 아닙니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "tuning-query-transformation",
+    hint: "1단계: PUSH라는 이름 그대로 조건을 어디로 보내는지 봅니다.\n2단계: 뷰 내부에서 먼저 줄일 수 있으면 성능에 유리합니다.\n3단계: View Merging과는 다른 변환입니다.",
+    explanation: "PUSH_PRED는 메인 쿼리 조건을 인라인 뷰 내부로 밀어 넣어 뷰 처리량을 줄이도록 유도하는 힌트다. 특히 뷰를 완전히 병합하기 어려운 상황에서 조기 필터링 효과를 기대할 수 있다."
+  },
+  {
+    subjectId: "tuning",
+    number: 48,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "캐시와 메모리",
+    topic: "Result Cache",
+    difficulty: "중급",
+    questionType: "캐시 적용 판단형",
+    mode: "variant",
+    sourcePage: 94,
+    sourceQuestionNumber: 76,
+    stem: "Oracle Result Cache 적용 대상으로 가장 부적절한 것은?",
+    choices: [
+      { id: "A", text: "변경이 거의 없는 코드 테이블을 조회하는 반복 SQL", explanation: "오답입니다. 변경이 적고 반복 호출되는 기준 정보는 Result Cache 후보가 될 수 있습니다." },
+      { id: "B", text: "DML이 초당 수천 건 발생하는 주문 원장 테이블의 실시간 집계 SQL", explanation: "정답입니다. 잦은 변경으로 캐시 무효화가 반복되어 오히려 관리 비용이 커질 수 있습니다." },
+      { id: "C", text: "동일한 파라미터로 반복 조회되는 소규모 기준 정보 함수", explanation: "오답입니다. 함수 결과 캐시 후보가 될 수 있습니다." },
+      { id: "D", text: "배치 중 여러 번 참조되는 변경 없는 달력 테이블 조회", explanation: "오답입니다. 변경이 거의 없는 반복 조회는 캐시 재사용 가능성이 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-memory",
+    hint: "1단계: Result Cache는 결과 재사용이 목적입니다.\n2단계: 테이블이 변경되면 캐시 무효화가 발생합니다.\n3단계: DML 빈도가 높은 테이블은 부적합합니다.",
+    explanation: "Result Cache는 동일 결과를 재사용할 때 효과적이다. DML이 빈번한 테이블은 캐시가 자주 무효화되어 재사용 이점보다 관리 오버헤드가 커질 수 있다."
+  },
+  {
+    subjectId: "tuning",
+    number: 49,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "인덱스 튜닝",
+    topic: "인덱스 컬럼 좌변 변형",
+    difficulty: "중급",
+    questionType: "조건절 판단형",
+    mode: "original",
+    sourcePage: 93,
+    sourceQuestionNumber: 74,
+    stem: "등록일자가 VARCHAR2(8) 타입이고 인덱스가 등록일자 컬럼에 존재한다. 다음 중 인덱스 컬럼 좌변 변형 사례가 아닌 것은?",
+    choices: [
+      { id: "A", text: "WHERE NVL(등록일자, '20260101') = '20260701'", explanation: "오답입니다. 인덱스 컬럼 등록일자에 NVL 함수가 적용되었습니다." },
+      { id: "B", text: "WHERE SUBSTR(등록일자, 1, 4) = '2026'", explanation: "오답입니다. 인덱스 컬럼에 SUBSTR 함수가 적용되었습니다." },
+      { id: "C", text: "WHERE 등록일자 LIKE '202607%'", explanation: "정답입니다. 컬럼 자체는 변형하지 않고 선두 고정 패턴이므로 Range Scan 가능성이 있습니다." },
+      { id: "D", text: "WHERE 등록일자 || '000000' = '20260701000000'", explanation: "오답입니다. 컬럼에 문자열 연결 연산이 적용되었습니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "tuning-index-scan-efficiency",
+    hint: "1단계: 함수나 연산자가 컬럼 왼쪽에 적용됐는지 봅니다.\n2단계: LIKE의 선두가 고정되어 있는지 확인합니다.\n3단계: 등록일자 LIKE '202607%'는 컬럼 변형이 아닙니다.",
+    explanation: "인덱스 컬럼에 함수나 연산을 적용하면 인덱스 원본 키 순서를 활용하기 어렵다. 반면 등록일자 LIKE '202607%'는 컬럼을 변형하지 않고 선두 문자열 범위를 지정하므로 인덱스 Range Scan 후보가 된다."
+  },
+  {
+    subjectId: "tuning",
+    number: 50,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "서브쿼리 튜닝",
+    topic: "Anti Join",
+    difficulty: "중급",
+    questionType: "서브쿼리 변환 판단형",
+    mode: "original",
+    sourcePage: 94,
+    sourceQuestionNumber: 75,
+    stem: "서브쿼리 Unnesting 후 Anti Join으로 변환될 가능성이 가장 큰 조건은?",
+    choices: [
+      { id: "A", text: "IN 서브쿼리", explanation: "오답입니다. IN/EXISTS는 일반적으로 Semi Join 계열로 변환될 수 있습니다." },
+      { id: "B", text: "EXISTS 서브쿼리", explanation: "오답입니다. EXISTS는 존재 여부를 확인하므로 Semi Join 계열과 관련됩니다." },
+      { id: "C", text: "NOT EXISTS 또는 NULL 문제가 통제된 NOT IN 서브쿼리", explanation: "정답입니다. 존재하지 않는 행을 찾는 부정 조건은 Anti Join으로 변환될 수 있습니다." },
+      { id: "D", text: "UNION ALL 집합 연산", explanation: "오답입니다. UNION ALL은 서브쿼리 Anti Join 변환 조건이 아닙니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "tuning-query-transformation",
+    hint: "1단계: Semi Join은 존재하는 행을 찾는 쪽입니다.\n2단계: Anti Join은 존재하지 않는 행을 찾는 쪽입니다.\n3단계: NOT EXISTS가 대표적인 Anti Join 후보입니다.",
+    explanation: "Anti Join은 한쪽 집합에 매칭되는 행이 없는 데이터를 찾는 조인 방식이다. NOT EXISTS나 NULL 처리 문제가 통제된 NOT IN 서브쿼리가 Unnesting되면 NL Anti Join 또는 Hash Anti Join으로 변환될 수 있다."
+  }
+] as ManualPublishedQuestion[]).map(makeManualQuestion);
+
 const operationExplanations: Record<string, string> = {
   "INDEX RANGE SCAN": "INDEX RANGE SCAN - 인덱스 시작점과 종료점을 찾아 필요한 리프 범위를 읽는다.",
   "INDEX UNIQUE SCAN": "INDEX UNIQUE SCAN - 유니크 인덱스로 단일 ROWID를 찾는다.",
@@ -3203,7 +3467,8 @@ const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...manualVerifiedObjectiveQuestions,
   ...manualVerifiedObjectiveQuestionsBatch02,
   ...manualVerifiedObjectiveQuestionsBatch03,
-  ...manualVerifiedObjectiveQuestionsBatch04
+  ...manualVerifiedObjectiveQuestionsBatch04,
+  ...manualVerifiedTuningPartitionAndTraceQuestions
 ]);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));

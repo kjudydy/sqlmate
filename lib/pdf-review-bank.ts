@@ -95,6 +95,7 @@ function choices(values: Array<[string, string]>): PdfReviewChoice[] {
 }
 
 const sqlExam = "SQL-자격검정-실전문제.pdf";
+const subject3Full = "sqlp_subject3_full.pdf";
 
 const commonOriginalNote = "PDF 페이지 PNG 렌더와 정답 및 해설 페이지를 직접 대조했다. 사용자 화면에는 출처와 검수 메타데이터를 노출하지 않는다.";
 
@@ -1087,7 +1088,7 @@ WHERE C NOT IN (2, NULL);`,
   }
 ];
 
-export const pdfReviewLabs: PdfReviewLab[] = [
+export const archivedPdfReviewLabs: PdfReviewLab[] = [
   {
     kind: "lab",
     id: "pdf-lab-01-running-total",
@@ -2346,6 +2347,983 @@ WHERE ROWNUM <= 30;`,
     hints: ["최종 Rows가 30인데 Index Rows와 CR이 큰 이유를 찾습니다.", "Access Predicate와 Filter Predicate를 구분합니다.", "등치 조건 뒤에 정렬 컬럼 DESC를 둔 인덱스가 부분범위 처리에 유리합니다."],
     validationNotes: ["Trace 수치와 Predicate 비효율, 목표 인덱스 설계의 관계를 검수했다."]
   }
+];
+
+type Subject3LabInput = {
+  id: string;
+  title: string;
+  topic: string;
+  difficulty: PdfReviewDifficulty;
+  mode: PdfReviewMode;
+  document: string;
+  page: number;
+  answerPage?: number;
+  questionNumber: string;
+  verificationNote: string;
+  scenario: string;
+  requirements: string[];
+  schemaSql: string;
+  sampleData?: PdfReviewTable[];
+  currentSql?: string;
+  executionPlan?: string;
+  traceSummary?: PdfReviewTable;
+  answerSql: string;
+  acceptedAlternatives?: string[];
+  rubric: string[];
+  explanation: string;
+  relatedConcepts: string[];
+  hints: string[];
+};
+
+function verifiedStatusForMode(mode: PdfReviewMode): PdfReviewStatus {
+  if (mode === "original") return "original_verified";
+  if (mode === "variant") return "variant_verified";
+  return "similar_verified";
+}
+
+function subject3Lab(input: Subject3LabInput): PdfReviewLab {
+  return {
+    kind: "lab",
+    id: input.id,
+    title: input.title,
+    topic: input.topic,
+    difficulty: input.difficulty,
+    mode: input.mode,
+    status: verifiedStatusForMode(input.mode),
+    source: {
+      document: input.document,
+      page: input.page,
+      answerPage: input.answerPage,
+      questionNumber: input.questionNumber,
+      verifiedBy: input.mode === "original" ? "page_render_and_answer_key" : "derived_from_verified_original",
+      verificationNote: input.verificationNote
+    },
+    scenario: input.scenario,
+    requirements: input.requirements,
+    schemaSql: input.schemaSql,
+    sampleData: input.sampleData,
+    currentSql: input.currentSql,
+    executionPlan: input.executionPlan,
+    traceSummary: input.traceSummary,
+    answerSql: input.answerSql,
+    acceptedAlternatives: input.acceptedAlternatives ?? ["동일 결과와 동일 튜닝 근거를 만족하는 SQL Rewrite는 인정한다."],
+    rubric: input.rubric,
+    explanation: input.explanation,
+    relatedConcepts: input.relatedConcepts,
+    hints: input.hints,
+    validationNotes: ["PDF/이미지 레이아웃으로 확인한 SQLP 3과목 실기 출제 스타일을 기준으로 수작업 검수했다."]
+  };
+}
+
+export const pdfReviewLabs: PdfReviewLab[] = [
+  subject3Lab({
+    id: "subject3-lab-01-contract-sargable",
+    title: "계약일자 좌변 변형 제거",
+    topic: "인덱스 컬럼 좌변 변형 제거",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3Full,
+    page: 6,
+    answerPage: 6,
+    questionNumber: "실기 01",
+    verificationNote: "계약일자 함수 변형 제거와 상품코드 NVL 제거 실기 유형을 반영했다.",
+    scenario: "계약 테이블에서 2026년 7월 특정 상품의 계약 건수를 조회한다. 계약일자, 상품코드 순서의 결합 인덱스가 있지만 현재 SQL은 Full Table Scan으로 수행된다.",
+    requirements: ["계약일자 인덱스 Range Scan이 가능하도록 SQL을 재작성한다.", "상품코드 조건에서 컬럼 좌변 변형을 제거한다.", "시간 값이 포함된 DATE 컬럼에서도 누락이 없도록 범위를 작성한다."],
+    schemaSql: `CREATE TABLE 계약 (
+  계약번호 NUMBER PRIMARY KEY,
+  계약일자 DATE NOT NULL,
+  상품코드 VARCHAR2(20),
+  계약금액 NUMBER
+);
+CREATE INDEX 계약_IX01 ON 계약(계약일자, 상품코드);`,
+    currentSql: `SELECT COUNT(*)
+FROM 계약
+WHERE TO_CHAR(계약일자, 'YYYYMM') = '202607'
+  AND NVL(상품코드, 'X') = 'P001';`,
+    executionPlan: `교육용 현재 실행계획
+Id | Operation          | Name | Rows  | Cost
+0  | SELECT STATEMENT   |      |     1 | 1280
+1  |  SORT AGGREGATE    |      |     1 |
+2  |   TABLE ACCESS FULL| 계약 | 85000 | 1280
+Predicate Information
+2 - filter(TO_CHAR("계약일자",'YYYYMM')='202607' AND NVL("상품코드",'X')='P001')`,
+    answerSql: `SELECT COUNT(*)
+FROM 계약
+WHERE 계약일자 >= TO_DATE('20260701', 'YYYYMMDD')
+  AND 계약일자 <  TO_DATE('20260801', 'YYYYMMDD')
+  AND 상품코드 = 'P001';`,
+    rubric: ["계약일자에 TO_CHAR를 적용하지 않아야 한다.", "월 조건은 반열린 날짜 범위로 작성해야 한다.", "상품코드에 NVL을 적용하지 않아야 한다."],
+    explanation: "인덱스 컬럼에 함수가 적용되면 인덱스 키 원본 순서를 활용하기 어렵다. 날짜 컬럼은 시작일 이상, 다음 달 시작일 미만으로 쓰고 상품코드는 단순 등치 조건으로 두어야 한다.",
+    relatedConcepts: ["SARGable Predicate", "Index Range Scan", "좌변 변형"],
+    hints: ["계약일자 컬럼이 함수의 입력으로 들어가는지 본다.", "DATE 컬럼의 월 조건은 BETWEEN 말일보다 반열린 범위가 안전하다.", "NVL(상품코드, 'X')는 상품코드 인덱스 활용을 방해할 수 있다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-02-exists-semi-join",
+    title: "DISTINCT 제거와 EXISTS Semi Join",
+    topic: "Semi Join 튜닝",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3Full,
+    page: 7,
+    answerPage: 7,
+    questionNumber: "실기 02",
+    verificationNote: "1:N 조인 중복 제거를 EXISTS로 바꾸는 실기 유형을 반영했다.",
+    scenario: "고객 100만 건, 주문 5,000만 건 환경에서 2026년 주문 이력이 있는 VIP 고객을 조회한다. DISTINCT 때문에 Sort Unique와 Temp I/O가 크게 발생한다.",
+    requirements: ["고객 중복 제거 목적의 DISTINCT를 제거한다.", "주문 존재 여부만 확인하도록 SQL을 재작성한다.", "Semi Join의 Short-Circuit 효과를 설명한다."],
+    schemaSql: `CREATE TABLE 고객 (
+  고객ID VARCHAR2(20) PRIMARY KEY,
+  고객명 VARCHAR2(100),
+  고객등급 VARCHAR2(10)
+);
+CREATE TABLE 주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객ID VARCHAR2(20) NOT NULL,
+  주문일자 VARCHAR2(8) NOT NULL,
+  주문금액 NUMBER
+);
+CREATE INDEX 주문_IX01 ON 주문(고객ID, 주문일자);`,
+    currentSql: `SELECT DISTINCT c.고객ID, c.고객명, c.고객등급
+FROM 고객 c
+JOIN 주문 o ON o.고객ID = c.고객ID
+WHERE c.고객등급 = 'VIP'
+  AND o.주문일자 >= '20260101';`,
+    answerSql: `SELECT c.고객ID, c.고객명, c.고객등급
+FROM 고객 c
+WHERE c.고객등급 = 'VIP'
+  AND EXISTS (
+    SELECT 1
+    FROM 주문 o
+    WHERE o.고객ID = c.고객ID
+      AND o.주문일자 >= '20260101'
+  );`,
+    rubric: ["주문 조인으로 늘어난 고객 중복을 DISTINCT로 제거하지 않아야 한다.", "EXISTS로 존재 여부만 확인해야 한다.", "첫 매칭 후 탐색을 멈출 수 있는 Semi Join 효과를 설명해야 한다."],
+    explanation: "1:N 조인 결과 중복을 DISTINCT로 제거하면 대량 정렬이 발생한다. EXISTS는 고객별 주문 존재 여부만 확인하므로 불필요한 중복 생성과 Sort Unique를 피할 수 있다.",
+    relatedConcepts: ["EXISTS", "Semi Join", "Sort Unique"],
+    hints: ["고객 정보는 한 번만 필요하고 주문 상세 행은 필요 없다.", "DISTINCT는 조인으로 늘어난 행을 다시 줄이는 비용이다.", "존재 여부는 EXISTS가 더 자연스럽다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-03-single-scan-pivot",
+    title: "반복 스칼라 서브쿼리 단일 스캔 전환",
+    topic: "Pivot형 집계 Rewrite",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3Full,
+    page: 8,
+    answerPage: 8,
+    questionNumber: "실기 03",
+    verificationNote: "월별 반복 스캔을 CASE 집계로 바꾸는 실기 유형을 반영했다.",
+    scenario: "월별일계 2,000만 건에서 2025년 1월부터 6월까지 월별 매출 합계를 한 행으로 출력한다. 기존 SQL은 같은 테이블을 월별로 반복 스캔한다.",
+    requirements: ["월별일계 테이블을 한 번만 스캔하도록 재작성한다.", "월별 컬럼은 조건부 집계로 만든다.", "반복 Full Scan이 왜 비효율인지 설명한다."],
+    schemaSql: `CREATE TABLE 월별일계 (
+  매출년월 VARCHAR2(6) NOT NULL,
+  상품코드 VARCHAR2(20),
+  매출액 NUMBER NOT NULL
+);
+CREATE INDEX 월별일계_IX01 ON 월별일계(매출년월);`,
+    currentSql: `SELECT
+  (SELECT SUM(매출액) FROM 월별일계 WHERE 매출년월 = '202501') AS M01,
+  (SELECT SUM(매출액) FROM 월별일계 WHERE 매출년월 = '202502') AS M02,
+  (SELECT SUM(매출액) FROM 월별일계 WHERE 매출년월 = '202503') AS M03,
+  (SELECT SUM(매출액) FROM 월별일계 WHERE 매출년월 = '202504') AS M04,
+  (SELECT SUM(매출액) FROM 월별일계 WHERE 매출년월 = '202505') AS M05,
+  (SELECT SUM(매출액) FROM 월별일계 WHERE 매출년월 = '202506') AS M06
+FROM dual;`,
+    answerSql: `SELECT
+  SUM(CASE WHEN 매출년월 = '202501' THEN 매출액 END) AS M01,
+  SUM(CASE WHEN 매출년월 = '202502' THEN 매출액 END) AS M02,
+  SUM(CASE WHEN 매출년월 = '202503' THEN 매출액 END) AS M03,
+  SUM(CASE WHEN 매출년월 = '202504' THEN 매출액 END) AS M04,
+  SUM(CASE WHEN 매출년월 = '202505' THEN 매출액 END) AS M05,
+  SUM(CASE WHEN 매출년월 = '202506' THEN 매출액 END) AS M06
+FROM 월별일계
+WHERE 매출년월 BETWEEN '202501' AND '202506';`,
+    rubric: ["동일 테이블 반복 서브쿼리를 제거해야 한다.", "대상 월 범위를 한 번에 제한해야 한다.", "SUM(CASE) 또는 DECODE 집계로 월별 컬럼을 만들어야 한다."],
+    explanation: "동일 테이블을 월별 스칼라 서브쿼리로 반복 조회하면 I/O가 월 수만큼 증가한다. 조건부 집계를 사용하면 대상 기간을 한 번 스캔하면서 월별 합계를 동시에 계산할 수 있다.",
+    relatedConcepts: ["Scalar Subquery", "CASE 집계", "Single Pass"],
+    hints: ["FROM dual에 달린 스칼라 서브쿼리 개수를 셉니다.", "월별로 같은 테이블을 반복 읽고 있습니다.", "조건부 집계는 한 번 스캔한 행을 여러 컬럼으로 나눌 수 있습니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-04-hash-join-build",
+    title: "대량 배치 Hash Join 힌트 작성",
+    topic: "Hash Join Build Input",
+    difficulty: "최상급",
+    mode: "original",
+    document: subject3Full,
+    page: 8,
+    answerPage: 8,
+    questionNumber: "실기 04",
+    verificationNote: "NL Join Random I/O를 Hash Join으로 바꾸는 실기 유형을 반영했다.",
+    scenario: "상품기본 10만 건과 일별상품판매 1억 건을 조인해 반기 매출을 집계한다. 현재는 NL Join으로 풀려 대량 Random I/O가 발생한다.",
+    requirements: ["배치 집계에 적합한 Hash Join 힌트를 작성한다.", "상품기본을 Build Input으로 두는 이유를 설명한다.", "NL Join이 왜 대량 배치에 불리한지 설명한다."],
+    schemaSql: `CREATE TABLE 상품기본 (
+  상품코드 VARCHAR2(20) PRIMARY KEY,
+  상품카테고리 VARCHAR2(30)
+);
+CREATE TABLE 일별상품판매 (
+  상품코드 VARCHAR2(20) NOT NULL,
+  판매일자 VARCHAR2(8) NOT NULL,
+  판매금액 NUMBER NOT NULL
+);
+CREATE INDEX 일별상품판매_IX01 ON 일별상품판매(상품코드, 판매일자);`,
+    currentSql: `SELECT p.상품카테고리, SUM(s.판매금액) AS 총판매금액
+FROM 상품기본 p
+JOIN 일별상품판매 s ON s.상품코드 = p.상품코드
+WHERE s.판매일자 BETWEEN '20260101' AND '20260630'
+GROUP BY p.상품카테고리;`,
+    executionPlan: `교육용 현재 실행계획
+Id | Operation                    | Name            | Starts | Rows
+0  | SELECT STATEMENT             |                 |      1 |   50
+1  |  HASH GROUP BY               |                 |      1 |   50
+2  |   NESTED LOOPS               |                 |      1 |  80M
+3  |    TABLE ACCESS FULL         | 상품기본        |      1 | 100K
+4  |    TABLE ACCESS BY INDEX ROWID| 일별상품판매   | 100000 |  800
+5  |     INDEX RANGE SCAN         | 일별상품판매_IX01|100000 |  800`,
+    answerSql: `SELECT /*+ LEADING(p s) USE_HASH(s) SWAP_JOIN_INPUTS(p) */
+       p.상품카테고리, SUM(s.판매금액) AS 총판매금액
+FROM 상품기본 p
+JOIN 일별상품판매 s ON s.상품코드 = p.상품코드
+WHERE s.판매일자 BETWEEN '20260101' AND '20260630'
+GROUP BY p.상품카테고리;`,
+    rubric: ["NL Join 반복 탐색 병목을 지적해야 한다.", "Hash Join을 유도하는 힌트를 작성해야 한다.", "작은 상품기본을 Build Input으로 둬야 하는 이유를 설명해야 한다."],
+    explanation: "대량 판매 집합을 상품별로 반복 인덱스 탐색하면 Random I/O가 커진다. 작은 상품기본을 Build Input으로 Hash Area에 올리고 큰 판매 집합을 Probe하는 Hash Join이 배치 집계에 적합할 수 있다.",
+    relatedConcepts: ["Hash Join", "Build Input", "Batch Tuning"],
+    hints: ["일별상품판매 접근 Starts가 상품기본 행 수만큼 반복되는지 봅니다.", "배치 집계는 전체 처리량이 중요합니다.", "Hash Join에서는 작은 쪽 Build Input이 유리합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-05-topn-sort-omission",
+    title: "Top-N 정렬 제거와 Stopkey",
+    topic: "Sort Omission",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3Full,
+    page: 9,
+    answerPage: 9,
+    questionNumber: "실기 05",
+    verificationNote: "INDEX_DESC와 COUNT STOPKEY를 이용한 페이징 튜닝 실기 유형을 반영했다.",
+    scenario: "게시글 테이블에는 게시판ID, 작성일자 DESC, 게시글ID 순서의 결합 인덱스가 있다. 최근 게시글 10건 조회에서 SORT ORDER BY가 발생한다.",
+    requirements: ["인덱스 정렬 순서를 활용해 Sort 연산을 제거한다.", "ROWNUM Stopkey로 10건만 읽고 멈추게 한다.", "ORDER BY 생략 또는 힌트 사용 시 결과 정렬 보장 조건을 설명한다."],
+    schemaSql: `CREATE TABLE 게시글 (
+  게시글ID NUMBER PRIMARY KEY,
+  게시판ID VARCHAR2(20) NOT NULL,
+  제목 VARCHAR2(200),
+  작성자ID VARCHAR2(20),
+  작성일자 DATE NOT NULL
+);
+CREATE INDEX 게시글_IX01 ON 게시글(게시판ID, 작성일자 DESC, 게시글ID);`,
+    currentSql: `SELECT *
+FROM (
+  SELECT 게시글ID, 제목, 작성자ID, 작성일자
+  FROM 게시글
+  WHERE 게시판ID = 'FREE'
+  ORDER BY 작성일자 DESC
+)
+WHERE ROWNUM <= 10;`,
+    answerSql: `SELECT *
+FROM (
+  SELECT /*+ INDEX_DESC(a 게시글_IX01) */
+         게시글ID, 제목, 작성자ID, 작성일자
+  FROM 게시글 a
+  WHERE 게시판ID = 'FREE'
+)
+WHERE ROWNUM <= 10;`,
+    rubric: ["게시판ID 등치 조건과 작성일자 DESC 인덱스 순서를 활용해야 한다.", "COUNT STOPKEY 또는 부분범위 처리 효과를 설명해야 한다.", "불필요한 SORT ORDER BY 제거 근거를 제시해야 한다."],
+    explanation: "인덱스가 게시판ID별 작성일자 DESC 순서로 정렬되어 있으므로 해당 인덱스를 역순/정렬 순서대로 읽으면 최근 10건을 조기 종료할 수 있다. 이때 SORT ORDER BY와 대량 스캔을 줄일 수 있다.",
+    relatedConcepts: ["Top-N", "COUNT STOPKEY", "Index Scan"],
+    hints: ["인덱스 컬럼 순서가 WHERE와 ORDER BY를 동시에 만족하는지 봅니다.", "최근 10건만 필요하므로 전체 정렬은 비효율입니다.", "INDEX_DESC와 ROWNUM 조건의 결합을 생각합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-06-order-delivery-batch",
+    title: "주문배송 야간 배치 SQL 튜닝",
+    topic: "파티션 배치 종합 튜닝",
+    difficulty: "최상급",
+    mode: "similar",
+    document: sqlExam,
+    page: 101,
+    answerPage: 136,
+    questionNumber: "실기문제 6 변형",
+    verificationNote: "사용자가 제공한 실기문제 6 이미지의 주문-배송-고객, 파티션, 인덱스 구성 스타일을 반영했다.",
+    scenario: "주문, 배송, 고객 정보를 읽어 주문배송 적재 테이블에 입력하는 야간 배치다. 대상 주문 데이터는 2026년 6월부터 8월까지 3개월이며 월별 배송건수는 900만 건, 고객 수는 500만 명이다.",
+    requirements: ["주문일자와 배송일자 Range Partition을 활용한다.", "주문배송상태코드와 배송상태코드 인덱스를 활용할 수 있는 조인 순서를 제안한다.", "배치 목적에 맞는 병렬 처리와 Direct Path Insert 적용 여부를 설명한다.", "아래 인덱스 구성에서 어떤 인덱스가 핵심인지 제시한다."],
+    schemaSql: `고객
+- 고객번호(PK)
+- 고객명
+- 고객연락처
+- 등록일시
+
+주문
+- 주문번호(PK)
+- 주문일자
+- 주문고객번호
+- 주문상품수
+- 주문금액
+- 주문상태코드
+- 할인금액
+- 배송지주소코드
+- 배송지주소상세
+
+배송
+- 배송번호(PK)
+- 주문번호
+- 배송일자
+- 배송상태코드
+- 배송업체번호
+- 배송기사연락처
+
+파티션 구성
+- 주문: 주문일자 기준 월 단위 Range Partition
+- 배송: 배송일자 기준 월 단위 Range Partition
+
+인덱스 구성
+- 주문_PK: 주문번호
+- 주문_N1: 주문상태코드 + 주문일자 LOCAL
+- 주문_N2: 주문고객번호 + 주문일자 LOCAL
+- 배송_PK: 배송번호
+- 배송_N1: 주문번호 + 배송일자 LOCAL
+- 배송_N2: 배송일자 + 배송상태코드 LOCAL
+- 고객_PK: 고객번호
+- 고객_N1: 고객명 + 고객번호`,
+    currentSql: `INSERT INTO 주문배송
+SELECT o.주문번호, o.주문일자, c.고객번호, c.고객명,
+       d.배송번호, d.배송일자, d.배송상태코드
+FROM 주문 o, 배송 d, 고객 c
+WHERE o.주문번호 = d.주문번호
+  AND o.주문고객번호 = c.고객번호
+  AND o.주문일자 BETWEEN DATE '2026-06-01' AND DATE '2026-08-31'
+  AND d.배송일자 BETWEEN DATE '2026-06-01' AND DATE '2026-08-31'
+  AND o.주문상태코드 = '완료'
+  AND d.배송상태코드 = '배송완료';`,
+    executionPlan: `목표 실행계획 방향
+- 주문_N1 LOCAL INDEX RANGE SCAN: 주문상태코드 + 주문일자 조건으로 3개월 파티션 접근
+- 배송_N1 LOCAL INDEX RANGE SCAN 또는 HASH JOIN: 주문번호 조인과 배송일자 파티션 범위 활용
+- 고객_PK INDEX UNIQUE SCAN: 주문고객번호로 고객 단건 확인
+- 대량 적재 시 APPEND/PARALLEL 적용 여부 검토
+
+주의: 실제 Oracle 측정값이 아닌 실기 풀이용 목표 방향이다.`,
+    answerSql: `INSERT /*+ APPEND PARALLEL(t 4) */ INTO 주문배송 t
+SELECT /*+ LEADING(o d c) USE_HASH(d) USE_NL(c) INDEX(o 주문_N1) INDEX(d 배송_N1) */
+       o.주문번호, o.주문일자, c.고객번호, c.고객명,
+       d.배송번호, d.배송일자, d.배송상태코드
+FROM 주문 o
+JOIN 배송 d
+  ON d.주문번호 = o.주문번호
+ AND d.배송일자 >= DATE '2026-06-01'
+ AND d.배송일자 <  DATE '2026-09-01'
+JOIN 고객 c
+  ON c.고객번호 = o.주문고객번호
+WHERE o.주문일자 >= DATE '2026-06-01'
+  AND o.주문일자 <  DATE '2026-09-01'
+  AND o.주문상태코드 = '완료'
+  AND d.배송상태코드 = '배송완료';`,
+    acceptedAlternatives: ["배송을 먼저 파티션 범위로 줄인 뒤 주문과 Hash Join하는 계획도 배송 선택도가 더 높다는 근거가 있으면 인정", "APPEND/PARALLEL은 운영 Lock과 로그 정책을 함께 설명한 경우에만 인정"],
+    rubric: ["BETWEEN 말일 조건 대신 반열린 범위로 작성해야 한다.", "월 단위 파티션 프루닝을 설명해야 한다.", "주문/배송 Local Index와 조인 방식 선택 근거를 제시해야 한다.", "대량 INSERT의 APPEND/PARALLEL 부작용을 함께 설명해야 한다."],
+    explanation: "실기문제 6 유형은 단순 SQL 작성이 아니라 ERD, 파티션, 인덱스, 데이터량을 한 번에 보고 배치 SQL의 접근 경로를 설계하는 문제다. 주문/배송 날짜 범위는 파티션 프루닝이 가능하도록 반열린 범위로 쓰고, 주문상태 및 배송상태 조건과 조인 키 인덱스를 함께 고려해야 한다.",
+    relatedConcepts: ["Partition Pruning", "Batch Tuning", "Local Index", "Direct Path Insert"],
+    hints: ["문제의 파티션 기준 컬럼이 주문일자와 배송일자인지 먼저 확인합니다.", "상태코드와 날짜가 함께 있는 Local Index를 찾아봅니다.", "3개월 대량 적재는 최초 응답보다 전체 처리량이 중요합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-07-partition-index-classification",
+    title: "파티션 인덱스 유형 분류",
+    topic: "Local/Global 파티션 인덱스",
+    difficulty: "상급",
+    mode: "original",
+    document: sqlExam,
+    page: 99,
+    answerPage: 135,
+    questionNumber: "객관식 78-79 실기화",
+    verificationNote: "SQL-자격검정 실전문제의 파티션 인덱스 분류 유형을 실습형으로 확장했다.",
+    scenario: "거래 테이블과 두 개의 인덱스 DDL을 보고 각 인덱스가 Global/Local 및 Prefixed/Nonprefixed 중 어디에 해당하는지 판단해야 한다.",
+    requirements: ["테이블 파티션 키와 인덱스 선두 컬럼을 비교한다.", "GLOBAL PARTITION BY와 LOCAL 선언을 구분한다.", "각 인덱스 유형과 조회/관리상 특징을 설명한다."],
+    schemaSql: `CREATE TABLE 거래 (
+  계좌번호 NUMBER,
+  상품번호 VARCHAR2(6),
+  거래일자 VARCHAR2(8),
+  거래량 NUMBER,
+  거래금액 NUMBER
+)
+PARTITION BY RANGE (거래일자) (
+  PARTITION p1 VALUES LESS THAN ('20110101'),
+  PARTITION p2 VALUES LESS THAN ('20120101'),
+  PARTITION px VALUES LESS THAN (MAXVALUE)
+);
+
+CREATE INDEX 거래_IDX1 ON 거래(거래일자, 상품번호) GLOBAL
+PARTITION BY RANGE (거래일자) (
+  PARTITION p1 VALUES LESS THAN ('20120101'),
+  PARTITION px VALUES LESS THAN (MAXVALUE)
+);
+
+CREATE INDEX 거래_IDX2 ON 거래(계좌번호, 거래일자) LOCAL;`,
+    answerSql: `-- 분류 답안
+거래_IDX1: Global Prefixed Partition Index
+  - GLOBAL로 선언된 파티션 인덱스
+  - 인덱스 선두 컬럼이 거래일자이며 인덱스 파티션 키와 일치
+
+거래_IDX2: Local Nonprefixed Partition Index
+  - LOCAL로 선언되어 테이블 파티션과 1:1 대응
+  - 테이블 파티션 키 거래일자가 인덱스 선두가 아니고 두 번째 컬럼`,
+    rubric: ["GLOBAL/LOCAL 선언을 먼저 식별해야 한다.", "Prefixed 여부는 파티션 키가 인덱스 선두인지로 판단해야 한다.", "LOCAL이라고 해서 항상 Prefixed가 아님을 설명해야 한다."],
+    explanation: "파티션 인덱스 분류는 선언 방식과 컬럼 순서를 함께 봐야 한다. 거래_IDX1은 GLOBAL 파티션 인덱스이며 거래일자가 선두라 Prefixed다. 거래_IDX2는 LOCAL이지만 계좌번호가 선두라 Local Nonprefixed다.",
+    relatedConcepts: ["Partition Index", "Local Prefixed", "Global Prefixed"],
+    hints: ["LOCAL과 Prefixed를 같은 말로 보면 안 됩니다.", "Prefixed는 파티션 키가 인덱스 왼쪽부터 시작하는지 보는 개념입니다.", "IDX2는 거래일자가 포함되어 있지만 선두가 아닙니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-08-pq-distribute",
+    title: "병렬 조인 데이터 분배 방식 선택",
+    topic: "PQ_DISTRIBUTE",
+    difficulty: "최상급",
+    mode: "variant",
+    document: sqlExam,
+    page: 100,
+    answerPage: 136,
+    questionNumber: "객관식 82 실기화",
+    verificationNote: "병렬 실행계획의 동적 재분배 문제와 pq_distribute 힌트 판단을 실습형으로 구성했다.",
+    scenario: "주문은 주문일자 Range Partition, 고객번호 Hash Subpartition 구조이고 고객은 비파티션 테이블이다. 병렬 조인에서 주문 데이터가 조인 키 기준으로 다시 재분배되어 평소보다 3배 이상 느려졌다.",
+    requirements: ["현재 병렬 실행계획에서 PX SEND HASH가 병목이 되는 이유를 설명한다.", "큰 주문 테이블의 재분배를 줄이는 분배 방식을 제안한다.", "힌트는 데이터량과 파티션 구조를 근거로 선택한다."],
+    schemaSql: `주문: 주문일자 Range Partition + 고객번호 Hash Subpartition, 월 평균 2,000만 건
+고객: Non-Partitioned, 100만 건
+
+현재 SQL
+SELECT /*+ ordered use_hash(o) parallel(c 2) parallel(o 2) */
+       o.고객번호, SUM(o.주문금액), MIN(c.등급코드)
+FROM 고객 c, 주문 o
+WHERE o.고객번호 = c.고객번호
+  AND o.주문일자 BETWEEN '20100901' AND '20100930'
+GROUP BY o.고객번호;`,
+    executionPlan: `교육용 현재 실행계획
+Id | Operation              | Name      | TQ       | IN-OUT
+ 2 | PX SEND QC (RANDOM)    | :TQ10003  | Q1,03    | P->S
+ 5 | PX SEND HASH           | :TQ10002  | Q1,02    | P->P
+ 7 | HASH JOIN              |           | Q1,02    | PCWP
+ 9 | PX SEND HASH           | :TQ10000  | Q1,00    | P->P
+11 | TABLE ACCESS FULL      | 고객      | Q1,00    | PCWP
+13 | PX SEND HASH           | :TQ10001  | Q1,01    | P->P
+15 | TABLE ACCESS FULL      | 주문      | Q1,01    | PCWP`,
+    answerSql: `SELECT /*+ ordered use_hash(o) parallel(c 2) parallel(o 2) pq_distribute(o none broadcast) */
+       o.고객번호, SUM(o.주문금액), MIN(c.등급코드)
+FROM 고객 c, 주문 o
+WHERE o.고객번호 = c.고객번호
+  AND o.주문일자 >= '20100901'
+  AND o.주문일자 <  '20101001'
+GROUP BY o.고객번호;`,
+    acceptedAlternatives: ["실제 분배 방향은 실행계획에서 inner/outer 입력과 데이터량을 확인해 조정해야 한다는 설명 포함 시 인정", "고객 조건으로 고객이 매우 작아지는 경우 BROADCAST 계열 힌트 제안 인정"],
+    rubric: ["PX SEND HASH로 양쪽 데이터가 재분배되는 병목을 설명해야 한다.", "큰 주문 데이터 이동을 줄이는 방향을 제시해야 한다.", "pq_distribute 힌트 선택 근거를 데이터량과 파티션 구조로 설명해야 한다."],
+    explanation: "병렬 Hash Join에서는 데이터 분배 방식이 성능을 좌우한다. 큰 주문 테이블을 다시 HASH 재분배하면 통신량이 커지므로 기존 파티션 구조를 활용하고 작은 고객 집합을 Broadcast하는 방식을 검토할 수 있다.",
+    relatedConcepts: ["Parallel Query", "PQ_DISTRIBUTE", "Hash Join"],
+    hints: ["PX SEND HASH가 몇 번 발생하는지 봅니다.", "큰 주문과 작은 고객 중 어느 쪽을 이동시키는 것이 싼지 판단합니다.", "기존 Hash Subpartition이 조인 키와 맞는지 확인합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-09-direct-path-lock",
+    title: "Direct Path Insert 동시성 분석",
+    topic: "Direct Path Insert Lock",
+    difficulty: "상급",
+    mode: "original",
+    document: sqlExam,
+    page: 96,
+    answerPage: 135,
+    questionNumber: "객관식 70 실기화",
+    verificationNote: "APPEND INSERT ALL과 병렬 DML Lock 판단 유형을 실습형으로 구성했다.",
+    scenario: "두 세션이 같은 월별시세 적재 테이블에 INSERT /*+ APPEND */ ALL 문장을 순차적으로 실행한다. 첫 세션이 커밋 전이고 두 번째 세션이 다른 분기 데이터를 적재한다.",
+    requirements: ["APPEND Direct Path Insert가 일반 INSERT와 다른 잠금 특성을 설명한다.", "두 번째 세션이 왜 대기할 수 있는지 TM Lock 관점에서 설명한다.", "운영 배치에서 동시 실행을 피하거나 파티션 단위로 분리하는 대안을 제시한다."],
+    schemaSql: `CREATE TABLE 주식월별시세 (
+  종목코드 VARCHAR2(20),
+  거래일자 VARCHAR2(8),
+  종가 NUMBER
+);
+CREATE TABLE 선물월별시세 (
+  종목코드 VARCHAR2(20),
+  거래일자 VARCHAR2(8),
+  종가 NUMBER
+);`,
+    currentSql: `INSERT /*+ APPEND */ ALL
+WHEN :v_구분 = '주식' THEN
+  INTO 주식월별시세(종목코드, 거래일자, 종가)
+WHEN :v_구분 = '선물' THEN
+  INTO 선물월별시세(종목코드, 거래일자, 종가)
+SELECT 종목코드, :v_기준일자, AVG(종가)
+FROM 일별시세
+WHERE 거래일자 BETWEEN ADD_MONTHS(:v_기준일자, -1) AND :v_기준일자
+GROUP BY 종목코드;`,
+    executionPlan: `교육용 관찰 정보
+Session 100: INSERT /*+ APPEND */ 대상 테이블 Direct Path 적재 후 커밋 전
+Session 200: 동일 대상 세그먼트에 APPEND 적재 시도
+
+관찰 가능한 대기
+- enq: TM - contention
+- Direct Path Insert 대상 테이블에 대한 강한 TM Lock 경합`,
+    answerSql: `-- 정답은 단순 SQL 변경보다 운영 제어를 포함해야 한다.
+-- 1. 같은 대상 테이블 APPEND 적재를 동시에 수행하지 않도록 배치 순서를 분리한다.
+-- 2. 대상이 파티션 테이블이면 파티션 단위 적재/교환으로 경합을 줄인다.
+-- 3. 동시 DML이 필요한 테이블에는 APPEND/병렬 DML 적용 여부를 재검토한다.`,
+    rubric: ["APPEND가 Direct Path Insert를 유도할 수 있음을 설명해야 한다.", "커밋 전 같은 대상 테이블에 강한 TM Lock 경합이 생길 수 있음을 설명해야 한다.", "무조건 APPEND를 제거하는 것이 아니라 배치 동시성과 적재 방식을 함께 검토해야 한다."],
+    explanation: "Direct Path Insert는 대량 적재에는 유리하지만 일반 OLTP DML처럼 행 단위 동시성을 기대하면 안 된다. 같은 대상 테이블에 대해 커밋 전 APPEND/병렬 DML이 겹치면 TM Lock 경합이 발생할 수 있다.",
+    relatedConcepts: ["Direct Path Insert", "TM Lock", "Batch"],
+    hints: ["APPEND 힌트가 어떤 적재 방식을 유도하는지 봅니다.", "두 세션의 대상 테이블과 커밋 상태를 확인합니다.", "성능 힌트와 동시성 제약은 함께 판단해야 합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-10-local-prefixed-index-design",
+    title: "Local Prefixed 인덱스 설계",
+    topic: "Local Prefixed 인덱스 설계",
+    difficulty: "상급",
+    mode: "variant",
+    document: sqlExam,
+    page: 99,
+    answerPage: 135,
+    questionNumber: "객관식 78 변형",
+    verificationNote: "파티션 키 선두 컬럼 여부를 인덱스 설계형 실습으로 바꿨다.",
+    scenario: "거래 테이블은 거래일시 기준 월 파티션이다. 월별 거래 집계 배치에서 파티션 단위 유지보수와 거래일시 범위 스캔이 모두 중요하다.",
+    requirements: ["Local Prefixed 인덱스를 설계한다.", "거래일시가 선두가 되어야 하는 이유를 설명한다.", "거래일시가 후행인 Local Nonprefixed와 차이를 설명한다."],
+    schemaSql: `CREATE TABLE 거래월별 (
+  고객번호 VARCHAR2(10),
+  종목코드 VARCHAR2(20),
+  거래일시 DATE NOT NULL,
+  체결수량 NUMBER,
+  체결금액 NUMBER
+)
+PARTITION BY RANGE (거래일시) (
+  PARTITION p202601 VALUES LESS THAN (DATE '2026-02-01'),
+  PARTITION p202602 VALUES LESS THAN (DATE '2026-03-01'),
+  PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);`,
+    answerSql: `CREATE INDEX 거래월별_N1
+ON 거래월별(거래일시, 고객번호, 종목코드)
+LOCAL;`,
+    rubric: ["LOCAL 인덱스로 작성해야 한다.", "파티션 키 거래일시가 인덱스 선두여야 한다.", "후행 컬럼은 조회 조건과 정렬 필요에 맞춰 배치해야 한다."],
+    explanation: "Local Prefixed 인덱스는 테이블 파티션 키가 인덱스 선두에 있어야 한다. 거래일시 기준 파티션이면 거래일시를 첫 컬럼으로 둔 LOCAL 인덱스가 해당한다.",
+    relatedConcepts: ["Local Prefixed", "Partition Maintenance", "Index Design"],
+    hints: ["테이블 파티션 기준은 거래일시입니다.", "LOCAL만 붙였다고 Prefixed가 되지 않습니다.", "거래일시가 첫 번째 인덱스 컬럼인지 확인합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-11-history-row-number",
+    title: "기준일자 최신 고객이력 조회",
+    topic: "최신 이력 조회",
+    difficulty: "상급",
+    mode: "similar",
+    document: sqlExam,
+    page: 96,
+    answerPage: 134,
+    questionNumber: "객관식 69 실기화",
+    verificationNote: "고객변경이력 최신행 조회 문제를 SQL 작성형으로 재구성했다.",
+    scenario: "전체 고객에 대해 2010년 12월 4일 기준 최신 고객변경이력을 조회해야 한다. 고객별 변경순번은 변경이 발생할 때 증가한다.",
+    requirements: ["기준일자 이전 이력만 대상으로 한다.", "고객별 최신 변경순번 1건만 선택한다.", "전체 고객 대상 반복 상관 서브쿼리를 피한다."],
+    schemaSql: `CREATE TABLE 고객변경이력 (
+  고객ID VARCHAR2(20),
+  변경순번 NUMBER,
+  변경일자 VARCHAR2(8),
+  전화번호 VARCHAR2(20),
+  주소 VARCHAR2(200),
+  자녀수 NUMBER,
+  직업 VARCHAR2(50),
+  고객등급 VARCHAR2(10),
+  CONSTRAINT 고객변경이력_PK PRIMARY KEY (고객ID, 변경순번)
+);
+CREATE INDEX 고객변경이력_IX01 ON 고객변경이력(변경일자, 고객ID, 변경순번);`,
+    currentSql: `SELECT h.*
+FROM 고객변경이력 h
+WHERE h.변경순번 = (
+  SELECT MAX(x.변경순번)
+  FROM 고객변경이력 x
+  WHERE x.고객ID = h.고객ID
+    AND x.변경일자 <= '20101204'
+);`,
+    answerSql: `SELECT 고객ID, 변경순번, 전화번호, 주소, 자녀수, 직업, 고객등급
+FROM (
+  SELECT h.*,
+         ROW_NUMBER() OVER (
+           PARTITION BY 고객ID
+           ORDER BY 변경순번 DESC
+         ) AS rn
+  FROM 고객변경이력 h
+  WHERE h.변경일자 <= '20101204'
+)
+WHERE rn = 1;`,
+    rubric: ["기준일자 이전 조건을 먼저 적용해야 한다.", "고객ID별 최신 순번을 분석 함수로 골라야 한다.", "전체 고객 대상 반복 탐색 비용을 설명해야 한다."],
+    explanation: "기준일자 이전 이력을 한 번 모은 뒤 고객별로 변경순번 내림차순 ROW_NUMBER를 부여하면 최신 행을 선택할 수 있다. 전체 고객 대상 상관 서브쿼리 반복보다 집합 처리 관점에서 유리하다.",
+    relatedConcepts: ["ROW_NUMBER", "이력 조회", "SQL Rewrite"],
+    hints: ["최신이라는 말은 고객별 순위 계산과 연결됩니다.", "기준일자보다 미래인 이력은 먼저 제외합니다.", "PARTITION BY 고객ID가 핵심입니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-12-partition-pruning-date",
+    title: "파티션 프루닝 날짜 조건 수정",
+    topic: "Partition Pruning",
+    difficulty: "상급",
+    mode: "similar",
+    document: subject3Full,
+    page: 3,
+    questionNumber: "응용 실기 12",
+    verificationNote: "Partition Pruning 객관식 개념을 실기형으로 확장했다.",
+    scenario: "주문 테이블은 주문일자 기준 월 Range Partition이다. 월별 배치 SQL이 TO_CHAR 조건 때문에 모든 파티션을 읽고 있다.",
+    requirements: ["파티션 키 컬럼 변형을 제거한다.", "월 조건을 반열린 범위로 작성한다.", "실행계획에서 PARTITION RANGE ALL이 줄어드는 이유를 설명한다."],
+    schemaSql: `CREATE TABLE 주문파티션 (
+  주문번호 NUMBER,
+  주문일자 DATE NOT NULL,
+  고객번호 NUMBER,
+  주문금액 NUMBER
+)
+PARTITION BY RANGE (주문일자) (
+  PARTITION p202607 VALUES LESS THAN (DATE '2026-08-01'),
+  PARTITION p202608 VALUES LESS THAN (DATE '2026-09-01'),
+  PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);`,
+    currentSql: `SELECT SUM(주문금액)
+FROM 주문파티션
+WHERE TO_CHAR(주문일자, 'YYYYMM') = '202607';`,
+    executionPlan: `현재: PARTITION RANGE ALL + TABLE ACCESS FULL
+목표: PARTITION RANGE SINGLE 또는 RANGE ITERATOR`,
+    answerSql: `SELECT SUM(주문금액)
+FROM 주문파티션
+WHERE 주문일자 >= DATE '2026-07-01'
+  AND 주문일자 <  DATE '2026-08-01';`,
+    rubric: ["TO_CHAR 조건을 제거해야 한다.", "날짜 범위를 반열린 조건으로 작성해야 한다.", "파티션 프루닝 효과를 설명해야 한다."],
+    explanation: "파티션 키 주문일자를 함수로 감싸면 옵티마이저가 특정 파티션을 쉽게 제외하기 어렵다. 원본 컬럼을 범위 조건으로 비교하면 해당 월 파티션만 읽도록 유도할 수 있다.",
+    relatedConcepts: ["Partition Pruning", "Range Partition", "SARGable"],
+    hints: ["파티션 키가 함수 안에 들어가면 위험합니다.", "2026년 7월은 7월 1일 이상, 8월 1일 미만입니다.", "Pstart/Pstop이 줄어드는 실행계획을 목표로 합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-13-skip-scan",
+    title: "Index Skip Scan 적용 판단",
+    topic: "Index Skip Scan",
+    difficulty: "상급",
+    mode: "variant",
+    document: subject3Full,
+    page: 1,
+    questionNumber: "응용 실기 13",
+    verificationNote: "Index Skip Scan 선두 컬럼 NDV 조건을 실습형 판단 문제로 구성했다.",
+    scenario: "회원 테이블에 (성별, 생년월일) 인덱스가 있다. 성별은 M/F 두 값뿐이고 생년월일 조건 검색이 빈번하다. 별도 생년월일 단일 인덱스는 없다.",
+    requirements: ["Index Skip Scan이 후보가 될 수 있는 조건을 설명한다.", "선두 컬럼 NDV가 낮은 점이 왜 중요한지 설명한다.", "Skip Scan이 항상 최선은 아님을 보완 설명한다."],
+    schemaSql: `CREATE TABLE 회원 (
+  회원번호 NUMBER PRIMARY KEY,
+  성별 CHAR(1) NOT NULL,
+  생년월일 VARCHAR2(8) NOT NULL,
+  가입일자 DATE
+);
+CREATE INDEX 회원_IX01 ON 회원(성별, 생년월일);`,
+    currentSql: `SELECT 회원번호
+FROM 회원
+WHERE 생년월일 BETWEEN '19900101' AND '19991231';`,
+    answerSql: `-- 가능한 접근 방향
+-- 1. 기존 회원_IX01에 대해 INDEX SKIP SCAN 후보 검토
+-- 2. 생년월일 검색이 매우 빈번하고 선택도가 높다면 생년월일 선두 인덱스 추가 검토
+
+SELECT /*+ INDEX_SS(m 회원_IX01) */ 회원번호
+FROM 회원 m
+WHERE 생년월일 BETWEEN '19900101' AND '19991231';`,
+    rubric: ["선두 컬럼 성별의 Distinct 값이 낮아 Skip Scan 후보가 될 수 있음을 설명해야 한다.", "후행 컬럼 생년월일의 선택도가 중요함을 설명해야 한다.", "전용 인덱스 추가 여부는 사용 빈도와 DML 비용을 함께 판단해야 한다."],
+    explanation: "Index Skip Scan은 선두 컬럼 조건이 없어도 선두 컬럼 값 종류가 적고 후행 컬럼 선택도가 좋을 때 후보가 된다. 다만 반복 Skip 비용이 있으므로 전용 인덱스와 비교해야 한다.",
+    relatedConcepts: ["Index Skip Scan", "NDV", "선택도"],
+    hints: ["선두 컬럼 성별의 값 종류를 봅니다.", "생년월일 조건이 얼마나 선택적인지 봅니다.", "Skip Scan은 선두 컬럼 값별로 후행 범위를 탐색하는 방식입니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-14-hash-spill-trace",
+    title: "Hash Join Temp Spill Trace 분석",
+    topic: "Hash Join Spill",
+    difficulty: "최상급",
+    mode: "similar",
+    document: subject3Full,
+    page: 2,
+    questionNumber: "응용 실기 14",
+    verificationNote: "Hash Area 초과와 Grace Hash Join 개념을 Trace 분석형으로 구성했다.",
+    scenario: "대량 매출과 고객 세그먼트를 Hash Join하는 배치에서 Temp 사용량이 급증했다. Build Input으로 선택된 집합이 예상보다 커졌다.",
+    requirements: ["Hash Join에서 Build Input이 PGA를 초과하면 어떤 일이 생기는지 설명한다.", "Trace 수치에서 Temp Spill 의심 근거를 찾는다.", "Build Input 축소 또는 조인 순서 조정 방안을 제시한다."],
+    schemaSql: `CREATE TABLE 고객세그먼트 (
+  고객번호 NUMBER,
+  세그먼트코드 VARCHAR2(10),
+  기준월 VARCHAR2(6)
+);
+CREATE TABLE 월매출 (
+  고객번호 NUMBER,
+  매출월 VARCHAR2(6),
+  매출금액 NUMBER
+);`,
+    executionPlan: `교육용 실행계획
+Id | Operation             | Name        | Rows  | TempSpc
+0  | SELECT STATEMENT      |             | 900K  |
+1  |  HASH GROUP BY        |             | 900K  | 1200M
+2  |   HASH JOIN           |             | 12M   | 1800M
+3  |    TABLE ACCESS FULL  | 고객세그먼트 | 8M   |
+4  |    TABLE ACCESS FULL  | 월매출      | 60M   |`,
+    traceSummary: {
+      title: "교육용 Trace 핵심 요약",
+      headers: ["항목", "값", "의미"],
+      rows: [
+        ["Rows", "900,000", "최종 집계 그룹"],
+        ["CR", "1,240,000", "대량 스캔 논리 읽기"],
+        ["PR", "94,000", "Temp/테이블 물리 읽기"],
+        ["Temp", "1,800MB", "Hash Area 초과로 디스크 분할"]
+      ]
+    },
+    answerSql: `-- 튜닝 방향 예시
+WITH 대상고객 AS (
+  SELECT 고객번호, 세그먼트코드
+  FROM 고객세그먼트
+  WHERE 기준월 = '202607'
+    AND 세그먼트코드 IN ('A','B')
+)
+SELECT /*+ LEADING(s m) USE_HASH(m) */
+       s.세그먼트코드, SUM(m.매출금액)
+FROM 대상고객 s
+JOIN 월매출 m ON m.고객번호 = s.고객번호
+WHERE m.매출월 = '202607'
+GROUP BY s.세그먼트코드;`,
+    rubric: ["Build Input이 과대해 Temp Spill이 발생할 수 있음을 설명해야 한다.", "선필터링으로 Build Input을 줄이는 방안을 제시해야 한다.", "메모리 증설만이 아니라 SQL 구조와 통계정보도 검토해야 한다."],
+    explanation: "Hash Join Build Input이 PGA Hash Area를 초과하면 디스크 Temp Segment로 분할되는 Grace Hash Join 형태가 되어 PR과 Temp 사용량이 증가한다. 작은 집합을 먼저 만들고 조인하는 구조가 중요하다.",
+    relatedConcepts: ["Hash Join", "PGA", "Temp Spill"],
+    hints: ["실행계획의 TempSpc와 Trace의 Temp 사용량을 봅니다.", "Build Input 후보가 너무 큰지 확인합니다.", "필터링을 조인 전에 적용할 수 있는지 봅니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-15-scalar-cache-miss",
+    title: "스칼라 서브쿼리 캐시 미스 분석",
+    topic: "Scalar Subquery Caching",
+    difficulty: "상급",
+    mode: "variant",
+    document: subject3Full,
+    page: 3,
+    questionNumber: "응용 실기 15",
+    verificationNote: "스칼라 서브쿼리 캐시의 입력값 NDV 함정을 실습형으로 구성했다.",
+    scenario: "주문 200만 건을 조회하면서 SELECT 절에서 고객번호별 포인트 합계를 스칼라 서브쿼리로 계산한다. 고객번호 Distinct가 180만 개라 캐시 적중률이 낮다.",
+    requirements: ["스칼라 서브쿼리 캐싱이 잘 듣지 않는 이유를 설명한다.", "고객별 포인트를 사전 집계 후 조인하도록 재작성한다.", "Starts와 CR이 높은 원인을 설명한다."],
+    schemaSql: `CREATE TABLE 주문조회 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER,
+  주문일자 DATE
+);
+CREATE TABLE 포인트적립 (
+  고객번호 NUMBER,
+  적립일자 DATE,
+  적립포인트 NUMBER
+);`,
+    currentSql: `SELECT o.주문번호,
+       o.고객번호,
+       (SELECT SUM(p.적립포인트)
+        FROM 포인트적립 p
+        WHERE p.고객번호 = o.고객번호) AS 누적포인트
+FROM 주문조회 o
+WHERE o.주문일자 >= DATE '2026-07-01';`,
+    executionPlan: `교육용 현재 실행계획
+Id | Operation                    | Starts  | Rows
+0  | SELECT STATEMENT             |       1 | 2000K
+1  |  TABLE ACCESS FULL 주문조회  |       1 | 2000K
+2  |  SORT AGGREGATE              | 2000000 |     1
+3  |   TABLE ACCESS FULL 포인트적립| 2000000 |    10`,
+    answerSql: `WITH 포인트집계 AS (
+  SELECT 고객번호, SUM(적립포인트) AS 누적포인트
+  FROM 포인트적립
+  GROUP BY 고객번호
+)
+SELECT o.주문번호, o.고객번호, NVL(p.누적포인트, 0) AS 누적포인트
+FROM 주문조회 o
+LEFT JOIN 포인트집계 p ON p.고객번호 = o.고객번호
+WHERE o.주문일자 >= DATE '2026-07-01';`,
+    rubric: ["입력값 고객번호 NDV가 커서 캐시 적중률이 낮음을 설명해야 한다.", "포인트를 고객번호별로 먼저 집계해야 한다.", "LEFT JOIN으로 주문 보존 의미를 유지해야 한다."],
+    explanation: "스칼라 서브쿼리 캐시는 입력값 종류가 적을 때 효과가 크다. 고객번호 Distinct가 매우 크면 캐시 미스와 반복 수행이 많아져 사전 집계 후 조인이 더 안정적일 수 있다.",
+    relatedConcepts: ["Scalar Subquery Caching", "NDV", "SQL Rewrite"],
+    hints: ["스칼라 서브쿼리의 입력값이 무엇인지 봅니다.", "Distinct 고객 수가 매우 많으면 캐시가 잘 맞지 않습니다.", "고객별 집계를 먼저 만들 수 있습니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-16-foreign-key-lock",
+    title: "외래키 인덱스 누락 Lock 분석",
+    topic: "외래키 Lock",
+    difficulty: "상급",
+    mode: "similar",
+    document: sqlExam,
+    page: 97,
+    questionNumber: "응용 실기 16",
+    verificationNote: "부모 삭제와 자식 외래키 인덱스 누락에 따른 Lock 경합 유형을 구성했다.",
+    scenario: "상품 마스터 삭제 배치 중 주문상품 입력 트랜잭션이 대기한다. 주문상품.상품코드는 상품.상품코드를 참조하지만 주문상품.상품코드 인덱스가 없다.",
+    requirements: ["대기 원인을 참조 무결성 검증과 Lock 관점에서 설명한다.", "필요한 인덱스를 제안한다.", "제약조건 삭제가 아닌 튜닝 방향을 제시한다."],
+    schemaSql: `CREATE TABLE 상품 (
+  상품코드 VARCHAR2(20) PRIMARY KEY,
+  상품명 VARCHAR2(100)
+);
+CREATE TABLE 주문상품 (
+  주문번호 NUMBER,
+  상품코드 VARCHAR2(20),
+  수량 NUMBER,
+  CONSTRAINT 주문상품_FK01 FOREIGN KEY (상품코드) REFERENCES 상품(상품코드)
+);`,
+    executionPlan: `교육용 관찰 정보
+Session 1: DELETE FROM 상품 WHERE 상품코드 = :p
+Session 2: INSERT INTO 주문상품 VALUES (:o, :p, :q)
+대기 이벤트: enq: TM - contention`,
+    answerSql: `CREATE INDEX 주문상품_IX01 ON 주문상품(상품코드);`,
+    rubric: ["자식 외래키 인덱스 누락을 원인으로 지적해야 한다.", "부모 삭제/변경 시 자식 존재 여부 검증을 설명해야 한다.", "무결성 유지와 인덱스 비용을 함께 설명해야 한다."],
+    explanation: "외래키 컬럼에는 자동으로 인덱스가 생성되지 않는다. 부모 키 삭제/변경 시 자식 테이블 확인 범위가 커져 TM Lock 경합이 발생할 수 있으므로 자식 외래키 인덱스를 검토해야 한다.",
+    relatedConcepts: ["Foreign Key", "TM Lock", "동시성"],
+    hints: ["부모 행 삭제가 자식 존재 여부 확인을 요구합니다.", "자식 외래키 컬럼에 인덱스가 있는지 봅니다.", "제약조건 삭제보다 인덱스 설계가 우선입니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-17-or-expansion",
+    title: "OR 조건 분리와 UNION ALL",
+    topic: "OR Expansion",
+    difficulty: "상급",
+    mode: "similar",
+    document: subject3Full,
+    page: 6,
+    questionNumber: "응용 실기 17",
+    verificationNote: "OR 조건으로 인덱스 활용이 어려운 SQL을 UNION ALL로 분리하는 유형을 반영했다.",
+    scenario: "조회 화면에서 주문번호 또는 고객번호 중 하나가 입력된다. 현재 SQL은 OR 조건 때문에 두 인덱스 중 어느 것도 효율적으로 사용하지 못한다.",
+    requirements: ["주문번호 입력 분기와 고객번호 입력 분기를 분리한다.", "각 분기에서 해당 선두 컬럼 인덱스를 사용할 수 있게 한다.", "두 분기가 중복 반환되지 않도록 조건을 둔다."],
+    schemaSql: `CREATE TABLE 주문검색2 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER,
+  주문일자 DATE,
+  주문상태 VARCHAR2(10)
+);
+CREATE INDEX 주문검색2_IX01 ON 주문검색2(고객번호, 주문일자);`,
+    currentSql: `SELECT 주문번호, 고객번호, 주문일자
+FROM 주문검색2
+WHERE (:order_no IS NOT NULL AND 주문번호 = :order_no)
+   OR (:cust_no IS NOT NULL AND 고객번호 = :cust_no);`,
+    answerSql: `SELECT 주문번호, 고객번호, 주문일자
+FROM 주문검색2
+WHERE :order_no IS NOT NULL
+  AND 주문번호 = :order_no
+UNION ALL
+SELECT 주문번호, 고객번호, 주문일자
+FROM 주문검색2
+WHERE :order_no IS NULL
+  AND :cust_no IS NOT NULL
+  AND 고객번호 = :cust_no;`,
+    rubric: ["OR 조건을 배타적인 UNION ALL 분기로 나눠야 한다.", "주문번호와 고객번호 각각의 인덱스 시작점을 살려야 한다.", "분기 간 중복 가능성을 제거해야 한다."],
+    explanation: "OR 조건은 서로 다른 인덱스 조건을 한 실행 경로에 묶어 인덱스 활용을 어렵게 만들 수 있다. UNION ALL로 분리하면 각 분기에서 가장 적합한 인덱스를 사용할 수 있다.",
+    relatedConcepts: ["USE_CONCAT", "OR Expansion", "Index Access"],
+    hints: ["두 검색 조건은 서로 다른 선두 컬럼을 사용합니다.", "분기별로 하나의 명확한 시작 조건을 만들어야 합니다.", "UNION ALL은 중복 제거 정렬이 없으므로 배타 조건이 필요합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-18-merge-source-unique",
+    title: "MERGE 소스 유일성 보장",
+    topic: "MERGE 소스 중복",
+    difficulty: "상급",
+    mode: "variant",
+    document: subject3Full,
+    page: 5,
+    questionNumber: "응용 실기 18",
+    verificationNote: "대량 DML과 MERGE 소스 중복 함정을 실습형으로 구성했다.",
+    scenario: "일별고객매출 요약 테이블에 주문 원천을 MERGE한다. 같은 고객의 주문이 하루에 여러 건 있어 대상 한 행을 여러 번 갱신하려는 문제가 발생한다.",
+    requirements: ["MERGE USING 소스를 대상 키 기준으로 유일하게 만든다.", "기존 행은 UPDATE, 없는 행은 INSERT한다.", "원천 중복이 왜 오류나 중복 갱신 문제를 만드는지 설명한다."],
+    schemaSql: `CREATE TABLE 주문원천 (
+  주문번호 NUMBER PRIMARY KEY,
+  매출일자 VARCHAR2(8),
+  고객번호 NUMBER,
+  주문금액 NUMBER
+);
+CREATE TABLE 일별고객매출 (
+  매출일자 VARCHAR2(8),
+  고객번호 NUMBER,
+  매출금액 NUMBER,
+  CONSTRAINT 일별고객매출_PK PRIMARY KEY (매출일자, 고객번호)
+);`,
+    currentSql: `MERGE INTO 일별고객매출 t
+USING 주문원천 s
+ON (t.매출일자 = s.매출일자 AND t.고객번호 = s.고객번호)
+WHEN MATCHED THEN UPDATE SET t.매출금액 = t.매출금액 + s.주문금액
+WHEN NOT MATCHED THEN INSERT VALUES (s.매출일자, s.고객번호, s.주문금액);`,
+    answerSql: `MERGE INTO 일별고객매출 t
+USING (
+  SELECT 매출일자, 고객번호, SUM(주문금액) AS 주문금액
+  FROM 주문원천
+  GROUP BY 매출일자, 고객번호
+) s
+ON (t.매출일자 = s.매출일자 AND t.고객번호 = s.고객번호)
+WHEN MATCHED THEN UPDATE SET t.매출금액 = t.매출금액 + s.주문금액
+WHEN NOT MATCHED THEN INSERT (매출일자, 고객번호, 매출금액)
+VALUES (s.매출일자, s.고객번호, s.주문금액);`,
+    rubric: ["USING 소스를 매출일자, 고객번호 기준으로 집계해야 한다.", "대상 PK와 ON 조건이 일치해야 한다.", "동일 대상 행 다중 갱신 가능성을 설명해야 한다."],
+    explanation: "MERGE의 ON 조건 기준으로 소스가 중복되면 같은 대상 행을 여러 번 갱신하려는 문제가 생긴다. 대상 키 기준으로 소스를 먼저 집계해 유일성을 보장해야 한다.",
+    relatedConcepts: ["MERGE", "DML", "GROUP BY"],
+    hints: ["ON 조건이 대상의 어떤 키와 대응되는지 봅니다.", "주문 원천은 같은 고객 하루 여러 건일 수 있습니다.", "USING 절에서 한 키 한 행으로 만들어야 합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-19-leading-hints",
+    title: "조인 순서와 방식 힌트 작성",
+    topic: "Optimizer Hint",
+    difficulty: "상급",
+    mode: "similar",
+    document: subject3Full,
+    page: 4,
+    questionNumber: "응용 실기 19",
+    verificationNote: "LEADING, USE_NL, USE_HASH 힌트 조합 문제를 실습형으로 구성했다.",
+    scenario: "소량의 행사대상 고객을 먼저 읽고 고객-주문은 NL Join, 주문-배송집계는 Hash Join으로 처리해야 한다. 옵티마이저가 배송집계를 먼저 읽어 비효율이 발생한다.",
+    requirements: ["행사대상 -> 고객 -> 주문 -> 배송집계 순서로 조인 순서를 유도한다.", "고객-주문은 NL Join, 주문-배송집계는 Hash Join으로 유도한다.", "힌트 대상 테이블 별칭을 정확히 사용한다."],
+    schemaSql: `CREATE TABLE 행사대상 (고객번호 NUMBER PRIMARY KEY);
+CREATE TABLE 고객 (고객번호 NUMBER PRIMARY KEY, 고객명 VARCHAR2(100));
+CREATE TABLE 주문 (주문번호 NUMBER PRIMARY KEY, 고객번호 NUMBER, 주문일자 DATE);
+CREATE TABLE 배송집계 (주문번호 NUMBER PRIMARY KEY, 배송건수 NUMBER);`,
+    currentSql: `SELECT c.고객번호, c.고객명, COUNT(o.주문번호), SUM(d.배송건수)
+FROM 행사대상 e, 고객 c, 주문 o, 배송집계 d
+WHERE e.고객번호 = c.고객번호
+  AND c.고객번호 = o.고객번호
+  AND o.주문번호 = d.주문번호
+GROUP BY c.고객번호, c.고객명;`,
+    answerSql: `SELECT /*+ LEADING(e c o d) USE_NL(c o) USE_HASH(d) */
+       c.고객번호, c.고객명, COUNT(o.주문번호), SUM(d.배송건수)
+FROM 행사대상 e
+JOIN 고객 c ON c.고객번호 = e.고객번호
+JOIN 주문 o ON o.고객번호 = c.고객번호
+JOIN 배송집계 d ON d.주문번호 = o.주문번호
+GROUP BY c.고객번호, c.고객명;`,
+    rubric: ["LEADING 힌트로 순서를 명시해야 한다.", "USE_NL 대상과 USE_HASH 대상을 구분해야 한다.", "힌트 별칭이 SQL의 별칭과 일치해야 한다."],
+    explanation: "LEADING은 조인 순서를, USE_NL/USE_HASH는 각 테이블이 조인될 때의 방식을 유도한다. 힌트는 테이블명이 아니라 SQL에서 사용한 별칭 기준으로 정확히 작성해야 한다.",
+    relatedConcepts: ["LEADING", "USE_NL", "USE_HASH"],
+    hints: ["먼저 읽을 작은 집합은 행사대상입니다.", "힌트 대상은 별칭입니다.", "조인 순서 힌트와 조인 방식 힌트를 함께 써야 합니다."]
+  }),
+  subject3Lab({
+    id: "subject3-lab-20-trace-predicate-access",
+    title: "Trace와 Predicate로 병목 원인 찾기",
+    topic: "SQL Trace와 Predicate",
+    difficulty: "최상급",
+    mode: "similar",
+    document: subject3Full,
+    page: 5,
+    questionNumber: "응용 실기 20",
+    verificationNote: "Rows, Starts, CR, Access/Filter Predicate를 함께 읽는 종합 실기 유형을 구성했다.",
+    scenario: "최근 주문 100건 조회 화면의 최종 Rows는 100건인데 CR이 180,000으로 높다. 실행계획을 보면 인덱스는 주문일자만 Access로 사용하고 고객등급과 주문상태는 Filter로 처리한다.",
+    requirements: ["Rows 대비 CR이 높은 원인을 설명한다.", "Access Predicate와 Filter Predicate를 구분한다.", "결합 인덱스 개선안을 제시하고 기대 실행계획을 설명한다."],
+    schemaSql: `CREATE TABLE 주문상세조회 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객등급 VARCHAR2(10),
+  주문상태 VARCHAR2(10),
+  주문일자 DATE,
+  주문금액 NUMBER
+);
+CREATE INDEX 주문상세조회_IX01 ON 주문상세조회(주문일자);`,
+    executionPlan: `교육용 현재 실행계획
+Id | Operation                    | Name             | Starts | Rows | CR
+0  | SELECT STATEMENT             |                  |      1 |  100 |
+1  |  COUNT STOPKEY               |                  |      1 |  100 |
+2  |   TABLE ACCESS BY INDEX ROWID| 주문상세조회     |      1 | 8500 | 180000
+3  |    INDEX RANGE SCAN          | 주문상세조회_IX01|      1 | 8500 |   2600
+Predicate Information
+3 - access("주문일자">=:from_dt)
+2 - filter("고객등급"='VIP' AND "주문상태"='완료')`,
+    traceSummary: {
+      title: "교육용 Trace 핵심 요약",
+      headers: ["항목", "값", "의미"],
+      rows: [
+        ["Rows", "100", "최종 반환"],
+        ["Index Rows", "8,500", "인덱스에서 읽은 후보"],
+        ["CR", "180,000", "테이블 랜덤 액세스 증가"],
+        ["PR", "620", "물리 읽기"]
+      ]
+    },
+    answerSql: `CREATE INDEX 주문상세조회_IX02
+ON 주문상세조회(고객등급, 주문상태, 주문일자 DESC);
+
+SELECT *
+FROM (
+  SELECT /*+ INDEX_DESC(o 주문상세조회_IX02) */
+         주문번호, 고객등급, 주문상태, 주문일자, 주문금액
+  FROM 주문상세조회 o
+  WHERE 고객등급 = 'VIP'
+    AND 주문상태 = '완료'
+    AND 주문일자 >= :from_dt
+  ORDER BY 주문일자 DESC
+)
+WHERE ROWNUM <= 100;`,
+    rubric: ["주문일자만 Access이고 고객등급/상태가 Filter인 점을 지적해야 한다.", "등치 조건 컬럼을 인덱스 선두에 두는 개선안을 제시해야 한다.", "Top-N 정렬과 Stopkey 처리까지 설명해야 한다."],
+    explanation: "최종 Rows가 작아도 인덱스에서 넓은 후보를 읽고 테이블 방문 후 필터링하면 CR이 커진다. 고객등급, 주문상태 등치 조건을 선두로 두고 주문일자 DESC를 뒤에 두면 Access Predicate 범위를 좁히고 최근 100건 부분범위 처리를 기대할 수 있다.",
+    relatedConcepts: ["Access Predicate", "Filter Predicate", "Top-N"],
+    hints: ["인덱스 행 수와 최종 Rows 차이를 봅니다.", "Filter Predicate로 밀린 조건이 무엇인지 확인합니다.", "등치 조건 뒤 정렬 컬럼 순서가 Top-N에 유리합니다."]
+  })
 ];
 
 export const pdfReviewItems: PdfReviewItem[] = [...pdfReviewQuestions, ...pdfReviewLabs];
