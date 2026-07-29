@@ -5,6 +5,10 @@ import {
   type PdfReviewMode,
   type PdfReviewQuestion
 } from "@/lib/pdf-review-bank";
+import {
+  pdfExtractedLabQuestions,
+  pdfExtractedObjectiveQuestions
+} from "@/lib/pdf-extracted-original-bank";
 import type {
   Choice,
   ChoiceId,
@@ -1601,12 +1605,85 @@ const verifiedObjectiveSeedQuestions: ObjectiveQuestion[] = [
   ...buildSubjectBank("sql-basic"),
   ...buildSubjectBank("tuning")
 ];
+
+function objectiveSignature(question: ObjectiveQuestion) {
+  return [
+    question.subjectId,
+    question.stem,
+    question.passage ?? "",
+    question.code ?? "",
+    question.table ? JSON.stringify(question.table) : "",
+    question.choices.map((choice) => choice.text).join("|")
+  ]
+    .join("::")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function labSignature(lab: LabQuestion) {
+  return [lab.title, lab.prompt, lab.expectedSql]
+    .join("::")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function dedupeObjectiveQuestions(questions: ObjectiveQuestion[]) {
+  const seen = new Set<string>();
+  return questions.filter((question) => {
+    const signature = objectiveSignature(question);
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}
+
+function dedupeLabQuestions(labs: LabQuestion[]) {
+  const seen = new Set<string>();
+  return labs.filter((lab) => {
+    const signature = labSignature(lab);
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}
+
+function renumberObjectiveQuestions(questions: ObjectiveQuestion[]) {
+  const nextNumber: Record<SubjectId, number> = {
+    modeling: 0,
+    "sql-basic": 0,
+    tuning: 0
+  };
+  return questions.map((question) => ({
+    ...question,
+    number: (nextNumber[question.subjectId] += 1)
+  }));
+}
+
+function renumberLabQuestions(labs: LabQuestion[]) {
+  return labs.map((lab, index) => ({
+    ...lab,
+    number: index + 1
+  }));
+}
+
 export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
-  ...verifiedObjectiveSeedQuestions
+  ...renumberObjectiveQuestions(
+    dedupeObjectiveQuestions([
+      ...verifiedObjectiveSeedQuestions,
+      ...pdfExtractedObjectiveQuestions
+    ])
+  )
 ];
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
+export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(
+  dedupeLabQuestions([
+    ...convertedReviewLabs,
+    ...pdfExtractedLabQuestions
+  ])
+);
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   throw new Error(`No verified PDF expansion question is available for ${subjectId}:${count}`);
@@ -1640,6 +1717,15 @@ const bannedUserVisiblePatterns = [
   /추출 상태/,
   /PDF 원문 문항/,
   /유사형 문항/,
+  /타RD/,
+  /집힙/,
+  /SELK/,
+  /FRO M/,
+  /W H E R E/,
+  /SQ L/,
+  /IN況/,
+  /凶/,
+  /쏜벋/,
   /\[[^\]]+\.pdf\s+p\./i,
   /\.pdf/
 ];
