@@ -305,14 +305,8 @@ export default function Home() {
   const wrongMemoTimers = useRef<Record<string, number>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const activeExtraQuestions = useMemo(
-    () => extraQuestions.filter(isPublishedObjectiveQuestion),
-    [extraQuestions]
-  );
-  const activeExtraLabQuestions = useMemo(
-    () => extraLabQuestions.filter(isPublishedLabQuestion),
-    [extraLabQuestions]
-  );
+  const activeExtraQuestions = useMemo<ObjectiveQuestion[]>(() => [], [extraQuestions]);
+  const activeExtraLabQuestions = useMemo<LabQuestion[]>(() => [], [extraLabQuestions]);
   const allQuestions = useMemo(() => [...objectiveQuestions, ...activeExtraQuestions], [activeExtraQuestions]);
   const allLabQuestions = useMemo(() => [...labQuestions, ...activeExtraLabQuestions], [activeExtraLabQuestions]);
   const currentAnswers = useMemo(() => filterCurrentAnswers(answers, allQuestions), [answers, allQuestions]);
@@ -1195,6 +1189,44 @@ export default function Home() {
                     {day.day}
                   </span>
                 ))}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {section === "practice" && !currentQuestion && (
+          <div className="practice-layout">
+            <section className="subject-panel">
+              {subjects.map((subject) => (
+                <button
+                  key={subject.id}
+                  className={subject.id === activeSubject ? "subject-tab active" : "subject-tab"}
+                  onClick={() => setActiveSubject(subject.id)}
+                >
+                  {subject.name}
+                </button>
+              ))}
+              <button className="subject-tab lab-entry" onClick={() => setSection("lab")}>
+                <span>실기</span>
+                <strong>실행계획 · Trace · SQL Rewrite</strong>
+              </button>
+            </section>
+
+            <section className="question-panel">
+              <div className="question-meta">
+                <span>{subjects.find((subject) => subject.id === activeSubject)?.name ?? "문제풀이"}</span>
+                <span>PDF 원문 대조 중</span>
+                <span>비공개</span>
+              </div>
+              <h2>검수되지 않은 문제는 지금 표시하지 않습니다</h2>
+              <p className="lead">
+                기존 1~10번 임시 문항도 공개 풀에서 내렸습니다. 이제 PDF 원문과 정답·해설을 문항 단위로 대조해서 깨짐 없는 문제만 다시 올릴게요.
+              </p>
+              <div className="prompt-box">
+                <strong>다음 공개 기준</strong>
+                <p>
+                  ORIGINAL은 PDF 원문과 선택지·정답·해설이 정확히 일치해야 하고, VARIANT/SIMILAR는 원본의 핵심 개념과 함정을 유지하면서도 조건과 풀이 과정이 실질적으로 달라야 합니다. 이 기준을 통과하지 않은 문제는 사용자 화면에 노출하지 않습니다.
+                </p>
               </div>
             </section>
           </div>

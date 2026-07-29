@@ -60,26 +60,25 @@ function questionSignature(question: ObjectiveQuestion) {
 }
 
 describe("SQLMate verified production problem bank", () => {
-  it("publishes only the page-reviewed objective questions per subject until the next PDF QA batch is approved", () => {
-    expect(objectiveQuestions).toHaveLength(30);
+  it("does not publish the temporary seed objective questions before PDF line-by-line verification", () => {
+    expect(objectiveQuestions).toHaveLength(0);
     for (const subject of subjects) {
-      expect(bySubject(subject.id)).toHaveLength(10);
-      expect(bySubject(subject.id).map((question) => question.number)).toEqual(Array.from({ length: 10 }, (_, index) => index + 1));
+      expect(bySubject(subject.id)).toHaveLength(0);
     }
   });
 
-  it("keeps the approved PDF review seed distribution without counting template-generated 11-100 questions as published", () => {
+  it("keeps the production summary blocked until a new PDF verified bank is published", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBe(30);
+    expect(summary.objectiveTotal).toBe(0);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
-      expect(subjectSummary.total).toBe(10);
-      expect(subjectSummary.original).toBe(5);
-      expect(subjectSummary.variant).toBe(3);
-      expect(subjectSummary.similar).toBe(2);
-      expect(subjectSummary.topics).toBeGreaterThanOrEqual(9);
-      expect(subjectSummary.types).toBeGreaterThanOrEqual(1);
+      expect(subjectSummary.total).toBe(0);
+      expect(subjectSummary.original).toBe(0);
+      expect(subjectSummary.variant).toBe(0);
+      expect(subjectSummary.similar).toBe(0);
+      expect(subjectSummary.topics).toBe(0);
+      expect(subjectSummary.types).toBe(0);
     }
   });
 
@@ -148,30 +147,17 @@ describe("SQLMate verified production problem bank", () => {
     expect(findLikelyDuplicateQuestions()).toEqual([]);
   });
 
-  it("includes exam-style materials across SQL, model, plan, and Trace questions", () => {
+  it("does not expose exam materials from temporary seed questions", () => {
     const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
     const withCode = objectiveQuestions.filter((question) => question.code);
 
-    expect(withMaterial.length).toBeGreaterThanOrEqual(5);
-    expect(withCode.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
+    expect(withMaterial).toHaveLength(0);
+    expect(withCode).toHaveLength(0);
+    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBe(0);
   });
 
-  it("publishes the five page-reviewed SQL Practice cases from the preview-style set", () => {
-    expect(labQuestions).toHaveLength(5);
-    expect(new Set(labQuestions.map((lab) => lab.title)).size).toBe(5);
-    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
-    expect(new Set(labQuestions.map((lab) => lab.schemaSql)).size).toBe(5);
-    expect(new Set(labQuestions.map((lab) => lab.expectedSql)).size).toBe(5);
-
-    for (const lab of labQuestions) {
-      expect(lab.traceStats).toContain("Rows");
-      expect(lab.traceStats).toContain("Loop");
-      expect(lab.predicateInfo).toContain("Predicate Information");
-      expect(lab.targetPlanExplanations?.length).toBe(lab.targetPlan.length);
-      expect(lab.traceSummary?.map((row) => row.metric)).toEqual(expect.arrayContaining(["Rows", "Loop/Starts", "PR", "CR", "Time"]));
-      expect(lab.simulationNotice).toContain("실제 Oracle 실행 결과로 표시하지 않는다");
-    }
+  it("does not publish temporary SQL Practice cases before PDF line-by-line verification", () => {
+    expect(labQuestions).toHaveLength(0);
   });
 
   it("does not publish unverified objective expansion batches from templates", () => {
@@ -187,16 +173,8 @@ describe("SQLMate verified production problem bank", () => {
     expect(batch).toHaveLength(0);
   });
 
-  it("keeps single-question fallback limited to verified PDF material", () => {
-    const objective = createLocalExtraQuestion("tuning", 0);
-    expect(objective.number).toBe(11);
-    expect(objective.choices).toHaveLength(4);
-    expect(objective.answer).toMatch(/[ABCD]/);
-    expect(objective.reviewStatus).toBe("approved");
-
-    const lab = createLocalExtraLabQuestion(0);
-    expect(lab.number).toBe(6);
-    expect(lab.expectedSql.length).toBeGreaterThan(50);
-    expect(lab.reviewStatus).toBe("approved");
+  it("blocks single-question fallback APIs until verified PDF material is republished", () => {
+    expect(() => createLocalExtraQuestion("tuning", 0)).toThrow();
+    expect(() => createLocalExtraLabQuestion(0)).toThrow();
   });
 });

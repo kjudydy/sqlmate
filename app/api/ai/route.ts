@@ -76,11 +76,23 @@ export async function POST(request: Request) {
   }
 
   const { subjectId, count } = parsed.data;
-  const fallback = createLocalExtraQuestion(subjectId, count);
+  let fallback: ObjectiveQuestion | null = null;
+  try {
+    fallback = createLocalExtraQuestion(subjectId, count);
+  } catch {
+    fallback = null;
+  }
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL;
 
   if (!apiKey || !model) {
+    if (!fallback) {
+      return NextResponse.json(
+        { error: "PDF 원문 대조 검수 전에는 추가 문항 생성을 제공하지 않습니다.", mode: "blocked" },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json({
       question: fallback,
       mode: "local",
@@ -104,11 +116,24 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
+      if (!fallback) {
+        return NextResponse.json(
+          { error: "PDF 원문 대조 검수 전에는 fallback 문항을 제공하지 않습니다.", mode: "blocked" },
+          { status: 503 }
+        );
+      }
       return NextResponse.json({ question: fallback, mode: "local", message: "AI 생성 실패로 로컬 문항을 반환했습니다." });
     }
 
     const text = extractOutputText(await response.json());
     const generated = normalizeGeneratedQuestion(parseJsonObject(text) ?? {}, subjectId, count);
+
+    if (!generated && !fallback) {
+      return NextResponse.json(
+        { error: "AI 응답 검증 실패이며 PDF 원문 대조 검수 전에는 fallback 문항을 제공하지 않습니다.", mode: "blocked" },
+        { status: 503 }
+      );
+    }
 
     return NextResponse.json({
       question: generated ?? fallback,
@@ -116,6 +141,13 @@ export async function POST(request: Request) {
       message: generated ? "AI 추가 문항을 생성했습니다." : "AI 응답 검증 실패로 로컬 문항을 반환했습니다."
     });
   } catch {
+    if (!fallback) {
+      return NextResponse.json(
+        { error: "PDF 원문 대조 검수 전에는 fallback 문항을 제공하지 않습니다.", mode: "blocked" },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json({
       question: fallback,
       mode: "local",

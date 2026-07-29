@@ -766,14 +766,15 @@ order by amt desc`;
   };
 }
 
-export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
+const verifiedObjectiveSeedQuestions: ObjectiveQuestion[] = [
   ...buildSubjectBank("modeling"),
   ...buildSubjectBank("sql-basic"),
   ...buildSubjectBank("tuning")
 ];
+export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [];
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
+export const verifiedLabQuestions: LabQuestion[] = [];
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   const pool = verifiedObjectiveQuestions.filter((question) => question.subjectId === subjectId);
