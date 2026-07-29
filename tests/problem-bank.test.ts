@@ -61,16 +61,16 @@ function questionSignature(question: ObjectiveQuestion) {
 
 describe("SQLMate verified production problem bank", () => {
   it("publishes the PDF-verified infinite starter objective bank", () => {
-    expect(objectiveQuestions.length).toBeGreaterThanOrEqual(80);
-    expect(bySubject("modeling").length).toBeGreaterThanOrEqual(20);
-    expect(bySubject("sql-basic").length).toBeGreaterThanOrEqual(20);
-    expect(bySubject("tuning").length).toBeGreaterThanOrEqual(35);
+    expect(objectiveQuestions.length).toBeGreaterThanOrEqual(50);
+    expect(bySubject("modeling").length).toBeGreaterThanOrEqual(15);
+    expect(bySubject("sql-basic").length).toBeGreaterThanOrEqual(10);
+    expect(bySubject("tuning").length).toBeGreaterThanOrEqual(18);
   });
 
   it("summarizes original, variant, and similar questions for each subject", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBeGreaterThanOrEqual(80);
+    expect(summary.objectiveTotal).toBeGreaterThanOrEqual(50);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
       expect(subjectSummary.total).toBe(bySubject(subject.id).length);
@@ -93,7 +93,23 @@ describe("SQLMate verified production problem bank", () => {
       "문항 키",
       "추출 상태",
       "PDF 원문 문항",
-      "유사형 문항"
+      "유사형 문항",
+      "묘의 상태",
+      "테아블"
+    ];
+    const forbiddenPatterns = [
+      /[公分往幻務]/,
+      /I八|八\)|八3/,
+      /\bF\s+R\s+O\s+M\b/i,
+      /\bFR\s+O\s+M\b/i,
+      /\bU\s+N\s*I\s*O\s+N\b/i,
+      /\bSELEC\s+T\b/i,
+      /\bPROM\s+TBL\b/i,
+      /\bN\s+U\s+LL\b/i,
+      /\bV\s+A\s+R\s*CH\s*A?\s*R?2?\b/i,
+      /부적\s+절|부\s*적\s*절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델/,
+      /SESSIONJ?D|LOCKJ?D|PRODJ?D|STADIUMJ?D/i,
+      /31正3/
     ];
 
     for (const question of objectiveQuestions) {
@@ -101,8 +117,45 @@ describe("SQLMate verified production problem bank", () => {
       for (const pattern of forbidden) {
         expect(text).not.toContain(pattern);
       }
+      for (const pattern of forbiddenPatterns) {
+        expect(text).not.toMatch(pattern);
+      }
       expect(text).not.toMatch(/\[[^\]]+\.pdf\s+p\./i);
       expect(text).not.toContain(question.sourceDocument ?? "__no_source__");
+    }
+  });
+
+  it("does not publish PDF items whose SQL, tables, or trace are collapsed into the stem", () => {
+    const collapsedMaterialTokens = [
+      "CREATE TABLE",
+      "ALTER TABLE",
+      "INSERT INTO",
+      "DELETE FROM",
+      "SELECT ",
+      " FROM ",
+      " WHERE ",
+      " GROUP BY ",
+      " HAVING ",
+      " ORDER BY ",
+      " REFERENCES ",
+      " ON DELETE ",
+      "[SQL]",
+      "[테이블",
+      "현재 테이블",
+      "테이블 명",
+      "실행계획",
+      "TRACE"
+    ];
+
+    for (const question of objectiveQuestions) {
+      if (question.code || question.table || question.passage) continue;
+
+      const upperStem = question.stem.toUpperCase();
+      const materialHits = collapsedMaterialTokens.filter((token) => upperStem.includes(token)).length;
+
+      expect(materialHits).toBeLessThan(2);
+      expect(upperStem).not.toContain("CREATE TABLE");
+      expect(question.stem).not.toMatch(/\bSELECT\b.+\bFROM\b/i);
     }
   });
 
@@ -150,7 +203,7 @@ describe("SQLMate verified production problem bank", () => {
     const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
     const withCode = objectiveQuestions.filter((question) => question.code);
 
-    expect(withMaterial.length).toBeGreaterThanOrEqual(5);
+    expect(withMaterial.length).toBeGreaterThanOrEqual(4);
     expect(withCode.length).toBeGreaterThanOrEqual(2);
     expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });

@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PDF_DIR = ROOT / "tmp" / "pdf_sources"
 OUT_FILE = ROOT / "lib" / "pdf-extracted-original-bank.ts"
 REPORT_FILE = ROOT / "docs" / "PDF_ORIGINAL_EXTRACTION_REPORT.md"
-SOURCE_VERSION = "official-pdf-infinite-starter-2026-07-29-v2"
+SOURCE_VERSION = "official-pdf-infinite-starter-2026-07-29-v3"
 
 CHOICE_MARKS = ["①", "②", "③", "④"]
 CHOICE_MARK_PATTERN = r"[①②③④@©®]"
@@ -49,6 +49,66 @@ FORBIDDEN_VISIBLE = [
     "IN況",
     "凶",
     "쏜벋",
+    "公",
+    "分",
+    "往",
+    "幻",
+    "務",
+    "묘의 상태",
+    "I八",
+    "八)",
+    "八3",
+    "F R O M",
+    "FR O M",
+    "U N IO N",
+    "SELEC T",
+    "PROM TBL",
+    "N U LL",
+    "V A RCH",
+    "A日",
+    "SESSIONJD",
+    "LOCKJD",
+    "PRODJD",
+    "STADIUMJD",
+    "31正3",
+    "◦",
+    "ᄋ",
+    "테아블",
+]
+
+FORBIDDEN_VISIBLE_REGEXES = [
+    re.compile(r"[公分往幻務]"),
+    re.compile(r"I八|八\)|八3"),
+    re.compile(r"\bF\s+R\s+O\s+M\b", re.I),
+    re.compile(r"\bFR\s+O\s+M\b", re.I),
+    re.compile(r"\bU\s+N\s*I\s*O\s+N\b", re.I),
+    re.compile(r"\bSELEC\s+T\b", re.I),
+    re.compile(r"\bPROM\s+TBL\b", re.I),
+    re.compile(r"\bN\s+U\s+LL\b", re.I),
+    re.compile(r"\bV\s+A\s+R\s*CH\s*A?\s*R?2?\b", re.I),
+    re.compile(r"부적\s+절|부\s*적\s*절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델"),
+    re.compile(r"SESSIONJ?D|LOCKJ?D|PRODJ?D|STADIUMJ?D", re.I),
+]
+
+COLLAPSED_SQL_MATERIAL_KEYWORDS = [
+    "CREATE TABLE",
+    "ALTER TABLE",
+    "INSERT INTO",
+    "DELETE FROM",
+    "SELECT ",
+    " FROM ",
+    " WHERE ",
+    " GROUP BY ",
+    " HAVING ",
+    " ORDER BY ",
+    " REFERENCES ",
+    " ON DELETE ",
+    "[SQL]",
+    "[테이블",
+    "현재 테이블",
+    "테이블 명",
+    "실행계획",
+    "TRACE",
 ]
 
 
@@ -97,6 +157,11 @@ def inline(value: str) -> str:
         "비절치적": "비절차적",
         "시용": "사용",
         "아 래": "아래",
+        "FR O M": "FROM",
+        "F R O M": "FROM",
+        "U N IO N": "UNION",
+        "SELEC T": "SELECT",
+        "N U LL": "NULL",
     }
     for before, after in replacements.items():
         value = value.replace(before, after)
@@ -107,11 +172,29 @@ def visible_is_clean(*values: str) -> bool:
     visible = " ".join(values)
     if any(pattern in visible for pattern in FORBIDDEN_VISIBLE):
         return False
+    if any(pattern.search(visible) for pattern in FORBIDDEN_VISIBLE_REGEXES):
+        return False
     if "핵심정리" in visible or "SQL 자격검정 실전문제" in visible:
         return False
     if re.search(r"\[[^\]]+\.pdf\s+p\.", visible, flags=re.I):
         return False
     return True
+
+
+def stem_has_collapsed_material(stem: str) -> bool:
+    upper_stem = stem.upper()
+    material_hits = sum(1 for keyword in COLLAPSED_SQL_MATERIAL_KEYWORDS if keyword in upper_stem)
+    if material_hits >= 2:
+        return True
+    if "CREATE TABLE" in upper_stem:
+        return True
+    if "[SQL]" in upper_stem and ("SELECT " in upper_stem or "FROM " in upper_stem):
+        return True
+    if any(token in stem for token in ["[테이블", "현재 테이블", "테이블 명"]) and len(stem) > 120:
+        return True
+    if re.search(r"\bSELECT\b.+\bFROM\b", upper_stem) and len(stem) > 140:
+        return True
+    return False
 
 
 def choice_block_is_clean(choices: list[str]) -> bool:
@@ -297,8 +380,10 @@ def build_question_from_block(
         choices.append(inline(block[choice_start:choice_end]))
     if len(stem) < 8 or any(len(choice) < 2 for choice in choices):
         return None
-    explanation = answer["explanation"].strip()
+    explanation = inline(answer["explanation"].strip())
     if len(explanation) < 6:
+        return None
+    if stem_has_collapsed_material(stem):
         return None
     if not choice_block_is_clean(choices):
         return None

@@ -1359,9 +1359,10 @@ export default function Home() {
                 <span>{currentQuestion.topic}</span>
                 <span>{currentQuestion.difficulty}</span>
               </div>
-              <h2>
-                {currentQuestion.number}. {currentQuestion.stem}
-              </h2>
+              <div className="question-title">
+                <span className="question-number">{currentQuestion.number}.</span>
+                <h2>{currentQuestion.stem}</h2>
+              </div>
 
               {(currentQuestion.passage || currentQuestion.code || currentQuestion.table) && (
                 <div className="exam-material">

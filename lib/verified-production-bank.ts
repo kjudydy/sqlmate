@@ -24,7 +24,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-infinite-starter-2026-07-29-v2";
+export const verifiedOfficialSourceVersion = "official-pdf-infinite-starter-2026-07-29-v3";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -1668,22 +1668,16 @@ function renumberLabQuestions(labs: LabQuestion[]) {
   }));
 }
 
-export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
-  ...renumberObjectiveQuestions(
-    dedupeObjectiveQuestions([
-      ...verifiedObjectiveSeedQuestions,
-      ...pdfExtractedObjectiveQuestions
-    ])
-  )
-];
+const objectiveQuestionCandidates = dedupeObjectiveQuestions([
+  ...verifiedObjectiveSeedQuestions,
+  ...pdfExtractedObjectiveQuestions
+]);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(
-  dedupeLabQuestions([
-    ...convertedReviewLabs,
-    ...pdfExtractedLabQuestions
-  ])
-);
+const labQuestionCandidates = dedupeLabQuestions([
+  ...convertedReviewLabs,
+  ...pdfExtractedLabQuestions
+]);
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   throw new Error(`No verified PDF expansion question is available for ${subjectId}:${count}`);
@@ -1708,6 +1702,7 @@ export function createVerifiedExtraLabQuestions(startCount: number, batchSize = 
 
 const bannedUserVisiblePatterns = [
   /�/,
+  /[公分往幻務]/,
   /review_required/i,
   /original_ready/i,
   /sourceDocument/i,
@@ -1720,14 +1715,48 @@ const bannedUserVisiblePatterns = [
   /타RD/,
   /집힙/,
   /SELK/,
+  /I八|八\)|八3/,
   /FRO M/,
+  /\bF\s+R\s+O\s+M\b/i,
+  /\bFR\s+O\s+M\b/i,
+  /\bU\s+N\s*I\s*O\s+N\b/i,
+  /\bSELEC\s+T\b/i,
+  /\bPROM\s+TBL\b/i,
+  /\bN\s+U\s+LL\b/i,
+  /\bV\s+A\s+R\s*CH\s*A?\s*R?2?\b/i,
   /W H E R E/,
   /SQ L/,
   /IN況/,
   /凶/,
   /쏜벋/,
+  /묘의 상태/,
+  /부적\s+절|부\s*적\s*절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델/,
+  /SESSIONJ?D|LOCKJ?D|PRODJ?D|STADIUMJ?D/i,
+  /31正3/,
+  /테아블/,
   /\[[^\]]+\.pdf\s+p\./i,
   /\.pdf/
+];
+
+const collapsedMaterialTokens = [
+  "CREATE TABLE",
+  "ALTER TABLE",
+  "INSERT INTO",
+  "DELETE FROM",
+  "SELECT ",
+  " FROM ",
+  " WHERE ",
+  " GROUP BY ",
+  " HAVING ",
+  " ORDER BY ",
+  " REFERENCES ",
+  " ON DELETE ",
+  "[SQL]",
+  "[테이블",
+  "현재 테이블",
+  "테이블 명",
+  "실행계획",
+  "TRACE"
 ];
 
 function visibleQuestionText(question: ObjectiveQuestion) {
@@ -1751,6 +1780,38 @@ function visibleQuestionText(question: ObjectiveQuestion) {
     .join("\n");
 }
 
+function hasBannedUserVisibleText(value: string) {
+  return bannedUserVisiblePatterns.some((pattern) => pattern.test(value));
+}
+
+function hasCollapsedMaterialInStem(question: ObjectiveQuestion) {
+  if (question.code || question.table || question.passage) return false;
+
+  const stem = question.stem.toUpperCase();
+  const materialHits = collapsedMaterialTokens.filter((token) => stem.includes(token)).length;
+
+  return (
+    materialHits >= 2 ||
+    stem.includes("CREATE TABLE") ||
+    (stem.includes("[SQL]") && (stem.includes("SELECT ") || stem.includes("FROM "))) ||
+    ((question.stem.includes("[테이블") || question.stem.includes("현재 테이블") || question.stem.includes("테이블 명")) && question.stem.length > 120) ||
+    (/\bSELECT\b.+\bFROM\b/i.test(question.stem) && question.stem.length > 140)
+  );
+}
+
+function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
+  if (question.reviewStatus !== "approved" || question.validationStatus !== "validated") return false;
+  if (hasBannedUserVisibleText(visibleQuestionText(question))) return false;
+  if (hasCollapsedMaterialInStem(question)) return false;
+  return true;
+}
+
+function isPublishedLabQuestion(lab: LabQuestion) {
+  if (lab.reviewStatus !== "approved" || lab.validationStatus !== "validated") return false;
+  if (hasBannedUserVisibleText(visibleLabText(lab))) return false;
+  return true;
+}
+
 function visibleLabText(lab: LabQuestion) {
   return [
     lab.title,
@@ -1771,6 +1832,14 @@ function visibleLabText(lab: LabQuestion) {
     .filter(Boolean)
     .join("\n");
 }
+
+export const verifiedObjectiveQuestions: ObjectiveQuestion[] = renumberObjectiveQuestions(
+  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion)
+);
+
+export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(
+  labQuestionCandidates.filter(isPublishedLabQuestion)
+);
 
 export function findPublishedUserVisibleIssues() {
   const objectiveIssues = verifiedObjectiveQuestions.flatMap((question) =>

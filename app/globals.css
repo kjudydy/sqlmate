@@ -951,6 +951,29 @@ ul {
   font-weight: 800;
 }
 
+.question-title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.question-title .question-number {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.48;
+}
+
+.question-title h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.48;
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 .choice-list {
   display: grid;
   gap: 10px;
@@ -2198,6 +2221,20 @@ body {
   .note-card-head .icon-only {
     width: 36px;
   }
+
+  .question-title .question-number,
+  .question-title h2 {
+    font-size: 18px;
+    line-height: 1.55;
+  }
+}
+
+/* Keep long SQLP stems readable without changing the surrounding card design. */
+.question-title h2 {
+  line-height: 1.48;
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 /* Exam-oriented dashboard and question materials */
