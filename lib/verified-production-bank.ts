@@ -20,7 +20,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v8";
+export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v9";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -2438,6 +2438,389 @@ FROM dual;`,
   }
 ] as ManualPublishedQuestion[]).map(makeManualQuestion);
 
+const manualVerifiedObjectiveQuestionsBatch04: ObjectiveQuestion[] = ([
+  {
+    subjectId: "modeling",
+    number: 36,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "관계",
+    topic: "다대다 관계 해소",
+    difficulty: "중급",
+    questionType: "관계 구조 판단형",
+    mode: "variant",
+    sourcePage: 17,
+    parentQuestionId: "pdf-v-1-m-n-relationship",
+    stem: "학생과 강좌는 서로 여러 건씩 연결될 수 있고, 수강신청일자와 성적은 학생과 강좌의 조합에 따라 달라진다. 논리 모델 설계로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "학생 엔터티에 강좌번호와 성적 속성을 반복 컬럼으로 둔다.", explanation: "오답입니다. 반복 컬럼은 확장성과 정규화 측면에서 부적절하며 강좌 수 변화에 취약합니다." },
+      { id: "B", text: "강좌 엔터티에 학생번호를 하나만 두고 최근 수강 학생만 저장한다.", explanation: "오답입니다. 여러 학생의 수강 관계를 표현할 수 없습니다." },
+      { id: "C", text: "수강 엔터티를 두고 학생과 강좌를 각각 1대다로 연결하며 수강신청일자와 성적을 수강에 둔다.", explanation: "정답입니다. 다대다 관계는 교차 엔터티로 해소하고 관계 자체의 속성은 교차 엔터티에 둡니다." },
+      { id: "D", text: "학생과 강좌 사이에 관계선을 제거하고 성적만 별도 코드 테이블로 관리한다.", explanation: "오답입니다. 수강 사실 자체를 표현하지 못합니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "modeling-relationship",
+    hint: "1단계: 한 학생이 여러 강좌를 들을 수 있는지 확인합니다.\n2단계: 한 강좌도 여러 학생을 가질 수 있는지 확인합니다.\n3단계: 관계 자체에 속성이 있으면 교차 엔터티가 필요합니다.",
+    explanation: "다대다 관계는 물리 테이블로 직접 구현하기 어렵고 관계 자체의 속성을 안정적으로 담기 어렵다. 수강 같은 교차 엔터티를 두면 학생-수강, 강좌-수강의 1대다 관계로 해소할 수 있다."
+  },
+  {
+    subjectId: "modeling",
+    number: 37,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "슈퍼타입과 서브타입",
+    topic: "서브타입 변환",
+    difficulty: "상급",
+    questionType: "모델 변환 판단형",
+    mode: "similar",
+    sourcePage: 26,
+    parentQuestionId: "pdf-s-1-super-subtype",
+    stem: "상품은 공통 속성이 많고, 도서와 가전의 고유 속성은 일부만 다르다. 전체 상품 조회가 매우 빈번하고 서브타입별 고유 속성 조회는 상대적으로 적다. 물리 모델 변환으로 가장 우선 검토할 방식은?",
+    choices: [
+      { id: "A", text: "슈퍼타입과 모든 서브타입을 각각 별도 테이블로 분리하여 항상 조인한다.", explanation: "오답입니다. 전체 상품 조회가 빈번하면 반복 조인 비용이 커질 수 있습니다." },
+      { id: "B", text: "공통 속성과 고유 속성을 하나의 상품 테이블로 통합하고 상품유형으로 구분한다.", explanation: "정답입니다. 공통 속성이 많고 전체 조회가 빈번하면 단일 테이블 통합을 우선 검토할 수 있습니다." },
+      { id: "C", text: "도서 테이블과 가전 테이블만 만들고 공통 속성을 모든 테이블에 복사한다.", explanation: "오답입니다. 공통 속성 중복이 크고 전체 상품 조회 시 UNION 비용과 정합성 관리가 필요합니다." },
+      { id: "D", text: "상품유형 코드를 제거하고 속성 존재 여부만으로 유형을 판단한다.", explanation: "오답입니다. 유형 식별 기준이 불명확해지고 제약조건 관리가 어려워집니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-super-subtype",
+    hint: "1단계: 공통 속성 비중과 조회 패턴을 함께 봅니다.\n2단계: 전체 조회가 빈번한지, 서브타입별 조회가 빈번한지 구분합니다.\n3단계: 통합 테이블은 조인 제거와 단순 조회에 유리하지만 NULL 관리가 필요합니다.",
+    explanation: "슈퍼타입/서브타입 변환은 조회 패턴, 공통 속성 비중, 서브타입 고유 속성 수, 데이터량을 고려한다. 전체 상품 조회가 빈번하고 공통 속성이 많다면 단일 테이블 통합이 유리할 수 있다."
+  },
+  {
+    subjectId: "modeling",
+    number: 38,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "이력 모델링",
+    topic: "기간 이력",
+    difficulty: "상급",
+    questionType: "이력 모델 판단형",
+    mode: "similar",
+    sourcePage: 29,
+    parentQuestionId: "pdf-s-1-history-modeling",
+    stem: "고객의 등급은 변경될 수 있고, 주문 시점의 고객등급으로 혜택 금액을 재계산해야 한다. 현재 고객 테이블에는 최신 등급만 저장되어 있다. 가장 적절한 모델링 보완은?",
+    choices: [
+      { id: "A", text: "고객 테이블의 고객등급만 계속 갱신하고 과거 등급은 저장하지 않는다.", explanation: "오답입니다. 주문 시점 등급을 재현할 수 없어 과거 혜택 검증이 어렵습니다." },
+      { id: "B", text: "고객등급이력 엔터티를 두고 적용시작일자와 적용종료일자로 기간을 관리한다.", explanation: "정답입니다. 시점 기준 값을 재현하려면 기간 이력 모델이 필요합니다." },
+      { id: "C", text: "주문 테이블에서 고객번호를 제거하고 고객명만 저장한다.", explanation: "오답입니다. 고객 식별과 관계 추적이 어려워집니다." },
+      { id: "D", text: "등급 변경 시 모든 과거 주문의 주문금액을 최신 등급 기준으로 갱신한다.", explanation: "오답입니다. 주문 당시 사실을 훼손할 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-history",
+    hint: "1단계: 최신값만 필요한지 과거 시점 값이 필요한지 구분합니다.\n2단계: 주문 시점의 등급을 재현해야 합니다.\n3단계: 적용 시작과 종료 기간이 있는 이력 엔터티가 적절합니다.",
+    explanation: "시점별 값을 재현해야 하는 업무에서는 최신값만 저장하면 부족하다. 고객등급이력에 적용 기간을 관리하면 주문일자 기준으로 당시 등급을 찾을 수 있다."
+  },
+  {
+    subjectId: "modeling",
+    number: 39,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "정규화",
+    topic: "제3정규형",
+    difficulty: "중급",
+    questionType: "함수 종속 판단형",
+    mode: "variant",
+    sourcePage: 33,
+    parentQuestionId: "pdf-v-1-3nf",
+    stem: "수강내역(학생번호, 과목번호, 교수번호, 교수명)에서 기본키가 (학생번호, 과목번호)이고, 교수번호가 교수명을 결정한다. 제3정규형 관점에서 가장 적절한 설명은?",
+    choices: [
+      { id: "A", text: "교수명은 기본키 전체에만 종속하므로 분리할 필요가 없다.", explanation: "오답입니다. 교수번호가 교수명을 결정하므로 이행 종속 가능성이 있습니다." },
+      { id: "B", text: "교수번호와 교수명을 별도 교수 엔터티로 분리해 이행 종속을 제거한다.", explanation: "정답입니다. 비식별자 속성이 다른 비식별자 속성에 종속되는 구조를 제거해야 합니다." },
+      { id: "C", text: "교수명을 주식별자에 포함하면 모든 정규화 문제가 해결된다.", explanation: "오답입니다. 식별자에 이름을 넣으면 변경과 중복 문제가 커질 수 있습니다." },
+      { id: "D", text: "제3정규형은 반복 속성 제거만 다루므로 이 사례와 무관하다.", explanation: "오답입니다. 반복 속성 제거는 제1정규형이고, 제3정규형은 이행 종속 제거와 관련됩니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-normalization",
+    hint: "1단계: 기본키가 아닌 속성이 다른 기본키 아닌 속성을 결정하는지 봅니다.\n2단계: 교수번호 -> 교수명 종속을 확인합니다.\n3단계: 이행 종속은 별도 엔터티 분리로 해소합니다.",
+    explanation: "제3정규형은 기본키가 아닌 속성 사이의 이행 종속을 제거한다. 교수번호가 교수명을 결정한다면 교수 정보를 분리하고 수강내역에는 교수번호만 참조하게 하는 것이 적절하다."
+  },
+  {
+    subjectId: "modeling",
+    number: 40,
+    majorTopic: "데이터 모델과 성능",
+    middleTopic: "분산 데이터베이스",
+    topic: "분산 투명성",
+    difficulty: "기본",
+    questionType: "개념 매칭형",
+    mode: "original",
+    sourcePage: 121,
+    parentQuestionId: "pdf-o-1-distributed-transparency",
+    stem: "사용자는 데이터가 어느 지역 서버에 저장되어 있는지 알 필요 없이 동일한 이름과 방식으로 데이터를 조회한다. 이 설명과 가장 가까운 분산 데이터베이스의 투명성은?",
+    choices: [
+      { id: "A", text: "위치 투명성", explanation: "정답입니다. 데이터의 물리적 위치를 사용자가 의식하지 않아도 되는 특성입니다." },
+      { id: "B", text: "중복 투명성", explanation: "오답입니다. 중복 투명성은 복제 데이터 존재를 사용자가 의식하지 않는 특성입니다." },
+      { id: "C", text: "병행 투명성", explanation: "오답입니다. 병행 투명성은 여러 트랜잭션 동시 수행의 일관성과 관련됩니다." },
+      { id: "D", text: "장애 투명성", explanation: "오답입니다. 장애 투명성은 일부 장애에도 작업 지속 또는 복구가 가능하게 하는 특성입니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "modeling-distributed",
+    hint: "1단계: 사용자가 무엇을 의식하지 않아도 되는지 봅니다.\n2단계: 지문은 저장 위치를 묻고 있습니다.\n3단계: 위치를 감추는 것은 위치 투명성입니다.",
+    explanation: "위치 투명성은 분산된 데이터의 실제 저장 위치를 사용자가 알지 않아도 동일하게 접근할 수 있게 하는 특성이다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 36,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "집합 연산",
+    topic: "UNION과 UNION ALL",
+    difficulty: "중급",
+    questionType: "SQL 결과 선택형",
+    mode: "original",
+    sourcePage: 84,
+    parentQuestionId: "pdf-o-2-set-operator",
+    stem: "아래 두 집합 R1, R2에 대해 가와 나 SQL의 결과 행 수로 가장 적절한 것은?",
+    table: {
+      title: "입력 데이터",
+      headers: ["집합", "A", "B", "C"],
+      rows: [
+        ["R1", "A3", "B2", "C3"],
+        ["R1", "A1", "B1", "C1"],
+        ["R1", "A2", "B1", "C2"],
+        ["R2", "A1", "B1", "C1"],
+        ["R2", "A3", "B2", "C3"]
+      ]
+    },
+    code: `-- 가
+SELECT A, B, C FROM R1
+UNION ALL
+SELECT A, B, C FROM R2;
+
+-- 나
+SELECT A, B, C FROM R1
+UNION
+SELECT A, B, C FROM R2;`,
+    choices: [
+      { id: "A", text: "가: 5개, 나: 3개", explanation: "정답입니다. UNION ALL은 중복을 제거하지 않아 3+2=5행이고, UNION은 중복을 제거해 서로 다른 3행만 남습니다." },
+      { id: "B", text: "가: 5개, 나: 5개", explanation: "오답입니다. UNION은 중복 행을 제거합니다." },
+      { id: "C", text: "가: 3개, 나: 3개", explanation: "오답입니다. UNION ALL은 중복을 포함해 양쪽 결과를 모두 반환합니다." },
+      { id: "D", text: "가: 3개, 나: 5개", explanation: "오답입니다. UNION이 UNION ALL보다 행 수가 많아질 수 없습니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "sql-set-operators",
+    hint: "1단계: R1과 R2의 완전히 같은 행을 찾습니다.\n2단계: UNION ALL은 중복을 제거하지 않습니다.\n3단계: UNION은 컬럼 값 전체가 같은 행을 하나로 봅니다.",
+    explanation: "UNION ALL은 두 결과 집합을 그대로 이어 붙인다. UNION은 중복 제거 과정을 수행하므로 R2의 두 행이 R1에 이미 존재하면 최종 고유 행은 3개다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 37,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "Window Function",
+    topic: "RANK와 DENSE_RANK",
+    difficulty: "상급",
+    questionType: "분석 함수 결과 추론형",
+    mode: "variant",
+    sourcePage: 46,
+    parentQuestionId: "pdf-v-2-rank",
+    stem: "아래 점수 데이터에서 점수 내림차순으로 RANK와 DENSE_RANK를 계산할 때, 학생 C의 결과로 가장 적절한 것은?",
+    table: {
+      title: "점수",
+      headers: ["학생", "점수"],
+      rows: [
+        ["A", "95"],
+        ["B", "90"],
+        ["C", "90"],
+        ["D", "80"]
+      ]
+    },
+    code: `SELECT 학생,
+       점수,
+       RANK() OVER (ORDER BY 점수 DESC) AS rnk,
+       DENSE_RANK() OVER (ORDER BY 점수 DESC) AS drnk
+FROM 점수;`,
+    choices: [
+      { id: "A", text: "RANK 1, DENSE_RANK 1", explanation: "오답입니다. 95점 A가 1위이므로 90점 C는 1위가 아닙니다." },
+      { id: "B", text: "RANK 2, DENSE_RANK 2", explanation: "정답입니다. B와 C는 공동 2위이며 두 함수 모두 90점 그룹을 2로 표시합니다." },
+      { id: "C", text: "RANK 3, DENSE_RANK 2", explanation: "오답입니다. 공동 순위의 두 번째 행이라고 해서 RANK가 3이 되는 것은 아닙니다." },
+      { id: "D", text: "RANK 2, DENSE_RANK 3", explanation: "오답입니다. DENSE_RANK는 중복 순위 다음에 건너뛰지 않으므로 90점 그룹은 2입니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "sql-window-functions",
+    hint: "1단계: 같은 점수는 같은 순위를 받습니다.\n2단계: RANK와 DENSE_RANK 차이는 다음 점수 그룹에서 드러납니다.\n3단계: C는 B와 같은 점수 그룹입니다.",
+    explanation: "RANK와 DENSE_RANK는 동점자에게 같은 순위를 부여한다. 차이는 다음 순위에서 발생한다. 80점 D는 RANK 4, DENSE_RANK 3이지만 C는 둘 다 2다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 38,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "GROUP BY",
+    topic: "ROLLUP과 GROUPING",
+    difficulty: "상급",
+    questionType: "집계 행 수 추론형",
+    mode: "similar",
+    sourcePage: 50,
+    parentQuestionId: "pdf-s-2-rollup",
+    stem: "지역은 서울, 부산 2개이고 각 지역마다 상품분류가 의류, 식품 2개씩 존재한다. GROUP BY ROLLUP(지역, 상품분류)의 결과 행 수로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "4개", explanation: "오답입니다. 상세 그룹만 세면 4개지만 ROLLUP은 소계와 총계를 추가합니다." },
+      { id: "B", text: "6개", explanation: "오답입니다. 지역별 소계 2개는 추가되지만 전체 총계 1개가 빠졌습니다." },
+      { id: "C", text: "7개", explanation: "정답입니다. 상세 4개, 지역별 소계 2개, 전체 총계 1개로 총 7개입니다." },
+      { id: "D", text: "8개", explanation: "오답입니다. ROLLUP(지역, 상품분류)은 상품분류별 독립 소계를 만들지 않습니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "sql-group-functions",
+    hint: "1단계: 상세 그룹 수를 먼저 계산합니다.\n2단계: ROLLUP 순서상 앞 컬럼인 지역별 소계가 추가됩니다.\n3단계: 마지막에 전체 총계가 추가됩니다.",
+    explanation: "ROLLUP(a,b)는 (a,b), (a), () 그룹을 생성한다. 지역 2개와 상품분류 2개 조합의 상세 4행, 지역별 소계 2행, 전체 총계 1행이 생성된다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 39,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "JOIN",
+    topic: "Outer Join 조건 위치",
+    difficulty: "상급",
+    questionType: "SQL Rewrite 선택형",
+    mode: "variant",
+    sourcePage: 74,
+    parentQuestionId: "pdf-v-2-outer-join-filter",
+    stem: "모든 고객을 출력하되 2026년 7월 주문만 주문금액으로 집계하려 한다. 주문이 없는 고객도 남기기 위한 SQL 조건 위치로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "LEFT JOIN 후 WHERE o.주문일자 >= DATE '2026-07-01' 조건을 둔다.", explanation: "오답입니다. WHERE 절의 후행 테이블 조건은 NULL 확장 행을 제거해 Inner Join처럼 동작할 수 있습니다." },
+      { id: "B", text: "LEFT JOIN의 ON 절에 주문일자 범위 조건을 함께 둔다.", explanation: "정답입니다. 고객 보존은 유지하면서 매칭 대상 주문만 기간으로 제한할 수 있습니다." },
+      { id: "C", text: "RIGHT JOIN으로 바꾸고 고객 조건을 WHERE 절에 둔다.", explanation: "오답입니다. 보존해야 하는 쪽은 고객이며 방향만 바꾼다고 조건 위치 문제가 해결되지 않습니다." },
+      { id: "D", text: "주문일자 조건을 HAVING 절로 옮기면 항상 동일한 결과가 된다.", explanation: "오답입니다. HAVING은 그룹 후 필터이며 후행 행 보존 문제를 자동 해결하지 않습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "sql-standard-join",
+    hint: "1단계: 어느 테이블의 행을 보존해야 하는지 확인합니다.\n2단계: 후행 테이블 조건이 WHERE에 있으면 NULL 확장 행이 제거됩니다.\n3단계: 매칭 조건 제한은 ON 절 또는 후행 인라인 뷰 내부가 적절합니다.",
+    explanation: "Outer Join에서 보존되지 않는 쪽 테이블의 조건을 WHERE 절에 두면 매칭 실패 행이 제거된다. 모든 고객을 남겨야 하므로 주문 기간 조건은 ON 절에 두어야 한다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 40,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "DML",
+    topic: "MERGE 제약",
+    difficulty: "중급",
+    questionType: "MERGE 설명 선택형",
+    mode: "similar",
+    sourcePage: 39,
+    parentQuestionId: "pdf-s-2-merge-on",
+    stem: "Oracle MERGE 문에서 ON 절에 사용된 대상 테이블 컬럼에 대한 설명으로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "ON 절에 사용된 대상 컬럼은 MATCHED UPDATE 절에서 자유롭게 갱신할 수 있다.", explanation: "오답입니다. Oracle에서는 ON 절에 사용된 대상 컬럼을 UPDATE하려 하면 제한이 발생할 수 있습니다." },
+      { id: "B", text: "ON 절은 매칭 여부를 판단하므로 대상 행 식별에 사용된 컬럼 갱신은 주의해야 한다.", explanation: "정답입니다. 매칭 기준 컬럼은 대상 행 식별에 관여하므로 UPDATE 대상 선정 시 제한과 의미를 검토해야 합니다." },
+      { id: "C", text: "MERGE는 INSERT만 가능하고 UPDATE는 지원하지 않는다.", explanation: "오답입니다. MERGE는 MATCHED UPDATE와 NOT MATCHED INSERT를 지원합니다." },
+      { id: "D", text: "MERGE의 USING 절은 반드시 실제 테이블 하나만 사용할 수 있다.", explanation: "오답입니다. USING 절에는 인라인 뷰나 서브쿼리도 사용할 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "sql-dml",
+    hint: "1단계: ON 절이 어떤 역할을 하는지 확인합니다.\n2단계: 매칭 기준이 되는 대상 컬럼을 동시에 바꾸면 어떤 의미 문제가 생기는지 생각합니다.\n3단계: Oracle MERGE의 UPDATE 제한을 떠올립니다.",
+    explanation: "MERGE의 ON 절은 소스와 대상의 매칭 여부를 결정한다. 대상 행 식별에 사용된 컬럼을 같은 MERGE에서 갱신하는 것은 제한되거나 의미상 위험하므로 별도 처리 또는 기준 컬럼 변경을 검토해야 한다."
+  },
+  {
+    subjectId: "tuning",
+    number: 36,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "인덱스 튜닝",
+    topic: "결합 인덱스 컬럼 순서",
+    difficulty: "상급",
+    questionType: "인덱스 구성 선택형",
+    mode: "similar",
+    sourcePage: 84,
+    parentQuestionId: "pdf-s-3-composite-index",
+    stem: "게시글 테이블에서 게시구분은 등치 조건, 삭제여부는 등치 조건, 등록일시는 범위 조건과 ORDER BY DESC에 사용된다. 최근 글 20건을 빠르게 조회하기 위한 결합 인덱스로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "(등록일시, 게시구분, 삭제여부)", explanation: "오답입니다. 범위와 정렬 컬럼이 선두이면 등치 조건으로 탐색 범위를 충분히 좁히기 어렵습니다." },
+      { id: "B", text: "(게시구분, 삭제여부, 등록일시 DESC)", explanation: "정답입니다. 등치 조건 컬럼 뒤에 정렬/범위 컬럼을 두면 범위 스캔과 Top-N 처리에 유리합니다." },
+      { id: "C", text: "(삭제여부)", explanation: "오답입니다. 삭제여부만으로는 선택도가 낮고 정렬 제거도 어렵습니다." },
+      { id: "D", text: "(제목, 등록일시)", explanation: "오답입니다. 제목은 조건에 없으므로 인덱스 시작점 형성에 도움이 되지 않습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-index-scan-efficiency",
+    hint: "1단계: 등치 조건 컬럼을 먼저 모읍니다.\n2단계: 범위 조건과 정렬 컬럼이 같은 컬럼인지 확인합니다.\n3단계: Top-N이면 정렬을 피할 수 있는 순서가 중요합니다.",
+    explanation: "결합 인덱스는 등치 조건으로 선두 범위를 좁힌 뒤 범위와 정렬 컬럼을 활용하는 구조가 일반적으로 유리하다. 게시구분, 삭제여부 등치 후 등록일시 DESC 범위 스캔을 하면 최근 20건을 조기 종료할 수 있다."
+  },
+  {
+    subjectId: "tuning",
+    number: 37,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "인덱스 튜닝",
+    topic: "클러스터링 팩터",
+    difficulty: "상급",
+    questionType: "성능 원인 분석형",
+    mode: "variant",
+    sourcePage: 82,
+    parentQuestionId: "pdf-v-3-clustering-factor",
+    stem: "두 인덱스의 선택도는 비슷하지만 IX_A를 사용할 때 테이블 랜덤 액세스가 훨씬 많이 발생한다. 가장 직접적인 원인으로 의심할 수 있는 것은?",
+    choices: [
+      { id: "A", text: "IX_A의 클러스터링 팩터가 테이블 블록 수에 가깝다.", explanation: "오답입니다. 테이블 블록 수에 가까우면 같은 인덱스 순서의 행들이 비교적 모여 있어 랜덤 액세스 비용이 낮아지는 편입니다." },
+      { id: "B", text: "IX_A의 클러스터링 팩터가 테이블 행 수에 가깝다.", explanation: "정답입니다. 인덱스 순서와 테이블 저장 순서가 불일치해 ROWID 방문이 흩어질 가능성이 큽니다." },
+      { id: "C", text: "IX_A가 유니크 인덱스라서 항상 더 느리다.", explanation: "오답입니다. 유니크 여부 자체가 항상 더 느린 원인이 되지는 않습니다." },
+      { id: "D", text: "IX_A의 리프 블록 수가 0이기 때문이다.", explanation: "오답입니다. 정상 인덱스의 리프 블록 수가 0이라는 전제는 부적절합니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-table-access",
+    hint: "1단계: 인덱스 스캔 후 테이블 ROWID 방문 비용을 생각합니다.\n2단계: 인덱스 순서와 테이블 저장 순서가 비슷하면 같은 블록을 반복 활용합니다.\n3단계: 클러스터링 팩터가 행 수에 가까우면 흩어진 방문 가능성이 큽니다.",
+    explanation: "클러스터링 팩터는 인덱스 순서로 테이블을 방문할 때 블록 전환이 얼마나 자주 일어나는지 나타낸다. 행 수에 가까운 값은 인덱스 순서와 테이블 저장 순서가 흩어져 있음을 의미해 랜덤 액세스 비용을 키운다."
+  },
+  {
+    subjectId: "tuning",
+    number: 38,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "조인 튜닝",
+    topic: "Hash Join Build Input",
+    difficulty: "중급",
+    questionType: "조인 방식 판단형",
+    mode: "similar",
+    sourcePage: 88,
+    parentQuestionId: "pdf-s-3-hash-build",
+    stem: "Hash Join에서 두 입력 중 하나를 메모리에 해시 테이블로 구성해야 한다. 일반적으로 Build Input으로 선택하기 가장 적절한 집합은?",
+    choices: [
+      { id: "A", text: "조인 후 결과가 가장 큰 집합", explanation: "오답입니다. 결과 크기보다 해시 테이블을 만들 입력 집합의 크기와 가용 메모리가 중요합니다." },
+      { id: "B", text: "필터 후 크기가 작고 해시 테이블로 만들기 적합한 집합", explanation: "정답입니다. 작은 집합을 Build Input으로 두면 메모리 사용과 파티션 분할 비용을 줄일 수 있습니다." },
+      { id: "C", text: "인덱스가 가장 많은 테이블", explanation: "오답입니다. Hash Join은 인덱스 개수보다 입력 집합 크기와 조인 방식 특성이 더 중요합니다." },
+      { id: "D", text: "항상 FROM 절에 먼저 적힌 테이블", explanation: "오답입니다. 옵티마이저는 비용과 통계에 따라 Build/Probe를 결정합니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-advanced-join",
+    hint: "1단계: Hash Join은 한쪽 입력으로 해시 테이블을 만듭니다.\n2단계: 메모리에 올릴 대상은 작을수록 유리합니다.\n3단계: 큰 쪽은 Probe Input으로 흘려보내는 것이 일반적입니다.",
+    explanation: "Hash Join은 Build Input을 해시 테이블로 구성한 뒤 Probe Input을 읽으며 매칭한다. Build Input이 너무 크면 메모리 부족과 디스크 분할이 발생할 수 있어 필터 후 작은 집합이 적합하다."
+  },
+  {
+    subjectId: "tuning",
+    number: 39,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "쿼리 변환",
+    topic: "Predicate Pushing",
+    difficulty: "상급",
+    questionType: "실행계획 해석형",
+    mode: "variant",
+    sourcePage: 86,
+    parentQuestionId: "pdf-v-3-predicate-pushing",
+    stem: "인라인 뷰에서 대량 데이터를 먼저 집계한 뒤 바깥 WHERE 절에서 특정 고객만 필터링한다. 동일 결과를 유지하면서 집계 전 데이터량을 줄일 가능성이 큰 최적화는?",
+    choices: [
+      { id: "A", text: "Predicate Pushing", explanation: "정답입니다. 외부 조건을 뷰 내부로 밀어 넣어 집계 전 처리 범위를 줄일 수 있습니다." },
+      { id: "B", text: "Cartesian Join", explanation: "오답입니다. 조인 조건 없는 곱집합은 일반적으로 비효율을 키웁니다." },
+      { id: "C", text: "Full Table Scan 강제", explanation: "오답입니다. 전체 스캔 강제는 조건을 조기 적용하는 변환과 다릅니다." },
+      { id: "D", text: "ORDER BY 제거만 수행", explanation: "오답입니다. 지문은 집계 전 필터 적용이 핵심입니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "tuning-query-transformation",
+    hint: "1단계: 외부 WHERE 조건이 뷰 내부로 들어갈 수 있는지 봅니다.\n2단계: 집계 전 필터링하면 처리 대상이 줄어듭니다.\n3단계: 조건을 밀어 넣는 변환 이름을 찾습니다.",
+    explanation: "Predicate Pushing은 외부 조건을 뷰나 서브쿼리 내부로 밀어 넣어 조기 필터링을 유도하는 변환이다. 집계 전 대상 건수를 줄일 수 있으면 큰 성능 개선이 가능하다."
+  },
+  {
+    subjectId: "tuning",
+    number: 40,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "옵티마이저",
+    topic: "Bind Peeking과 Adaptive Cursor Sharing",
+    difficulty: "최상급",
+    questionType: "옵티마이저 판단형",
+    mode: "similar",
+    sourcePage: 89,
+    parentQuestionId: "pdf-s-3-bind-peeking",
+    stem: "상태코드 = :b1 조건에서 '정상'은 전체의 90%, '오류'는 0.1%다. 같은 SQL이 바인드 값에 따라 전혀 다른 선택도를 가지는데 하나의 실행계획만 재사용되어 일부 값에서 매우 느리다. 가장 관련 깊은 설명은?",
+    choices: [
+      { id: "A", text: "바인드 변수는 항상 Literal보다 정확한 Cardinality를 보장한다.", explanation: "오답입니다. 바인드 값 분포가 심하게 치우치면 계획 공유가 오히려 불리할 수 있습니다." },
+      { id: "B", text: "Bind Peeking과 Adaptive Cursor Sharing을 통해 바인드 값별 선택도 차이에 대응할 수 있는지 검토한다.", explanation: "정답입니다. 바인드 값에 따른 선택도 편차가 큰 경우 커서 공유와 선택도 추정 문제가 핵심입니다." },
+      { id: "C", text: "통계정보가 있으면 히스토그램은 어떤 경우에도 필요 없다.", explanation: "오답입니다. 데이터 분포가 치우친 컬럼은 히스토그램이 선택도 추정에 중요할 수 있습니다." },
+      { id: "D", text: "Full Scan은 항상 Index Range Scan보다 빠르므로 모든 값을 Full Scan으로 고정한다.", explanation: "오답입니다. 선택도가 낮은 값에서는 인덱스가 유리할 수 있으며 항상이라는 단정은 부적절합니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-optimizer",
+    hint: "1단계: 같은 컬럼의 값별 데이터 분포가 얼마나 다른지 봅니다.\n2단계: 바인드 변수 사용 시 실행계획 공유와 선택도 추정 문제가 생길 수 있습니다.\n3단계: 바인드 값별 계획 분화 가능성을 다루는 기능을 떠올립니다.",
+    explanation: "바인드 변수는 파싱 비용 감소와 SQL 공유에 유리하지만 값별 선택도 차이가 큰 컬럼에서는 하나의 계획이 모든 값에 적합하지 않을 수 있다. Bind Peeking, 히스토그램, Adaptive Cursor Sharing 검토가 필요하다."
+  }
+] as ManualPublishedQuestion[]).map(makeManualQuestion);
+
 const operationExplanations: Record<string, string> = {
   "INDEX RANGE SCAN": "INDEX RANGE SCAN - 인덱스 시작점과 종료점을 찾아 필요한 리프 범위를 읽는다.",
   "INDEX UNIQUE SCAN": "INDEX UNIQUE SCAN - 유니크 인덱스로 단일 ROWID를 찾는다.",
@@ -2819,7 +3202,8 @@ const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
   ...manualVerifiedObjectiveQuestions,
   ...manualVerifiedObjectiveQuestionsBatch02,
-  ...manualVerifiedObjectiveQuestionsBatch03
+  ...manualVerifiedObjectiveQuestionsBatch03,
+  ...manualVerifiedObjectiveQuestionsBatch04
 ]);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));

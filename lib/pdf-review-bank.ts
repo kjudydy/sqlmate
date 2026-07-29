@@ -2010,6 +2010,341 @@ WHERE o.주문일자 >= DATE '2026-06-01'
     relatedConcepts: ["대량 DML", "Parallel", "Hash Join", "SQL Trace"],
     hints: ["실행계획에서 고객과 배송 접근 Starts가 주문 행 수와 같은지 확인한다.", "대량 적재에서는 한 건씩 찾는 방식보다 집합 조인 방식이 유리할 수 있다.", "APPEND와 PARALLEL은 성능만이 아니라 운영 제약까지 답안에 포함해야 한다."],
     validationNotes: ["Rows, Starts, CR 수치가 반복 랜덤 액세스 병목을 설명하도록 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-16-conditional-search-rewrite",
+    title: "선택 조건 조회 SQL Rewrite",
+    topic: "복잡한 조건 조회",
+    difficulty: "상급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 76,
+      answerPage: 134,
+      questionNumber: "실기확장 16",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "선택 파라미터 조건과 인덱스 사용 판단을 실습형으로 재구성했다."
+    },
+    scenario: "주문 검색 화면에서 고객번호가 입력되면 특정 고객 주문만 조회하고, 입력되지 않으면 기간 내 전체 주문을 조회한다. 현재 SQL은 OR 조건 때문에 고객번호 인덱스 효율이 낮다.",
+    requirements: ["고객번호 입력 여부에 따라 인덱스 접근이 달라지도록 SQL을 재작성한다.", "고객번호가 입력된 경우와 입력되지 않은 경우의 접근 경로 차이를 설명한다.", "하나의 만능 조건으로 모든 케이스를 처리하려다 생기는 비효율을 설명한다."],
+    schemaSql: `CREATE TABLE 주문검색 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  주문일시 DATE NOT NULL,
+  주문상태 VARCHAR2(10) NOT NULL,
+  주문금액 NUMBER NOT NULL
+);
+
+CREATE INDEX 주문검색_IX01 ON 주문검색(고객번호, 주문일시);
+CREATE INDEX 주문검색_IX02 ON 주문검색(주문일시, 주문상태);`,
+    currentSql: `SELECT 주문번호, 고객번호, 주문일시, 주문금액
+FROM 주문검색
+WHERE 주문일시 >= :from_dt
+  AND 주문일시 <  :to_dt
+  AND 주문상태 = '완료'
+  AND (:cust_no IS NULL OR 고객번호 = :cust_no);`,
+    executionPlan: `교육용 현재 실행계획 예시
+--------------------------------------------------------------------------
+Id | Operation                 | Name         | Rows   | Cost
+--------------------------------------------------------------------------
+ 0 | SELECT STATEMENT          |              | 120000 | 1420
+ 1 |  TABLE ACCESS BY INDEX ROWID | 주문검색   | 120000 | 1420
+ 2 |   INDEX RANGE SCAN        | 주문검색_IX02| 120000 |  360
+--------------------------------------------------------------------------
+Predicate Information
+2 - access("주문일시">=:from_dt AND "주문일시"<:to_dt)
+1 - filter("주문상태"='완료' AND (:cust_no IS NULL OR "고객번호"=:cust_no))`,
+    answerSql: `-- 고객번호가 입력된 경우
+SELECT 주문번호, 고객번호, 주문일시, 주문금액
+FROM 주문검색
+WHERE 고객번호 = :cust_no
+  AND 주문일시 >= :from_dt
+  AND 주문일시 <  :to_dt
+  AND 주문상태 = '완료'
+
+UNION ALL
+
+-- 고객번호가 입력되지 않은 경우
+SELECT 주문번호, 고객번호, 주문일시, 주문금액
+FROM 주문검색
+WHERE :cust_no IS NULL
+  AND 주문일시 >= :from_dt
+  AND 주문일시 <  :to_dt
+  AND 주문상태 = '완료';`,
+    acceptedAlternatives: ["애플리케이션에서 고객번호 입력 여부에 따라 두 SQL로 분기하는 방식 인정", "옵션 조건이 여러 개인 경우 동적 SQL을 사용하되 바인드 변수 유지 방안을 설명하면 인정"],
+    rubric: ["OR 옵션 조건이 고객번호 Access Predicate 형성을 방해할 수 있음을 설명해야 한다.", "고객번호 입력 케이스에서는 고객번호 선두 인덱스 사용 가능성을 열어야 한다.", "입력되지 않은 케이스와 입력된 케이스가 논리적으로 중복 반환되지 않아야 한다."],
+    explanation: "옵션 조건을 한 SQL의 OR로 처리하면 선택적인 바인드 값에 따라 인덱스 시작점이 불명확해질 수 있다. 조건 입력 여부에 따라 SQL을 분기하거나 UNION ALL로 분리하면 각 분기에서 더 적절한 Access Predicate를 만들 수 있다.",
+    relatedConcepts: ["OR Expansion", "옵션 조건", "Access Predicate"],
+    hints: ["OR 안에 바인드 NULL 검사가 있으면 인덱스 시작점이 약해질 수 있다.", "고객번호 입력 케이스와 미입력 케이스는 서로 배타적이다.", "분기별로 다른 인덱스가 쓰일 수 있게 만드는 것이 핵심이다."],
+    validationNotes: ["옵션 조건 분기와 UNION ALL 배타성 조건을 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-17-fix-outer-join-sql",
+    title: "잘못된 Outer Join SQL 수정",
+    topic: "잘못된 SQL 수정",
+    difficulty: "중급",
+    mode: "variant",
+    status: "variant_verified",
+    source: {
+      document: sqlExam,
+      page: 74,
+      answerPage: 134,
+      questionNumber: "실기확장 17",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "Outer Join 조건 위치와 COUNT 함정을 SQL 수정형으로 구성했다."
+    },
+    scenario: "전체 상품별 7월 판매수량을 보여주는 리포트에서 판매가 없는 상품이 누락된다. 상품은 모두 보여야 하며 판매가 없으면 0으로 표시해야 한다.",
+    requirements: ["판매가 없는 상품도 보존한다.", "기간 조건 때문에 Outer Join 결과가 사라지지 않게 한다.", "COUNT와 SUM의 NULL 처리 방식을 올바르게 사용한다."],
+    schemaSql: `CREATE TABLE 상품 (
+  상품번호 NUMBER PRIMARY KEY,
+  상품명 VARCHAR2(100) NOT NULL,
+  판매상태 VARCHAR2(10) NOT NULL
+);
+
+CREATE TABLE 판매 (
+  판매번호 NUMBER PRIMARY KEY,
+  상품번호 NUMBER NOT NULL,
+  판매일자 DATE NOT NULL,
+  판매수량 NUMBER NOT NULL,
+  CONSTRAINT 판매_FK01 FOREIGN KEY (상품번호) REFERENCES 상품(상품번호)
+);
+
+CREATE INDEX 판매_IX01 ON 판매(상품번호, 판매일자);`,
+    currentSql: `SELECT p.상품번호,
+       p.상품명,
+       COUNT(*) AS 판매건수,
+       SUM(s.판매수량) AS 판매수량
+FROM 상품 p
+     LEFT JOIN 판매 s ON s.상품번호 = p.상품번호
+WHERE p.판매상태 = '판매중'
+  AND s.판매일자 >= DATE '2026-07-01'
+  AND s.판매일자 <  DATE '2026-08-01'
+GROUP BY p.상품번호, p.상품명;`,
+    answerSql: `SELECT p.상품번호,
+       p.상품명,
+       COUNT(s.판매번호) AS 판매건수,
+       NVL(SUM(s.판매수량), 0) AS 판매수량
+FROM 상품 p
+     LEFT JOIN 판매 s
+       ON s.상품번호 = p.상품번호
+      AND s.판매일자 >= DATE '2026-07-01'
+      AND s.판매일자 <  DATE '2026-08-01'
+WHERE p.판매상태 = '판매중'
+GROUP BY p.상품번호, p.상품명;`,
+    acceptedAlternatives: ["판매를 기간 조건으로 필터링한 인라인 뷰와 상품을 LEFT JOIN하는 방식 인정", "COUNT(s.상품번호)처럼 판매 매칭 행에서 NULL이 아닌 컬럼 기준 집계도 인정"],
+    rubric: ["후행 테이블 기간 조건을 ON 절 또는 인라인 뷰 안으로 이동해야 한다.", "COUNT(*)를 후행 테이블 컬럼 COUNT로 바꿔야 한다.", "SUM 결과 NULL은 0으로 처리해야 한다."],
+    explanation: "판매 테이블 조건을 WHERE 절에 두면 판매가 없는 상품의 NULL 확장 행이 제거된다. 후행 조건은 ON 절에 두고, 판매건수는 COUNT(s.판매번호)처럼 실제 매칭 행 기준으로 세어야 한다.",
+    relatedConcepts: ["Outer Join", "COUNT", "SQL Rewrite"],
+    hints: ["판매가 없는 상품은 판매 컬럼이 NULL인 확장 행으로 남아야 한다.", "WHERE 절에서 판매 컬럼을 조건으로 걸면 그 행이 제거된다.", "COUNT(*)는 보존 행 자체를 세므로 판매 없는 상품도 1이 될 수 있다."],
+    validationNotes: ["보존 테이블과 후행 테이블 조건 위치를 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-18-group-by-having",
+    title: "집계 및 HAVING 조건 SQL 작성",
+    topic: "집계 및 HAVING",
+    difficulty: "중급",
+    mode: "original",
+    status: "original_verified",
+    source: {
+      document: sqlExam,
+      page: 49,
+      answerPage: 132,
+      questionNumber: "실기확장 18",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "GROUP BY, HAVING, 반품 제외 조건을 실습형으로 정리했다."
+    },
+    scenario: "월별 채널 매출 집계에서 반품 주문은 제외하고, 정상 주문이 100건 이상인 월-채널 조합만 보고해야 한다.",
+    requirements: ["월과 채널 기준으로 집계한다.", "반품 상태 주문은 집계 대상에서 제외한다.", "집계 후 주문건수 100건 이상인 그룹만 반환한다."],
+    schemaSql: `CREATE TABLE 채널주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  주문일자 DATE NOT NULL,
+  채널코드 VARCHAR2(10) NOT NULL,
+  주문상태 VARCHAR2(10) NOT NULL,
+  주문금액 NUMBER NOT NULL
+);
+
+CREATE INDEX 채널주문_IX01 ON 채널주문(주문일자, 채널코드, 주문상태);`,
+    currentSql: `SELECT TO_CHAR(주문일자, 'YYYYMM') AS 주문월,
+       채널코드,
+       COUNT(*) AS 주문건수,
+       SUM(주문금액) AS 주문금액
+FROM 채널주문
+GROUP BY TO_CHAR(주문일자, 'YYYYMM'), 채널코드;`,
+    answerSql: `SELECT TO_CHAR(주문일자, 'YYYYMM') AS 주문월,
+       채널코드,
+       COUNT(*) AS 주문건수,
+       SUM(주문금액) AS 주문금액
+FROM 채널주문
+WHERE 주문일자 >= DATE '2026-01-01'
+  AND 주문일자 <  DATE '2026-07-01'
+  AND 주문상태 <> '반품'
+GROUP BY TO_CHAR(주문일자, 'YYYYMM'), 채널코드
+HAVING COUNT(*) >= 100;`,
+    acceptedAlternatives: ["주문월 가상 컬럼 또는 함수 기반 인덱스가 있는 환경이면 해당 컬럼 기준 GROUP BY 답안 인정", "반품 상태가 NULL 가능이면 NVL 또는 명시적 NULL 정책을 제시한 답안 인정"],
+    rubric: ["반품 제외 조건은 집계 전에 적용해야 한다.", "주문건수 기준 100건 이상 조건은 HAVING에 둬야 한다.", "월과 채널 기준 GROUP BY가 요구 결과와 일치해야 한다."],
+    explanation: "WHERE는 집계 전 행을 제한하고 HAVING은 집계 후 그룹을 제한한다. 반품 제외는 WHERE, 주문건수 100건 이상은 HAVING COUNT(*) 조건으로 처리해야 한다.",
+    relatedConcepts: ["GROUP BY", "HAVING", "WHERE"],
+    hints: ["반품 제외는 개별 주문 행 조건이다.", "100건 이상은 그룹을 만든 뒤 알 수 있다.", "행 필터는 WHERE, 그룹 필터는 HAVING이다."],
+    validationNotes: ["WHERE와 HAVING 역할 분리를 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-19-result-reasoning",
+    title: "JOIN 결과 행 수 추론",
+    topic: "실행 결과 추론",
+    difficulty: "상급",
+    mode: "variant",
+    status: "variant_verified",
+    source: {
+      document: sqlExam,
+      page: 74,
+      answerPage: 134,
+      questionNumber: "실기확장 19",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "테이블 데이터와 Outer Join 결과 행 수 추론을 실습형으로 구성했다."
+    },
+    scenario: "EMP와 DEPT 테이블을 LEFT OUTER JOIN했을 때 각 직원 행이 어떻게 보존되는지 설명하고 결과 건수를 계산해야 한다.",
+    requirements: ["제시된 샘플 데이터 기준으로 LEFT JOIN 결과 행 수를 계산한다.", "매칭되지 않은 EMP 행이 보존되는 이유를 설명한다.", "중복 매칭이 발생할 때 결과 행이 늘어나는 과정을 설명한다."],
+    schemaSql: `CREATE TABLE EMP (
+  EMPNO NUMBER PRIMARY KEY,
+  DEPT_CODE VARCHAR2(10),
+  EMP_NAME VARCHAR2(50)
+);
+
+CREATE TABLE DEPT (
+  DEPT_CODE VARCHAR2(10),
+  DEPT_SEQ NUMBER,
+  DEPT_NAME VARCHAR2(50)
+);`,
+    sampleData: [
+      {
+        title: "EMP",
+        headers: ["EMPNO", "DEPT_CODE", "EMP_NAME"],
+        rows: [
+          ["1", "A", "KIM"],
+          ["2", "B", "LEE"],
+          ["3", "B", "PARK"],
+          ["4", "C", "CHOI"]
+        ]
+      },
+      {
+        title: "DEPT",
+        headers: ["DEPT_CODE", "DEPT_SEQ", "DEPT_NAME"],
+        rows: [
+          ["A", "1", "영업"],
+          ["B", "1", "개발"],
+          ["B", "2", "품질"]
+        ]
+      }
+    ],
+    currentSql: `SELECT e.empno, e.dept_code, d.dept_seq, d.dept_name
+FROM emp e
+     LEFT JOIN dept d ON d.dept_code = e.dept_code
+ORDER BY e.empno, d.dept_seq;`,
+    answerSql: `-- 결과 행 수: 6행
+-- EMPNO 1은 A 1건과 매칭되어 1행
+-- EMPNO 2와 3은 B가 DEPT에서 2건 매칭되어 각각 2행
+-- EMPNO 4는 C 매칭이 없어 NULL 확장 행 1행
+-- 따라서 1 + 2 + 2 + 1 = 6행이다.
+
+SELECT e.empno, e.dept_code, d.dept_seq, d.dept_name
+FROM emp e
+     LEFT JOIN dept d ON d.dept_code = e.dept_code
+ORDER BY e.empno, d.dept_seq;`,
+    acceptedAlternatives: ["결과 행을 직접 나열해 6행임을 보인 답안 인정", "DEPT_CODE별 매칭 건수를 곱해 계산한 설명 인정"],
+    rubric: ["LEFT JOIN에서 EMP 행이 모두 보존됨을 설명해야 한다.", "B 부서의 DEPT 2건 매칭이 EMPNO 2와 3 각각에 적용됨을 계산해야 한다.", "C 부서는 매칭이 없어 NULL 확장 행 1행으로 남음을 설명해야 한다."],
+    explanation: "LEFT JOIN은 왼쪽 EMP 행을 보존한다. A는 1건, B는 DEPT 2건에 매칭되므로 B 소속 직원 2명이 각각 2행씩 생성되고, C는 매칭이 없어 NULL 확장 1행이 된다. 총 1+2+2+1=6행이다.",
+    relatedConcepts: ["Outer Join", "결과 행 수", "중복 매칭"],
+    hints: ["왼쪽 테이블의 각 행을 기준으로 오른쪽 매칭 건수를 셉니다.", "B는 오른쪽 테이블에 두 건 있습니다.", "매칭이 없는 C도 LEFT JOIN에서는 한 행 남습니다."],
+    validationNotes: ["샘플 데이터별 매칭 건수와 총 행 수를 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-20-trace-index-join-review",
+    title: "Trace 기반 인덱스와 조인 순서 종합 튜닝",
+    topic: "종합 튜닝",
+    difficulty: "최상급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 93,
+      answerPage: 136,
+      questionNumber: "실기확장 20",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "Trace, Predicate, 인덱스, 조인 순서 판단을 종합 실습형으로 구성했다."
+    },
+    scenario: "상담 이력 조회 화면에서 특정 고객의 최근 상담 30건을 보여준다. 결과는 30건뿐인데 Trace에서 CR이 높고 실행계획은 상담유형 조건을 필터로 처리한다.",
+    requirements: ["Rows 대비 CR이 높은 원인을 실행계획과 Predicate로 설명한다.", "최근 30건 부분범위 처리가 가능하도록 인덱스와 SQL을 제안한다.", "상담유형 조건이 Access Predicate가 되도록 결합 인덱스 순서를 설명한다."],
+    schemaSql: `CREATE TABLE 상담이력 (
+  상담번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  상담유형 VARCHAR2(10) NOT NULL,
+  상담일시 DATE NOT NULL,
+  상담상태 VARCHAR2(10) NOT NULL,
+  상담내용 VARCHAR2(4000)
+);
+
+CREATE INDEX 상담이력_IX01 ON 상담이력(고객번호, 상담일시);
+CREATE INDEX 상담이력_IX02 ON 상담이력(상담유형, 상담상태);`,
+    currentSql: `SELECT *
+FROM (
+  SELECT 상담번호, 고객번호, 상담유형, 상담일시, 상담상태
+  FROM 상담이력
+  WHERE 고객번호 = :cust_no
+    AND 상담유형 = :call_type
+    AND 상담상태 = '완료'
+  ORDER BY 상담일시 DESC
+)
+WHERE ROWNUM <= 30;`,
+    executionPlan: `교육용 현재 실행계획 예시
+------------------------------------------------------------------------------------
+Id | Operation                       | Name          | Starts | Rows | Cost
+------------------------------------------------------------------------------------
+ 0 | SELECT STATEMENT                |               |      1 |   30 |  410
+ 1 |  COUNT STOPKEY                  |               |      1 |   30 |  410
+ 2 |   VIEW                          |               |      1 | 3200 |  410
+ 3 |    SORT ORDER BY STOPKEY        |               |      1 | 3200 |  410
+ 4 |     TABLE ACCESS BY INDEX ROWID | 상담이력      |      1 | 3200 |  390
+ 5 |      INDEX RANGE SCAN           | 상담이력_IX01 |      1 | 8200 |   45
+------------------------------------------------------------------------------------
+Predicate Information
+5 - access("고객번호"=:cust_no)
+4 - filter("상담유형"=:call_type AND "상담상태"='완료')`,
+    traceSummary: {
+      title: "교육용 Trace 핵심 요약",
+      headers: ["항목", "값", "의미"],
+      rows: [
+        ["Rows", "30", "최종 반환 행"],
+        ["Index Rows", "8,200", "고객번호로 읽은 인덱스 행"],
+        ["CR", "42,600", "필터 후 버려진 테이블 방문 포함"],
+        ["PR", "380", "일부 테이블 블록 물리 읽기"],
+        ["Time", "00:00:04.80", "화면 응답 지연"]
+      ]
+    },
+    answerSql: `CREATE INDEX 상담이력_IX03 ON 상담이력(고객번호, 상담유형, 상담상태, 상담일시 DESC);
+
+SELECT 상담번호, 고객번호, 상담유형, 상담일시, 상담상태
+FROM (
+  SELECT /*+ INDEX_DESC(h 상담이력_IX03) */
+         상담번호, 고객번호, 상담유형, 상담일시, 상담상태
+  FROM 상담이력 h
+  WHERE 고객번호 = :cust_no
+    AND 상담유형 = :call_type
+    AND 상담상태 = '완료'
+  ORDER BY 상담일시 DESC
+)
+WHERE ROWNUM <= 30;`,
+    acceptedAlternatives: ["인덱스에 상담상태와 상담유형 순서를 바꾸는 대안은 두 컬럼의 선택도와 업무 조건 빈도를 근거로 제시하면 부분 인정", "인덱스만으로 필요한 컬럼을 모두 포함해 테이블 액세스를 줄이는 커버링 설계는 추가 인정"],
+    rubric: ["현재 인덱스가 고객번호만 Access Predicate로 사용하고 나머지를 Filter로 처리함을 설명해야 한다.", "Top-N 부분범위 처리를 위해 정렬 컬럼 DESC를 인덱스 뒤쪽에 둬야 한다.", "최종 Rows는 30이지만 중간 Index Rows와 CR이 큰 이유를 설명해야 한다."],
+    explanation: "현재 인덱스는 고객번호로 넓게 읽은 뒤 상담유형과 상담상태를 테이블 방문 후 필터링한다. 고객번호, 상담유형, 상담상태를 등치 조건으로 묶고 상담일시 DESC를 뒤에 두면 필요한 최근 30건을 더 빨리 찾고 정렬과 테이블 방문을 줄일 수 있다.",
+    relatedConcepts: ["인덱스 스캔 효율화", "Top-N", "SQL Trace"],
+    hints: ["최종 Rows가 30인데 Index Rows와 CR이 큰 이유를 찾습니다.", "Access Predicate와 Filter Predicate를 구분합니다.", "등치 조건 뒤에 정렬 컬럼 DESC를 둔 인덱스가 부분범위 처리에 유리합니다."],
+    validationNotes: ["Trace 수치와 Predicate 비효율, 목표 인덱스 설계의 관계를 검수했다."]
   }
 ];
 
