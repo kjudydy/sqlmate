@@ -3183,7 +3183,7 @@ const configs = [modeling, sqlBasic, tuning] as const;
 
 export const subjects = configs.map((config) => ({ id: config.id, name: config.name }));
 
-export const objectiveQuestions: ObjectiveQuestion[] = [];
+export const objectiveQuestions: ObjectiveQuestion[] = verifiedObjectiveQuestions;
 
 export { conceptArticles } from "./concepts";
 
@@ -4285,7 +4285,7 @@ const legacyLabQuestions: LabQuestion[] = sqlpLabCases.slice(0, 20).map((lab, in
   relatedConceptIds: relatedConceptsForLab(lab)
 }));
 
-export const labQuestions: LabQuestion[] = [];
+export const labQuestions: LabQuestion[] = verifiedLabQuestions;
 
 function legacyCreateLocalExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   if (subjectId === "modeling") {

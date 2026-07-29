@@ -60,25 +60,25 @@ function questionSignature(question: ObjectiveQuestion) {
 }
 
 describe("SQLMate verified production problem bank", () => {
-  it("does not publish the temporary seed objective questions before PDF line-by-line verification", () => {
-    expect(objectiveQuestions).toHaveLength(0);
+  it("publishes the PDF-verified infinite starter objective bank", () => {
+    expect(objectiveQuestions).toHaveLength(60);
     for (const subject of subjects) {
-      expect(bySubject(subject.id)).toHaveLength(0);
+      expect(bySubject(subject.id)).toHaveLength(20);
     }
   });
 
-  it("keeps the production summary blocked until a new PDF verified bank is published", () => {
+  it("summarizes original, variant, and similar questions for each subject", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBe(0);
+    expect(summary.objectiveTotal).toBe(60);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
-      expect(subjectSummary.total).toBe(0);
-      expect(subjectSummary.original).toBe(0);
-      expect(subjectSummary.variant).toBe(0);
-      expect(subjectSummary.similar).toBe(0);
-      expect(subjectSummary.topics).toBe(0);
-      expect(subjectSummary.types).toBe(0);
+      expect(subjectSummary.total).toBe(20);
+      expect(subjectSummary.original).toBeGreaterThan(0);
+      expect(subjectSummary.variant).toBeGreaterThan(0);
+      expect(subjectSummary.similar).toBeGreaterThan(0);
+      expect(subjectSummary.topics).toBeGreaterThanOrEqual(8);
+      expect(subjectSummary.types).toBeGreaterThanOrEqual(2);
     }
   });
 
@@ -147,17 +147,18 @@ describe("SQLMate verified production problem bank", () => {
     expect(findLikelyDuplicateQuestions()).toEqual([]);
   });
 
-  it("does not expose exam materials from temporary seed questions", () => {
+  it("publishes exam materials for SQL, table, plan, and trace style questions", () => {
     const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
     const withCode = objectiveQuestions.filter((question) => question.code);
 
-    expect(withMaterial).toHaveLength(0);
-    expect(withCode).toHaveLength(0);
-    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBe(0);
+    expect(withMaterial.length).toBeGreaterThan(10);
+    expect(withCode.length).toBeGreaterThan(5);
+    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThan(5);
   });
 
-  it("does not publish temporary SQL Practice cases before PDF line-by-line verification", () => {
-    expect(labQuestions).toHaveLength(0);
+  it("publishes the verified SQL Practice starter cases", () => {
+    expect(labQuestions).toHaveLength(5);
+    expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
   });
 
   it("does not publish unverified objective expansion batches from templates", () => {
@@ -173,8 +174,14 @@ describe("SQLMate verified production problem bank", () => {
     expect(batch).toHaveLength(0);
   });
 
-  it("blocks single-question fallback APIs until verified PDF material is republished", () => {
-    expect(() => createLocalExtraQuestion("tuning", 0)).toThrow();
-    expect(() => createLocalExtraLabQuestion(0)).toThrow();
+  it("keeps single-question fallback APIs on the verified published pool", () => {
+    const question = createLocalExtraQuestion("tuning", 0);
+    const lab = createLocalExtraLabQuestion(0);
+
+    expect(question.subjectId).toBe("tuning");
+    expect(question.sourceVersion).toBe(verifiedOfficialSourceVersion);
+    expect(question.reviewStatus).toBe("approved");
+    expect(lab.sourceVersion).toBe(verifiedOfficialSourceVersion);
+    expect(lab.reviewStatus).toBe("approved");
   });
 });

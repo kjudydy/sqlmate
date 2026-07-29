@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { gradeSqlSubmission, isReadOnlySql, normalizeSql, simulatePlan } from "@/lib/grading";
+import { gradeSqlSubmission, isReadOnlySql, isStaticDesignSql, normalizeSql, simulatePlan } from "@/lib/grading";
 import { createLocalExtraLabQuestion, labQuestions } from "@/lib/problem-bank";
 
 const requestSchema = z.object({
@@ -34,6 +34,15 @@ export async function POST(request: Request) {
   const lab = findLabQuestion(labId);
 
   if (!isReadOnlySql(sql)) {
+    if (isStaticDesignSql(sql)) {
+      return NextResponse.json({
+        mode: "static-design",
+        plan: simulatePlan(sql),
+        message: "CREATE INDEX가 포함된 설계 답안은 운영 DB에 실행하지 않고 정적 분석으로만 채점했습니다.",
+        grading: gradeSqlSubmission(lab, sql)
+      });
+    }
+
     return NextResponse.json(
       {
         mode: "rejected",

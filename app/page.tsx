@@ -22,7 +22,7 @@ import {
   XCircle
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
+import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect, isStaticDesignSql } from "@/lib/grading";
 import { conceptArticles, labQuestions, objectiveQuestions, officialSourceVersion, subjects } from "@/lib/problem-bank";
 import { filterCurrentAnswers, filterCurrentAttempts } from "@/lib/study-versioning";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
@@ -1584,10 +1584,10 @@ export default function Home() {
               </div>
 
               <textarea
-                className={containsUnsafeSql(labSql) ? "sql-editor danger" : "sql-editor"}
+                className={containsUnsafeSql(labSql) && !isStaticDesignSql(labSql) ? "sql-editor danger" : "sql-editor"}
                 value={labSql}
                 onChange={(event) => setLabSql(event.target.value)}
-                placeholder="SELECT 또는 WITH 문으로 답안을 작성하세요. Oracle 힌트는 주석 형태로 함께 연습할 수 있습니다."
+                placeholder="SELECT/WITH 문 또는 CREATE INDEX가 포함된 정적 설계 답안을 작성하세요. Oracle 힌트도 함께 연습할 수 있습니다."
                 spellCheck={false}
               />
 

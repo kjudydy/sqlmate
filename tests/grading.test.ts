@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containsUnsafeSql, gradeSqlSubmission, isReadOnlySql, normalizeSql } from "@/lib/grading";
+import { containsUnsafeSql, gradeSqlSubmission, isReadOnlySql, isStaticDesignSql, normalizeSql } from "@/lib/grading";
 import type { LabQuestion } from "@/lib/types";
 
 const lab: LabQuestion = {
@@ -37,5 +37,17 @@ describe("SQLMate grading helpers", () => {
 
     expect(result.passed).toBe(true);
     expect(result.plan.join("\n")).toContain("Index Scan");
+  });
+
+  it("accepts CREATE INDEX plus SELECT as a static design answer without treating it as executable SQL", () => {
+    const sql = `create index orders_ix1 on orders(customer_id, order_date);
+
+select /*+ index(o orders_ix1) */ *
+from orders o
+where o.order_date >= date '2026-07-01'`;
+
+    expect(isReadOnlySql(sql)).toBe(false);
+    expect(isStaticDesignSql(sql)).toBe(true);
+    expect(gradeSqlSubmission(lab, sql).score).toBeGreaterThanOrEqual(70);
   });
 });

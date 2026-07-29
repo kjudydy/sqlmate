@@ -34,6 +34,20 @@ export function containsUnsafeSql(sql: string) {
   return DANGEROUS_SQL.some((pattern) => pattern.test(sqlWithoutHints));
 }
 
+export function isStaticDesignSql(sql: string) {
+  const statements = sql
+    .split(";")
+    .map((statement) => stripOracleHints(statement).trim())
+    .filter(Boolean);
+
+  if (!statements.length) return false;
+
+  return statements.every((statement) => {
+    const normalized = normalizeSql(statement);
+    return /^(select|with|explain)\b/.test(normalized) || /^create\s+(?:bitmap\s+)?index\b/.test(normalized);
+  });
+}
+
 export function isReadOnlySql(sql: string) {
   const normalized = normalizeSql(sql);
   return /^(select|with|explain)\b/.test(normalized) && !containsUnsafeSql(sql);
@@ -72,11 +86,11 @@ export function gradeSqlSubmission(lab: LabQuestion, sql: string) {
     };
   }
 
-  if (!isReadOnlySql(sql)) {
+  if (!isReadOnlySql(sql) && !isStaticDesignSql(sql)) {
     return {
       score: 0,
       passed: false,
-      feedback: ["실습 채점은 SELECT, WITH, EXPLAIN 계열의 읽기 전용 SQL만 허용합니다."],
+      feedback: ["실습 채점은 SELECT/WITH/EXPLAIN 또는 CREATE INDEX가 포함된 정적 설계 답안만 허용합니다."],
       plan: ["Rejected before execution"]
     };
   }
@@ -101,6 +115,11 @@ export function gradeSqlSubmission(lab: LabQuestion, sql: string) {
   if (signals.hasIndexHint || signals.hasLeadingHint || signals.hasUseNlHint || signals.hasUseHashHint || signals.hasNoMergeHint || signals.hasFullHint) {
     score += 18;
     feedback.push("Oracle 관점의 힌트 의도가 보입니다. SQLP 실기에서는 힌트 위치와 별칭 정확도가 중요합니다.");
+  }
+
+  if (isStaticDesignSql(sql) && /create\s+(?:bitmap\s+)?index\b/i.test(sql)) {
+    score += 12;
+    feedback.push("인덱스 설계까지 포함한 정적 답안입니다. 실제 DB에는 실행하지 않고 설계 의도만 채점합니다.");
   }
 
   if (lab.topic.includes("조인") && (signals.hasUseNlHint || signals.hasUseHashHint || signals.hasExists || signals.hasOuterJoin)) {
