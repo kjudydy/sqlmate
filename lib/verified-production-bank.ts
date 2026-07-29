@@ -20,7 +20,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v7";
+export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v8";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -2088,6 +2088,356 @@ WHERE deptno NOT IN (SELECT deptno FROM temp_dept);`,
   }
 ] as ManualPublishedQuestion[]).map(makeManualQuestion);
 
+const manualVerifiedObjectiveQuestionsBatch03: ObjectiveQuestion[] = ([
+  {
+    subjectId: "modeling",
+    number: 31,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "데이터 모델링",
+    topic: "모델링 관점",
+    difficulty: "중급",
+    questionType: "개념 구분형",
+    mode: "variant",
+    sourcePage: 7,
+    parentQuestionId: "pdf-v-1-modeling-viewpoints",
+    stem: "주문 접수 업무를 분석하면서 주문 데이터 생성, 재고 데이터 변경, 결제 데이터 생성처럼 프로세스가 데이터에 미치는 영향을 함께 확인하고 있다. 이 설명에 가장 가까운 모델링 관점은?",
+    choices: [
+      { id: "A", text: "데이터 관점", explanation: "오답입니다. 데이터 관점은 업무가 필요로 하는 데이터와 데이터 간 관계 자체를 중심으로 봅니다." },
+      { id: "B", text: "프로세스 관점", explanation: "오답입니다. 프로세스 관점은 업무 절차와 기능 자체를 중심으로 봅니다." },
+      { id: "C", text: "상관 관점", explanation: "정답입니다. 프로세스 수행이 데이터의 생성, 변경, 삭제, 조회에 미치는 영향을 보는 관점입니다." },
+      { id: "D", text: "물리 관점", explanation: "오답입니다. 물리 관점은 저장 구조, 인덱스, DBMS 구현 요소와 관련됩니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "modeling-data-model",
+    hint: "1단계: 데이터 자체를 묻는지, 프로세스 자체를 묻는지 구분합니다.\n2단계: 프로세스 수행 결과 데이터가 어떻게 변하는지 확인합니다.\n3단계: CRUD 영향 분석은 상관 관점과 연결됩니다.",
+    explanation: "상관 관점은 업무 프로세스와 데이터 사이의 영향을 함께 분석한다. 주문 접수라는 프로세스가 여러 데이터에 어떤 변화를 만드는지 보는 것은 상관 관점이다."
+  },
+  {
+    subjectId: "modeling",
+    number: 32,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "관계",
+    topic: "관계 선택성",
+    difficulty: "상급",
+    questionType: "ERD 조건 해석형",
+    mode: "similar",
+    sourcePage: 16,
+    parentQuestionId: "pdf-s-1-relationship-optionality",
+    stem: "주문은 반드시 한 명의 고객에 의해 발생하지만, 고객은 아직 주문이 없을 수 있다. 고객과 주문의 관계 선택성으로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "고객 입장에서는 주문이 필수이고, 주문 입장에서는 고객이 선택이다.", explanation: "오답입니다. 주문은 고객 없이 존재할 수 없고, 고객은 주문 없이 존재할 수 있습니다." },
+      { id: "B", text: "고객 입장에서는 주문이 선택이고, 주문 입장에서는 고객이 필수다.", explanation: "정답입니다. 고객은 0개 이상의 주문을 가질 수 있고 주문은 반드시 한 고객에 속합니다." },
+      { id: "C", text: "양쪽 모두 필수 관계다.", explanation: "오답입니다. 신규 고객처럼 주문이 없는 고객이 가능하므로 고객 쪽 주문 참여는 선택입니다." },
+      { id: "D", text: "양쪽 모두 선택 관계다.", explanation: "오답입니다. 주문은 반드시 고객과 연결되어야 합니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-relationship",
+    hint: "1단계: 각 엔터티의 한 인스턴스가 상대 인스턴스를 반드시 가져야 하는지 확인합니다.\n2단계: 고객은 주문 없이 먼저 존재할 수 있습니다.\n3단계: 주문은 고객 식별 없이 업무적으로 성립하기 어렵습니다.",
+    explanation: "관계 선택성은 상대 엔터티 참여가 필수인지 선택인지 나타낸다. 고객은 주문이 없을 수 있으므로 주문 참여가 선택이고, 주문은 반드시 고객과 연결되므로 고객 참여가 필수다."
+  },
+  {
+    subjectId: "modeling",
+    number: 33,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "식별자",
+    topic: "본질식별자와 인조식별자",
+    difficulty: "중급",
+    questionType: "식별자 선택형",
+    mode: "similar",
+    sourcePage: 19,
+    parentQuestionId: "pdf-s-1-surrogate-key",
+    stem: "계좌거래는 외부 기관에서 받은 거래고유번호가 있으나, 일부 기관은 재전송 시 같은 번호를 재사용하고 취소 거래 구분 규칙도 다르다. 내부 시스템의 안정적 식별자 설계로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "외부 거래고유번호만 주식별자로 사용한다.", explanation: "오답입니다. 외부 번호가 모든 기관에서 안정적이고 유일하다는 보장이 약합니다." },
+      { id: "B", text: "내부 거래ID를 인조식별자로 두고 외부기관코드와 외부거래번호는 대체식별자 또는 업무 속성으로 관리한다.", explanation: "정답입니다. 외부 식별 규칙이 불안정하면 내부 식별 안정성을 별도로 확보하는 것이 적절합니다." },
+      { id: "C", text: "거래금액과 거래일시를 조합하면 항상 유일하므로 주식별자로 충분하다.", explanation: "오답입니다. 금액과 일시는 중복 가능성이 있어 유일성을 보장하기 어렵습니다." },
+      { id: "D", text: "식별자는 변경될 수 있어야 하므로 고객이 수정할 수 있는 번호를 사용한다.", explanation: "오답입니다. 주식별자는 불변성이 중요합니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-identifier",
+    hint: "1단계: 후보 식별자가 모든 인스턴스를 안정적으로 구분하는지 확인합니다.\n2단계: 외부 시스템 규칙이 기관마다 다른지 봅니다.\n3단계: 인조식별자는 식별 안정성을 확보할 때 사용할 수 있습니다.",
+    explanation: "본질식별자가 불안정하거나 외부 규칙에 의존해 변경 가능성이 크다면 내부 인조식별자를 사용할 수 있다. 외부 번호는 업무 추적과 중복 검증을 위해 별도 속성 또는 대체식별자로 관리한다."
+  },
+  {
+    subjectId: "modeling",
+    number: 34,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "속성",
+    topic: "기본 속성과 파생 속성",
+    difficulty: "기본",
+    questionType: "속성 분류형",
+    mode: "original",
+    sourcePage: 13,
+    parentQuestionId: "pdf-o-1-attribute-derived",
+    stem: "주문수량과 판매단가는 입력되어 저장되고, 주문금액은 주문수량과 판매단가를 곱해 계산할 수 있다. 주문금액의 속성 분류로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "기본 속성", explanation: "오답입니다. 기본 속성은 업무에서 직접 수집되어 독립적으로 저장되는 속성입니다." },
+      { id: "B", text: "설계 속성", explanation: "오답입니다. 설계 속성은 업무상 원래 존재하지 않지만 설계를 위해 추가하는 속성입니다." },
+      { id: "C", text: "파생 속성", explanation: "정답입니다. 다른 속성으로부터 계산되는 값입니다." },
+      { id: "D", text: "식별자 속성", explanation: "오답입니다. 주문금액은 인스턴스를 식별하는 속성이 아닙니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "modeling-attribute",
+    hint: "1단계: 값이 직접 입력되는지 계산되는지 확인합니다.\n2단계: 다른 속성으로부터 도출 가능한지 봅니다.\n3단계: 계산 가능한 값은 파생 속성입니다.",
+    explanation: "파생 속성은 하나 이상의 다른 속성으로부터 계산되는 속성이다. 주문금액은 주문수량과 판매단가로 계산할 수 있으므로 파생 속성에 해당한다."
+  },
+  {
+    subjectId: "modeling",
+    number: 35,
+    majorTopic: "데이터 모델과 성능",
+    middleTopic: "반정규화",
+    topic: "중복 관계 반정규화",
+    difficulty: "상급",
+    questionType: "반정규화 판단형",
+    mode: "similar",
+    sourcePage: 113,
+    parentQuestionId: "pdf-s-1-redundant-relationship",
+    stem: "주문상세에서 주문, 주문에서 고객을 거쳐 고객등급을 조회하는 경로가 매우 자주 사용된다. 고객등급 변경은 드물고 주문상세 목록 응답시간이 중요하다. 반정규화 검토로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "주문상세에 고객등급을 무조건 복사하고 원천 고객등급은 삭제한다.", explanation: "오답입니다. 원천 관리 기준을 없애면 정합성 통제가 어려워집니다." },
+      { id: "B", text: "조회 경로 단축을 위해 주문 또는 주문상세에 주문시점 고객등급 중복 저장을 검토하되 갱신 기준을 함께 정의한다.", explanation: "정답입니다. 중복 관계나 중복 속성 반정규화는 성능과 정합성 유지 방안을 함께 검토해야 합니다." },
+      { id: "C", text: "반정규화는 정규화 위반이므로 어떤 성능 요구에서도 금지된다.", explanation: "오답입니다. 통제 가능한 경우 성능 개선 목적으로 사용할 수 있습니다." },
+      { id: "D", text: "조인 경로가 길면 모든 중간 엔터티를 삭제하고 하나의 테이블로 합친다.", explanation: "오답입니다. 업무 의미와 무결성을 무너뜨릴 수 있는 과도한 통합입니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-normalization",
+    hint: "1단계: 조인 경로가 반복 성능 병목인지 확인합니다.\n2단계: 중복 저장 값이 현재값인지 주문시점 값인지 구분합니다.\n3단계: 반정규화는 정합성 유지 규칙과 함께 설계합니다.",
+    explanation: "중복 관계 또는 중복 속성 반정규화는 자주 조회되는 조인 경로를 줄이는 데 활용될 수 있다. 다만 값의 의미, 변경 주기, 동기화 방법을 명확히 하지 않으면 데이터 불일치가 발생한다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 31,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "함수",
+    topic: "NVL과 NULL 비교",
+    difficulty: "중급",
+    questionType: "SQL 결과 선택형",
+    mode: "variant",
+    sourcePage: 24,
+    parentQuestionId: "pdf-v-2-null-function",
+    stem: "아래 SQL의 결과값으로 가장 적절한 것은?",
+    code: `SELECT NVL(NULL, 10) + NVL(5, 20) AS result
+FROM dual;`,
+    choices: [
+      { id: "A", text: "15", explanation: "정답입니다. 첫 번째 NVL은 10, 두 번째 NVL은 5를 반환하므로 합계는 15입니다." },
+      { id: "B", text: "30", explanation: "오답입니다. NVL(5,20)은 첫 번째 인자 5가 NULL이 아니므로 20이 아니라 5를 반환합니다." },
+      { id: "C", text: "NULL", explanation: "오답입니다. 두 피연산자 모두 NVL 결과가 NULL이 아닙니다." },
+      { id: "D", text: "25", explanation: "오답입니다. NULL 대체와 비NULL 유지 규칙을 혼동한 값입니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "sql-functions",
+    hint: "1단계: NVL의 첫 번째 인자가 NULL인지 확인합니다.\n2단계: 첫 번째 인자가 NULL이 아니면 그대로 반환합니다.\n3단계: 각 NVL 결과를 더합니다.",
+    explanation: "NVL(expr1, expr2)는 expr1이 NULL이면 expr2를 반환하고, NULL이 아니면 expr1을 반환한다. 따라서 10 + 5 = 15다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 32,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "JOIN",
+    topic: "LEFT JOIN과 COUNT",
+    difficulty: "상급",
+    questionType: "집계 결과 추론형",
+    mode: "similar",
+    sourcePage: 74,
+    parentQuestionId: "pdf-s-2-left-join-count",
+    stem: "고객별 2026년 주문 건수를 조회하려 한다. 주문이 없는 고객도 0건으로 보여야 한다. 가장 적절한 집계식은?",
+    choices: [
+      { id: "A", text: "COUNT(*)", explanation: "오답입니다. LEFT JOIN 결과에서 주문이 없어도 고객 행이 1행 남으므로 1건으로 집계될 수 있습니다." },
+      { id: "B", text: "COUNT(o.주문번호)", explanation: "정답입니다. 주문번호가 NULL인 확장 행은 집계에서 제외되므로 주문 없는 고객이 0건이 됩니다." },
+      { id: "C", text: "SUM(*)", explanation: "오답입니다. SUM(*)는 올바른 집계식이 아닙니다." },
+      { id: "D", text: "COUNT(c.고객번호)", explanation: "오답입니다. 고객번호는 보존 행에서 NULL이 아니므로 주문 없는 고객도 1로 집계될 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "sql-standard-join",
+    hint: "1단계: LEFT JOIN에서 주문이 없는 고객도 한 행이 남는지 확인합니다.\n2단계: COUNT(*)와 COUNT(컬럼)의 차이를 봅니다.\n3단계: 후행 테이블의 NOT NULL 키 컬럼을 집계 대상으로 삼습니다.",
+    explanation: "LEFT JOIN에서 매칭되지 않은 후행 테이블 컬럼은 NULL이 된다. COUNT(o.주문번호)는 NULL을 세지 않으므로 주문이 없는 고객을 0건으로 집계할 수 있다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 33,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "계층형 질의",
+    topic: "CONNECT BY 방향",
+    difficulty: "상급",
+    questionType: "계층 방향 판단형",
+    mode: "similar",
+    sourcePage: 40,
+    parentQuestionId: "pdf-s-2-connect-by",
+    stem: "조직 테이블에 부서번호와 상위부서번호가 있다. 루트 부서에서 하위 부서 방향으로 펼치려 한다. 가장 적절한 CONNECT BY 조건은?",
+    choices: [
+      { id: "A", text: "CONNECT BY PRIOR 부서번호 = 상위부서번호", explanation: "정답입니다. 부모 행의 부서번호가 자식 행의 상위부서번호와 연결됩니다." },
+      { id: "B", text: "CONNECT BY 부서번호 = PRIOR 상위부서번호", explanation: "오답입니다. 방향이 반대가 되어 상위 방향 탐색이 될 수 있습니다." },
+      { id: "C", text: "CONNECT BY 부서번호 = 상위부서번호", explanation: "오답입니다. PRIOR 없이 현재 행끼리 비교해 계층 부모-자식 관계를 표현하지 못합니다." },
+      { id: "D", text: "CONNECT BY LEVEL = 1", explanation: "오답입니다. LEVEL은 계층 깊이이며 부모-자식 연결 조건이 아닙니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "sql-hierarchical-self-join",
+    hint: "1단계: PRIOR가 붙은 쪽이 부모 행의 값을 의미한다고 봅니다.\n2단계: 부모 부서번호와 자식 상위부서번호를 연결합니다.\n3단계: 방향이 바뀌면 하위가 아니라 상위로 탐색될 수 있습니다.",
+    explanation: "Oracle 계층형 질의에서 PRIOR가 붙은 표현은 직전 부모 행의 값을 의미한다. 루트에서 하위로 내려가려면 부모 부서번호가 자식 행의 상위부서번호와 같아야 한다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 34,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "Subquery",
+    topic: "Scalar Subquery",
+    difficulty: "중급",
+    questionType: "오류 발생 판단형",
+    mode: "variant",
+    sourcePage: 30,
+    parentQuestionId: "pdf-v-2-scalar-subquery",
+    stem: "SELECT 절의 스칼라 서브쿼리가 한 외부 행에 대해 두 행 이상을 반환했다. 가장 적절한 결과는?",
+    choices: [
+      { id: "A", text: "첫 번째 행만 자동 선택된다.", explanation: "오답입니다. 스칼라 서브쿼리는 단일 값을 반환해야 하며 임의의 첫 행을 자동 선택하지 않습니다." },
+      { id: "B", text: "NULL로 변환되어 반환된다.", explanation: "오답입니다. 결과가 없으면 NULL일 수 있지만, 여러 행이면 오류입니다." },
+      { id: "C", text: "단일 행 서브쿼리가 두 개 이상의 행을 반환했다는 오류가 발생한다.", explanation: "정답입니다. 스칼라 서브쿼리는 한 행, 한 컬럼 결과여야 합니다." },
+      { id: "D", text: "두 행이 문자열로 합쳐져 반환된다.", explanation: "오답입니다. 명시적인 집계나 LISTAGG 없이 자동 결합되지 않습니다." }
+    ],
+    answer: "C",
+    relatedConceptId: "sql-subquery",
+    hint: "1단계: 스칼라의 의미는 단일 값입니다.\n2단계: 결과 없음과 여러 행 반환을 구분합니다.\n3단계: 여러 행이면 오류가 발생합니다.",
+    explanation: "스칼라 서브쿼리는 하나의 컬럼과 최대 한 행을 반환해야 한다. 외부 행 하나에 대해 여러 행이 반환되면 단일 값으로 사용할 수 없어 오류가 발생한다."
+  },
+  {
+    subjectId: "sql-basic",
+    number: 35,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "PIVOT",
+    topic: "PIVOT 대상 값",
+    difficulty: "상급",
+    questionType: "PIVOT 설명 선택형",
+    mode: "similar",
+    sourcePage: 38,
+    parentQuestionId: "pdf-s-2-pivot",
+    stem: "Oracle PIVOT을 사용해 매출월 값을 컬럼으로 전환하려 한다. 가장 적절한 설명은?",
+    choices: [
+      { id: "A", text: "PIVOT IN 절에는 전환할 값을 명시해야 하며, 일반 정적 SQL에서는 결과 컬럼이 동적으로 무한히 늘어나지 않는다.", explanation: "정답입니다. PIVOT 대상 값은 IN 절에 지정되어 결과 컬럼이 결정됩니다." },
+      { id: "B", text: "PIVOT은 집계 함수 없이도 항상 사용할 수 있다.", explanation: "오답입니다. PIVOT은 전환 과정에서 집계가 필요합니다." },
+      { id: "C", text: "PIVOT 후에는 WHERE 절을 사용할 수 없다.", explanation: "오답입니다. PIVOT 결과를 인라인 뷰로 두고 바깥에서 필터링할 수 있습니다." },
+      { id: "D", text: "PIVOT은 행과 컬럼을 바꾸지만 GROUP BY 성격과는 무관하다.", explanation: "오답입니다. PIVOT은 지정 기준에 따라 집계와 전환을 함께 수행합니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "sql-pivot-unpivot",
+    hint: "1단계: PIVOT이 단순 표시 변환인지 집계를 포함하는지 확인합니다.\n2단계: 결과 컬럼이 어디서 정해지는지 봅니다.\n3단계: IN 절의 값 목록이 핵심입니다.",
+    explanation: "Oracle PIVOT은 지정한 값들을 컬럼으로 전환하며 집계 함수를 함께 사용한다. 일반적인 정적 SQL에서는 IN 절에 나열한 값이 결과 컬럼이 된다."
+  },
+  {
+    subjectId: "tuning",
+    number: 31,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "인덱스 튜닝",
+    topic: "Index Skip Scan",
+    difficulty: "상급",
+    questionType: "인덱스 스캔 방식 판단형",
+    mode: "variant",
+    sourcePage: 82,
+    parentQuestionId: "pdf-v-3-index-skip-scan",
+    stem: "IDX_EMP(성별, 입사일자) 인덱스가 있고 성별 값은 M/F 두 종류뿐이다. 조건은 입사일자 범위만 있다. 옵티마이저가 고려할 수 있는 인덱스 스캔 방식으로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "INDEX UNIQUE SCAN", explanation: "오답입니다. 유니크 키를 등치로 찾는 상황이 아닙니다." },
+      { id: "B", text: "INDEX SKIP SCAN", explanation: "정답입니다. 선두 컬럼의 값 종류가 적고 후행 컬럼 조건이 있으면 선두 값을 건너뛰며 탐색하는 방식을 고려할 수 있습니다." },
+      { id: "C", text: "BITMAP CONVERSION TO ROWIDS만 가능하다.", explanation: "오답입니다. B-Tree 결합 인덱스에서도 Skip Scan이 가능할 수 있습니다." },
+      { id: "D", text: "INDEX FULL SCAN은 항상 테이블 전체 스캔보다 느리므로 고려 대상이 아니다.", explanation: "오답입니다. 정렬, 커버링, 읽을 블록 수에 따라 선택될 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-index-scan-efficiency",
+    hint: "1단계: 조건이 선두 컬럼에 있는지 후행 컬럼에 있는지 확인합니다.\n2단계: 선두 컬럼의 값 종류가 적은지 봅니다.\n3단계: 후행 컬럼 조건을 이용하기 위해 선두 값을 나누어 탐색할 수 있습니다.",
+    explanation: "Index Skip Scan은 결합 인덱스의 선두 컬럼 조건이 없어도 선두 컬럼의 distinct 값이 적을 때 각 선두 값 구간을 건너뛰며 후행 컬럼 조건을 활용하는 방식이다."
+  },
+  {
+    subjectId: "tuning",
+    number: 32,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "인덱스 튜닝",
+    topic: "Index Fast Full Scan",
+    difficulty: "중급",
+    questionType: "스캔 방식 비교형",
+    mode: "original",
+    sourcePage: 82,
+    parentQuestionId: "pdf-o-3-index-ffs",
+    stem: "Index Fast Full Scan에 대한 설명으로 가장 적절한 것은?",
+    choices: [
+      { id: "A", text: "인덱스 루트에서 리프까지 키 순서대로 읽어 정렬 결과를 항상 보장한다.", explanation: "오답입니다. 키 순서 보장은 Index Full Scan의 특징에 가깝고 Fast Full Scan은 멀티블록 I/O로 순서를 보장하지 않을 수 있습니다." },
+      { id: "B", text: "테이블을 읽지 않아도 필요한 컬럼이 인덱스에 모두 있을 때 인덱스를 빠르게 전체 스캔할 수 있다.", explanation: "정답입니다. 인덱스를 세그먼트처럼 읽어 테이블 Full Scan 대안이 될 수 있습니다." },
+      { id: "C", text: "항상 ROWID 순서로 테이블을 방문한다.", explanation: "오답입니다. Index Fast Full Scan은 테이블 ROWID 방문이 핵심이 아닙니다." },
+      { id: "D", text: "범위 조건의 시작점과 종료점을 찾아 일부 리프만 읽는다.", explanation: "오답입니다. 이는 Index Range Scan 설명에 가깝습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-index-scan-efficiency",
+    hint: "1단계: Fast Full Scan이 범위 스캔인지 전체 스캔인지 구분합니다.\n2단계: 필요한 컬럼이 인덱스에 모두 있는지 확인합니다.\n3단계: 정렬 순서 보장 여부를 Index Full Scan과 비교합니다.",
+    explanation: "Index Fast Full Scan은 인덱스 전체를 멀티블록 I/O로 빠르게 읽는 방식이다. 필요한 컬럼이 인덱스에 모두 있으면 테이블을 읽지 않고 결과를 만들 수 있지만 키 순서 보장을 전제로 하지 않는다."
+  },
+  {
+    subjectId: "tuning",
+    number: 33,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "테이블 액세스",
+    topic: "테이블 랜덤 액세스",
+    difficulty: "상급",
+    questionType: "실행계획 원인 판단형",
+    mode: "similar",
+    sourcePage: 83,
+    parentQuestionId: "pdf-s-3-table-access",
+    stem: "인덱스 조건으로 20만 건의 ROWID를 얻은 뒤 TABLE ACCESS BY INDEX ROWID 단계에서 CR이 급증했다. 가장 직접적인 원인과 개선 방향은?",
+    choices: [
+      { id: "A", text: "인덱스 리프 블록을 전혀 읽지 않았기 때문에 CR이 증가했다.", explanation: "오답입니다. 인덱스 스캔 후 테이블 블록 방문이 핵심입니다." },
+      { id: "B", text: "대량 ROWID로 테이블 블록을 반복 방문했기 때문이며, 선택도 개선이나 커버링 인덱스, Full Scan 전환을 검토한다.", explanation: "정답입니다. 인덱스 후 테이블 랜덤 액세스가 많으면 인덱스가 오히려 불리할 수 있습니다." },
+      { id: "C", text: "ORDER BY가 없으면 테이블 액세스 비용은 항상 0이다.", explanation: "오답입니다. 정렬 여부와 테이블 블록 방문 비용은 별개입니다." },
+      { id: "D", text: "ROWID를 많이 얻을수록 인덱스 스캔은 항상 더 유리하다.", explanation: "오답입니다. 많은 ROWID 방문은 손익분기점을 넘길 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-table-access",
+    hint: "1단계: 인덱스 스캔 비용과 테이블 액세스 비용을 나누어 봅니다.\n2단계: ROWID 건수가 많으면 테이블 블록 방문도 많아질 수 있습니다.\n3단계: 선택도, 클러스터링 팩터, 커버링 가능성을 함께 검토합니다.",
+    explanation: "인덱스 스캔은 ROWID를 찾는 단계와 테이블 블록을 방문하는 단계로 나뉜다. 반환 후보가 많고 클러스터링 팩터가 나쁘면 TABLE ACCESS BY INDEX ROWID 비용이 급증할 수 있다."
+  },
+  {
+    subjectId: "tuning",
+    number: 34,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "쿼리 변환",
+    topic: "View Merging",
+    difficulty: "최상급",
+    questionType: "쿼리 변환 판단형",
+    mode: "variant",
+    sourcePage: 88,
+    parentQuestionId: "pdf-v-3-view-merging",
+    stem: "인라인 뷰에서 고객별 주문금액을 GROUP BY로 집계한 뒤 바깥 쿼리에서 고객등급 = 'VIP' 조건을 적용한다. 성능 개선 관점에서 가장 먼저 검토할 내용은?",
+    choices: [
+      { id: "A", text: "집계 전에 VIP 고객 조건을 적용할 수 있는지 Predicate Pushing 또는 조인 순서 변경을 검토한다.", explanation: "정답입니다. 집계 대상 고객을 먼저 줄일 수 있으면 중간 집계량이 크게 감소할 수 있습니다." },
+      { id: "B", text: "GROUP BY가 있으면 어떤 조건도 집계 전으로 이동할 수 없다.", explanation: "오답입니다. 결과 보존 여부에 따라 밀어 넣을 수 있는 조건이 있습니다." },
+      { id: "C", text: "바깥 조건은 실행계획 비용에 영향을 주지 않는다.", explanation: "오답입니다. 조건 적용 위치는 중간 행 수와 비용에 큰 영향을 줄 수 있습니다." },
+      { id: "D", text: "View Merging은 인덱스 삭제 명령이다.", explanation: "오답입니다. View Merging은 쿼리 블록 변환과 관련된 옵티마이저 기법입니다." }
+    ],
+    answer: "A",
+    relatedConceptId: "tuning-query-transformation",
+    hint: "1단계: 집계 전에 줄일 수 있는 행이 있는지 봅니다.\n2단계: 외부 조건을 내부로 밀어 넣어도 결과가 보존되는지 확인합니다.\n3단계: Predicate Pushing과 View Merging은 중간 결과 축소와 연결됩니다.",
+    explanation: "인라인 뷰에서 먼저 대량 집계를 수행한 뒤 외부에서 소수 고객만 거르면 비효율이 클 수 있다. 결과가 보존되는 조건이라면 조기 필터링을 위해 Predicate Pushing, View Merging, 조인 순서 변경을 검토한다."
+  },
+  {
+    subjectId: "tuning",
+    number: 35,
+    majorTopic: "SQL 고급활용 및 튜닝",
+    middleTopic: "서브쿼리 튜닝",
+    topic: "Scalar Subquery Caching",
+    difficulty: "상급",
+    questionType: "반복 수행 판단형",
+    mode: "similar",
+    sourcePage: 89,
+    parentQuestionId: "pdf-s-3-scalar-cache",
+    stem: "SELECT 절의 스칼라 서브쿼리가 외부 행 100만 건에 대해 수행된다. 외부 행의 부서번호는 20종류뿐이고 서브쿼리는 부서번호별 집계를 조회한다. 가장 적절한 튜닝 관점은?",
+    choices: [
+      { id: "A", text: "스칼라 서브쿼리는 외부 행마다 무조건 100만 번 물리 I/O를 수행하므로 사용할 수 없다.", explanation: "오답입니다. 캐싱이나 변환 가능성이 있으며 조건에 따라 비용이 달라집니다." },
+      { id: "B", text: "입력값 종류가 적으면 스칼라 서브쿼리 캐싱 효과가 있을 수 있지만, 조인/집계로 재작성한 계획도 비교한다.", explanation: "정답입니다. 반복 입력값 수와 캐싱 가능성, 조인 변환 비용을 함께 판단해야 합니다." },
+      { id: "C", text: "부서번호 종류가 적으면 Full Scan만 사용할 수 있다.", explanation: "오답입니다. 접근 경로는 인덱스, 집계 방식, 조인 방식에 따라 달라집니다." },
+      { id: "D", text: "스칼라 서브쿼리는 SELECT 절에서만 쓰이므로 성능과 무관하다.", explanation: "오답입니다. 외부 행 수만큼 반복될 수 있어 성능에 큰 영향을 줄 수 있습니다." }
+    ],
+    answer: "B",
+    relatedConceptId: "tuning-query-transformation",
+    hint: "1단계: 외부 행 수와 상관 입력값의 distinct 수를 비교합니다.\n2단계: 같은 입력값이 반복되면 캐싱 효과가 있을 수 있습니다.\n3단계: 그래도 조인/집계 재작성과 실행계획을 비교해야 합니다.",
+    explanation: "스칼라 서브쿼리는 외부 행마다 논리적으로 평가될 수 있지만 입력값 종류가 적으면 캐싱 효과를 기대할 수 있다. 다만 데이터량과 통계에 따라 조인 후 집계 또는 사전 집계 방식이 더 유리할 수 있어 비교가 필요하다."
+  }
+] as ManualPublishedQuestion[]).map(makeManualQuestion);
+
 const operationExplanations: Record<string, string> = {
   "INDEX RANGE SCAN": "INDEX RANGE SCAN - 인덱스 시작점과 종료점을 찾아 필요한 리프 범위를 읽는다.",
   "INDEX UNIQUE SCAN": "INDEX UNIQUE SCAN - 유니크 인덱스로 단일 ROWID를 찾는다.",
@@ -2137,15 +2487,66 @@ function makePredicateInfo(access: string, filter: string) {
 2 - filter(${filter})`;
 }
 
+function defaultPlanForReviewLab(lab: PdfReviewLab) {
+  const text = `${lab.title} ${lab.topic} ${lab.scenario}`;
+  if (/윈도우|분석 함수|누적/.test(text)) return ["WINDOW SORT", "TABLE ACCESS FULL"];
+  if (/ROLLUP|GROUPING|집계|HAVING/.test(text)) return ["SORT GROUP BY ROLLUP", "HASH GROUP BY", "TABLE ACCESS FULL"];
+  if (/MERGE/.test(text)) return ["MERGE STATEMENT", "HASH GROUP BY", "INDEX UNIQUE SCAN"];
+  if (/NOT EXISTS|NOT IN|Anti|NULL/.test(text)) return ["HASH JOIN ANTI", "INDEX RANGE SCAN", "FILTER"];
+  if (/Top-N|STOPKEY|부분범위/.test(text)) return ["COUNT STOPKEY", "INDEX RANGE SCAN DESCENDING", "TABLE ACCESS BY INDEX ROWID"];
+  if (/Lock|동시성|외래키/.test(text)) return ["INDEX RANGE SCAN", "ENQUEUE TX/TM", "FOREIGN KEY CHECK"];
+  if (/Hash/.test(text)) return ["HASH JOIN", "HASH GROUP BY", "TABLE ACCESS FULL"];
+  if (/NL|Nested|인덱스/.test(text)) return ["NESTED LOOPS", "INDEX RANGE SCAN", "TABLE ACCESS BY INDEX ROWID"];
+  if (/계층|CONNECT BY/.test(text)) return ["CONNECT BY WITH FILTERING", "INDEX RANGE SCAN", "TABLE ACCESS BY INDEX ROWID"];
+  if (/파티션|Partition|Pruning/.test(text)) return ["PARTITION RANGE ITERATOR", "INDEX RANGE SCAN", "TABLE ACCESS BY LOCAL INDEX ROWID"];
+  return ["TABLE ACCESS FULL", "FILTER"];
+}
+
+function reviewTraceRows(table: PdfReviewLab["traceSummary"]): LabTraceSummaryRow[] | undefined {
+  if (!table) return undefined;
+  return table.rows.map((row) => ({
+    metric: row[0] ?? "",
+    value: row[1] ?? "",
+    meaning: row[2] ?? ""
+  }));
+}
+
+function reviewTraceText(lab: PdfReviewLab, fallback: string) {
+  if (lab.traceSummary) {
+    return [
+      lab.traceSummary.title,
+      lab.traceSummary.headers.join("     "),
+      ...lab.traceSummary.rows.map((row) => row.join("     "))
+    ].join("\n");
+  }
+  if (/Trace|TKPROF|Rows|Starts|CR|PR|대기 이벤트|enq:/i.test(lab.executionPlan ?? "")) {
+    return lab.executionPlan;
+  }
+  void fallback;
+  return undefined;
+}
+
+function reviewPredicateInfo(lab: PdfReviewLab) {
+  if (/Predicate Information/i.test(lab.executionPlan ?? "")) return lab.executionPlan;
+  if (/Top-N|STOPKEY/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo("게시구분 = :board_type, 삭제여부 = 'N'", "ROWNUM <= 20");
+  if (/옵션 조건|OR Expansion/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo(":cust_no 분기 조건", "주문일시 반열린 범위");
+  if (/파티션|Partition/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo("주문일자 >= :dt1 AND 주문일자 < :dt2", "상태코드 = '정상'");
+  if (/Trace|NL|Nested|인덱스/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo("조인 키 또는 선택 조건", "비선두 컬럼 추가 필터");
+  return undefined;
+}
+
 function convertReviewLab(lab: PdfReviewLab, index: number): LabQuestion {
   const rows = 300 + index * 80;
   const starts = 1 + index;
   const pr = 5 + index * 2;
   const cr = 1200 + index * 350;
   const targetPlan = (lab.executionPlan?.split("\n").filter((line) => /JOIN|SCAN|SORT|GROUP|COUNT|MERGE|TABLE ACCESS|INDEX/i.test(line)).slice(0, 4) ?? []);
-  const normalizedPlan = targetPlan.length ? targetPlan : ["INDEX RANGE SCAN", "TABLE ACCESS BY INDEX ROWID", "NESTED LOOPS"];
+  const normalizedPlan = targetPlan.length ? targetPlan : defaultPlanForReviewLab(lab);
   const signature = [lab.title, lab.schemaSql, lab.currentSql, lab.answerSql, lab.explanation].join("\n");
   const mode = lab.mode as GenerationBucket;
+  const fallbackTraceStats = makeTraceStats(lab.topic, rows, starts, pr, cr, normalizedPlan);
+  const traceStats = reviewTraceText(lab, fallbackTraceStats);
+  const convertedTraceSummary = reviewTraceRows(lab.traceSummary);
 
   return {
     ...metadataForLab({
@@ -2163,9 +2564,9 @@ function convertReviewLab(lab: PdfReviewLab, index: number): LabQuestion {
     topic: lab.topic,
     scenario: lab.scenario,
     schemaSql: lab.schemaSql,
-    seedSql: [lab.currentSql ? `[현재 SQL]\n${lab.currentSql}` : undefined, ...(lab.sampleData ?? []).map((table) => `[샘플 ${table.title ?? "데이터"}]\n${table.headers.join(" | ")}\n${table.rows.map((row) => row.join(" | ")).join("\n")}`)].filter(Boolean).join("\n\n"),
-    traceStats: makeTraceStats(lab.topic, rows, starts, pr, cr, normalizedPlan),
-    predicateInfo: makePredicateInfo("problem_key = :b1", "business_condition = 'Y'"),
+    seedSql: [lab.currentSql ? `[현재 SQL]\n${lab.currentSql}` : undefined, lab.executionPlan ? `[실행계획/관찰 정보]\n${lab.executionPlan}` : undefined, ...(lab.sampleData ?? []).map((table) => `[샘플 ${table.title ?? "데이터"}]\n${table.headers.join(" | ")}\n${table.rows.map((row) => row.join(" | ")).join("\n")}`)].filter(Boolean).join("\n\n"),
+    traceStats,
+    predicateInfo: reviewPredicateInfo(lab),
     prompt: lab.requirements.join("\n"),
     expectedSql: lab.answerSql,
     targetPlan: normalizedPlan,
@@ -2173,8 +2574,8 @@ function convertReviewLab(lab: PdfReviewLab, index: number): LabQuestion {
     oracleNotes: [lab.explanation, ...lab.rubric, "표시된 실행계획과 Trace는 학습용 예시이며 실제 Oracle에서 측정한 결과가 아니다."],
     hints: lab.hints,
     rubric: lab.rubric,
-    traceSummary: traceSummaryFrom(rows, starts, pr, cr, `00:00:0${Math.min(9, starts)}.${String(cr % 100).padStart(2, "0")}`),
-    simulationNotice: "이 실행계획과 SQL Trace는 SQLP 학습용 설명 예시다. 실제 Oracle 실행 결과로 표시하지 않는다.",
+    traceSummary: convertedTraceSummary ?? (traceStats ? traceSummaryFrom(rows, starts, pr, cr, `00:00:0${Math.min(9, starts)}.${String(cr % 100).padStart(2, "0")}`) : undefined),
+    simulationNotice: traceStats ? "이 실행계획과 SQL Trace는 SQLP 학습용 설명 예시다. 실제 Oracle 실행 결과로 표시하지 않는다." : "이 실습은 정적 SQL 작성 및 설계 검토 모드다. 실제 Oracle 실행 결과로 표시하지 않는다.",
     relatedConceptIds: relatedConceptsForTopic(lab.topic)
   };
 }
@@ -2417,7 +2818,8 @@ function capObjectiveQuestions(questions: ObjectiveQuestion[], targetPerSubject 
 const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
   ...manualVerifiedObjectiveQuestions,
-  ...manualVerifiedObjectiveQuestionsBatch02
+  ...manualVerifiedObjectiveQuestionsBatch02,
+  ...manualVerifiedObjectiveQuestionsBatch03
 ]);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));

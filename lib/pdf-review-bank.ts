@@ -1610,6 +1610,406 @@ enq: TX - row lock contention`,
     relatedConcepts: ["Lock", "외래키", "동시성"],
     hints: ["부모 행 삭제가 자식 테이블을 왜 확인해야 하는지 생각한다.", "자식 외래키 컬럼에 인덱스가 없으면 검증 범위가 커진다.", "무결성을 지우기보다 인덱스와 트랜잭션 순서를 조정한다."],
     validationNotes: ["동시성 실습은 실제 운영 측정값이 아닌 교육용 관찰 정보로 명확히 표시한다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-11-connect-by-path",
+    title: "조직도 계층 경로 SQL 작성",
+    topic: "계층형 질의",
+    difficulty: "상급",
+    mode: "variant",
+    status: "variant_verified",
+    source: {
+      document: sqlExam,
+      page: 41,
+      answerPage: 131,
+      questionNumber: "실기확장 11",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "계층형 질의의 방향과 경로 출력 함정을 실습형으로 재구성했다."
+    },
+    scenario: "조직 개편 후 특정 본부 아래의 사용 중인 부서만 단계, 경로, 말단 여부와 함께 조회해야 한다. 같은 부서명이 여러 단계에 존재할 수 있으므로 부서번호 기준으로 계층을 전개해야 한다.",
+    requirements: ["지정한 루트 부서에서 하위 부서 방향으로 전개한다.", "LEVEL, SYS_CONNECT_BY_PATH, CONNECT_BY_ISLEAF를 사용해 단계와 경로를 표시한다.", "사용여부가 'Y'인 부서만 결과에 포함하되 계층 방향을 반대로 쓰지 않는다."],
+    schemaSql: `CREATE TABLE 부서 (
+  부서번호 NUMBER PRIMARY KEY,
+  상위부서번호 NUMBER,
+  부서명 VARCHAR2(100) NOT NULL,
+  사용여부 CHAR(1) NOT NULL,
+  CONSTRAINT 부서_FK01 FOREIGN KEY (상위부서번호) REFERENCES 부서(부서번호)
+);
+
+CREATE INDEX 부서_IX01 ON 부서(상위부서번호, 사용여부);`,
+    sampleData: [
+      {
+        title: "부서",
+        headers: ["부서번호", "상위부서번호", "부서명", "사용여부"],
+        rows: [
+          ["10", "", "본사", "Y"],
+          ["110", "10", "영업본부", "Y"],
+          ["111", "110", "국내영업", "Y"],
+          ["112", "110", "해외영업", "N"],
+          ["120", "10", "기술본부", "Y"]
+        ]
+      }
+    ],
+    currentSql: `SELECT LEVEL AS 단계,
+       부서번호,
+       부서명
+FROM 부서
+START WITH 부서번호 = :root_dept
+CONNECT BY 부서번호 = PRIOR 상위부서번호;`,
+    executionPlan: `교육용 실행계획 예시
+------------------------------------------------------------
+Id | Operation                      | Name      | Rows | Cost
+------------------------------------------------------------
+ 0 | SELECT STATEMENT               |           |   45 |   12
+ 1 |  CONNECT BY WITH FILTERING     |           |   45 |   12
+ 2 |   TABLE ACCESS BY INDEX ROWID  | 부서      |    1 |    2
+ 3 |    INDEX UNIQUE SCAN           | 부서_PK   |    1 |    1
+ 4 |   TABLE ACCESS BY INDEX ROWID  | 부서      |   44 |   10
+ 5 |    INDEX RANGE SCAN            | 부서_IX01 |   44 |    4
+------------------------------------------------------------`,
+    answerSql: `SELECT LEVEL AS 단계,
+       부서번호,
+       부서명,
+       SYS_CONNECT_BY_PATH(부서명, '/') AS 부서경로,
+       CONNECT_BY_ISLEAF AS 말단여부
+FROM 부서
+WHERE 사용여부 = 'Y'
+START WITH 부서번호 = :root_dept
+CONNECT BY PRIOR 부서번호 = 상위부서번호;`,
+    acceptedAlternatives: ["비활성 부서의 하위 부서를 업무상 함께 제외해야 한다는 조건을 명시하고 CONNECT BY 조건에 사용여부를 함께 둔 답안은 부분 인정", "ORDER SIBLINGS BY 부서명 추가는 결과 정렬 요구가 있을 때 인정"],
+    rubric: ["PRIOR 방향이 부모 부서번호에서 자식 상위부서번호로 연결되어야 한다.", "경로와 말단 여부를 계층형 함수로 출력해야 한다.", "사용여부 필터가 결과 의미를 훼손하지 않는 위치에 있어야 한다."],
+    explanation: "하위 방향 계층 전개는 부모 행의 부서번호와 자식 행의 상위부서번호를 연결해야 한다. CONNECT BY PRIOR 부서번호 = 상위부서번호가 핵심이며, 방향을 반대로 쓰면 상위 방향 탐색이 된다.",
+    relatedConcepts: ["계층형 질의", "CONNECT BY", "PRIOR"],
+    hints: ["PRIOR가 붙은 값은 부모 행의 값이다.", "루트에서 하위로 내려가려면 부모 부서번호와 자식 상위부서번호를 비교한다.", "경로와 말단 여부는 계층형 전용 함수를 사용한다."],
+    validationNotes: ["계층 방향, 경로 함수, 말단 여부 표시를 각각 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-12-outer-join-count",
+    title: "미주문 고객 포함 집계 SQL 작성",
+    topic: "Outer Join과 집계",
+    difficulty: "중급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 74,
+      answerPage: 134,
+      questionNumber: "실기확장 12",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "Outer Join 결과 건수 추론 문제를 SQL 작성형 실습으로 확장했다."
+    },
+    scenario: "마케팅 부서가 전체 고객별 2026년 상반기 주문 건수와 주문금액을 요청했다. 주문이 없는 고객도 반드시 0건, 0원으로 표시해야 한다.",
+    requirements: ["모든 고객을 결과에 포함한다.", "2026년 상반기 주문만 집계한다.", "주문이 없는 고객은 주문건수 0, 주문금액 0으로 표시한다.", "날짜 조건 때문에 Outer Join이 Inner Join으로 바뀌지 않게 한다."],
+    schemaSql: `CREATE TABLE 고객 (
+  고객번호 NUMBER PRIMARY KEY,
+  고객명 VARCHAR2(100) NOT NULL,
+  고객등급 VARCHAR2(10)
+);
+
+CREATE TABLE 주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  주문일자 DATE NOT NULL,
+  주문금액 NUMBER NOT NULL,
+  CONSTRAINT 주문_FK01 FOREIGN KEY (고객번호) REFERENCES 고객(고객번호)
+);
+
+CREATE INDEX 주문_IX01 ON 주문(고객번호, 주문일자);`,
+    currentSql: `SELECT c.고객번호,
+       c.고객명,
+       COUNT(*) AS 주문건수,
+       NVL(SUM(o.주문금액), 0) AS 주문금액
+FROM 고객 c
+     LEFT JOIN 주문 o ON o.고객번호 = c.고객번호
+WHERE o.주문일자 >= DATE '2026-01-01'
+  AND o.주문일자 <  DATE '2026-07-01'
+GROUP BY c.고객번호, c.고객명;`,
+    answerSql: `SELECT c.고객번호,
+       c.고객명,
+       COUNT(o.주문번호) AS 주문건수,
+       NVL(SUM(o.주문금액), 0) AS 주문금액
+FROM 고객 c
+     LEFT JOIN 주문 o
+       ON o.고객번호 = c.고객번호
+      AND o.주문일자 >= DATE '2026-01-01'
+      AND o.주문일자 <  DATE '2026-07-01'
+GROUP BY c.고객번호, c.고객명;`,
+    acceptedAlternatives: ["주문을 기간 조건으로 먼저 필터링한 인라인 뷰와 LEFT JOIN하는 방식도 인정", "COUNT(o.고객번호)처럼 주문 매칭 시 NULL이 아닌 후행 컬럼을 세는 방식도 인정"],
+    rubric: ["기간 조건은 ON 절 또는 후행 인라인 뷰 내부에 있어야 한다.", "COUNT(*)가 아니라 후행 테이블의 매칭 컬럼을 집계해야 한다.", "NULL 합계는 0으로 변환해야 한다."],
+    explanation: "LEFT JOIN 후 WHERE 절에서 후행 테이블 주문일자 조건을 걸면 매칭되지 않은 고객의 NULL 확장 행이 제거된다. 기간 조건은 JOIN 조건으로 이동하고, 주문건수는 COUNT(o.주문번호)처럼 후행 테이블 컬럼 기준으로 계산해야 한다.",
+    relatedConcepts: ["Outer Join", "COUNT", "NULL"],
+    hints: ["주문 없는 고객의 후행 테이블 컬럼은 NULL이다.", "WHERE 절의 후행 테이블 조건은 NULL 확장 행을 제거한다.", "COUNT(*)와 COUNT(후행컬럼)의 차이가 핵심이다."],
+    validationNotes: ["Outer Join 보존 행과 COUNT 의미를 기준으로 정답을 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-13-partition-pruning",
+    title: "월 파티션 주문 조회 Predicate 수정",
+    topic: "Partition Pruning",
+    difficulty: "상급",
+    mode: "variant",
+    status: "variant_verified",
+    source: {
+      document: sqlExam,
+      page: 85,
+      answerPage: 135,
+      questionNumber: "실기확장 13",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "함수 조건으로 파티션 프루닝이 약해지는 튜닝 유형을 실습형으로 구성했다."
+    },
+    scenario: "주문 테이블은 주문일자 기준 월 단위 Range Partition으로 구성되어 있다. 특정 월의 정상 주문을 조회하는 배치가 전체 파티션을 훑고 있다.",
+    requirements: ["주문일자 컬럼에 함수를 적용하지 않고 월 범위를 표현한다.", "월 파티션 프루닝이 가능하도록 Predicate를 재작성한다.", "상태 조건과 주문일자 조건의 Access/Filter 역할을 구분해 설명한다."],
+    schemaSql: `CREATE TABLE 주문 (
+  주문번호 NUMBER NOT NULL,
+  주문일자 DATE NOT NULL,
+  고객번호 NUMBER NOT NULL,
+  상태코드 VARCHAR2(10) NOT NULL,
+  주문금액 NUMBER NOT NULL
+)
+PARTITION BY RANGE (주문일자) (
+  PARTITION P202606 VALUES LESS THAN (DATE '2026-07-01'),
+  PARTITION P202607 VALUES LESS THAN (DATE '2026-08-01'),
+  PARTITION P202608 VALUES LESS THAN (DATE '2026-09-01')
+);
+
+CREATE INDEX 주문_LX01 ON 주문(주문일자, 상태코드) LOCAL;`,
+    currentSql: `SELECT 주문번호, 고객번호, 주문금액
+FROM 주문
+WHERE TO_CHAR(주문일자, 'YYYYMM') = '202607'
+  AND 상태코드 = '정상';`,
+    executionPlan: `교육용 현재 실행계획 예시
+--------------------------------------------------------------------------------
+Id | Operation                  | Name      | Pstart | Pstop | Rows  | Cost
+--------------------------------------------------------------------------------
+ 0 | SELECT STATEMENT           |           |        |       | 35000 |  920
+ 1 |  PARTITION RANGE ALL       |           |      1 |     3 | 35000 |  920
+ 2 |   TABLE ACCESS FULL        | 주문      |      1 |     3 | 35000 |  920
+--------------------------------------------------------------------------------
+Predicate Information
+2 - filter(TO_CHAR("주문일자",'YYYYMM')='202607' AND "상태코드"='정상')`,
+    traceSummary: {
+      title: "교육용 Trace 핵심 요약",
+      headers: ["항목", "값", "의미"],
+      rows: [
+        ["Rows", "35,000", "조건 통과 행"],
+        ["CR", "184,200", "전체 파티션 논리 읽기"],
+        ["PR", "3,420", "버퍼 캐시 미적중"],
+        ["Time", "00:00:18.40", "함수 조건으로 읽기 범위 증가"]
+      ]
+    },
+    answerSql: `SELECT 주문번호, 고객번호, 주문금액
+FROM 주문
+WHERE 주문일자 >= DATE '2026-07-01'
+  AND 주문일자 <  DATE '2026-08-01'
+  AND 상태코드 = '정상';`,
+    acceptedAlternatives: ["바인드 변수를 사용할 때 :from_dt, :to_dt 반열린 범위로 작성한 답안 인정", "상태코드 선택도가 매우 높고 인덱스 설계를 바꿀 수 있다면 (상태코드, 주문일자) 인덱스 제안은 보조 개선안으로 인정"],
+    rubric: ["주문일자 함수 조건을 제거해야 한다.", "월 말일 BETWEEN보다 반열린 범위가 시간 값 포함 측면에서 안전함을 설명해야 한다.", "목표는 PARTITION RANGE SINGLE 또는 RANGE ITERATOR와 LOCAL INDEX RANGE SCAN이다."],
+    explanation: "파티션 키 주문일자에 TO_CHAR 함수를 적용하면 파티션 프루닝과 인덱스 시작점 형성이 약해진다. 날짜 컬럼 자체를 반열린 범위로 비교하면 해당 월 파티션과 로컬 인덱스 범위 스캔을 유도할 수 있다.",
+    relatedConcepts: ["Partition Pruning", "SARGable Predicate", "Access Predicate"],
+    hints: ["파티션 키에 함수가 적용되어 있는지 먼저 본다.", "월 조건은 DATE 상수의 시작일과 다음 달 시작일로 표현할 수 있다.", "시간 값이 섞인 DATE 컬럼에서는 반열린 범위가 안전하다."],
+    validationNotes: ["함수 조건 제거와 파티션 프루닝 목표 실행계획의 논리 관계를 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-14-scalar-subquery-rewrite",
+    title: "스칼라 서브쿼리 반복 수행 제거",
+    topic: "스칼라 서브쿼리 튜닝",
+    difficulty: "최상급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 78,
+      answerPage: 135,
+      questionNumber: "실기확장 14",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "스칼라 서브쿼리 반복 수행과 사전 집계 Rewrite를 실습형으로 구성했다."
+    },
+    scenario: "주문 목록 50만 건에 대해 고객별 최근 30일 결제금액을 SELECT 절 스칼라 서브쿼리로 조회한다. 같은 고객이 여러 주문에 반복 등장해 결제 테이블 탐색이 과도하게 반복된다.",
+    requirements: ["스칼라 서브쿼리 반복 수행 병목을 설명한다.", "고객별 결제 집계를 먼저 만든 뒤 조인하는 형태로 SQL을 재작성한다.", "반복 Starts 감소와 집계 범위 축소 근거를 설명한다."],
+    schemaSql: `CREATE TABLE 주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  주문일자 DATE NOT NULL,
+  주문상태 VARCHAR2(10) NOT NULL
+);
+
+CREATE TABLE 결제 (
+  결제번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  결제일자 DATE NOT NULL,
+  결제금액 NUMBER NOT NULL
+);
+
+CREATE INDEX 주문_IX01 ON 주문(주문일자, 주문상태, 고객번호);
+CREATE INDEX 결제_IX01 ON 결제(결제일자, 고객번호);`,
+    currentSql: `SELECT o.주문번호,
+       o.고객번호,
+       (SELECT SUM(p.결제금액)
+        FROM 결제 p
+        WHERE p.고객번호 = o.고객번호
+          AND p.결제일자 >= DATE '2026-07-01'
+          AND p.결제일자 <  DATE '2026-08-01') AS 월결제금액
+FROM 주문 o
+WHERE o.주문일자 >= DATE '2026-07-01'
+  AND o.주문일자 <  DATE '2026-08-01'
+  AND o.주문상태 = '완료';`,
+    executionPlan: `교육용 현재 실행계획 예시
+--------------------------------------------------------------------------------
+Id | Operation                      | Name      | Starts | Rows | Cost
+--------------------------------------------------------------------------------
+ 0 | SELECT STATEMENT               |           |      1 | 500K | 8200
+ 1 |  TABLE ACCESS BY INDEX ROWID   | 주문      |      1 | 500K | 1100
+ 2 |   INDEX RANGE SCAN             | 주문_IX01 |      1 | 500K |  320
+ 3 |  SORT AGGREGATE                |           | 500000 |    1 |     
+ 4 |   TABLE ACCESS BY INDEX ROWID  | 결제      | 500000 |    3 | 7100
+ 5 |    INDEX RANGE SCAN            | 결제_IX01 | 500000 |    3 | 4200
+--------------------------------------------------------------------------------`,
+    traceSummary: {
+      title: "교육용 Trace 핵심 요약",
+      headers: ["항목", "값", "의미"],
+      rows: [
+        ["Rows", "500,000", "주문 출력 행 수"],
+        ["Starts", "500,000", "스칼라 서브쿼리 반복 수행"],
+        ["CR", "2,860,000", "결제 반복 탐색 논리 읽기"],
+        ["PR", "8,400", "반복 탐색 중 물리 읽기"]
+      ]
+    },
+    answerSql: `WITH 결제집계 AS (
+  SELECT 고객번호,
+         SUM(결제금액) AS 월결제금액
+  FROM 결제
+  WHERE 결제일자 >= DATE '2026-07-01'
+    AND 결제일자 <  DATE '2026-08-01'
+  GROUP BY 고객번호
+)
+SELECT o.주문번호,
+       o.고객번호,
+       NVL(p.월결제금액, 0) AS 월결제금액
+FROM 주문 o
+     LEFT JOIN 결제집계 p ON p.고객번호 = o.고객번호
+WHERE o.주문일자 >= DATE '2026-07-01'
+  AND o.주문일자 <  DATE '2026-08-01'
+  AND o.주문상태 = '완료';`,
+    acceptedAlternatives: ["결제집계를 인라인 뷰로 작성한 LEFT JOIN 답안 인정", "고객번호별 중복이 적고 캐싱 효과가 충분하다는 근거를 제시한 유지안은 부분 인정"],
+    rubric: ["스칼라 서브쿼리 Starts가 외부 주문 행 수만큼 반복됨을 지적해야 한다.", "결제 데이터를 고객번호 기준으로 먼저 집계해야 한다.", "주문은 보존되어야 하므로 LEFT JOIN 또는 동일 의미의 방식이어야 한다."],
+    explanation: "SELECT 절 스칼라 서브쿼리는 외부 행마다 평가될 수 있다. 같은 고객이 반복되는 주문 목록에서는 결제 집계를 고객 단위로 먼저 만들고 조인하면 반복 Starts와 논리 읽기를 크게 줄일 수 있다.",
+    relatedConcepts: ["스칼라 서브쿼리", "SQL Rewrite", "Starts"],
+    hints: ["실행계획에서 같은 Operation의 Starts가 외부 행 수와 같은지 본다.", "같은 고객번호에 대한 결제 집계가 반복 계산되는지 확인한다.", "고객번호별 사전 집계 후 조인하면 반복을 줄일 수 있다."],
+    validationNotes: ["Starts, Rows, CR 수치가 부모-자식 반복 관계와 일치하도록 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-15-parallel-insert-plan",
+    title: "대량 INSERT SELECT 실행계획 분석",
+    topic: "대량 DML과 Parallel",
+    difficulty: "최상급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 92,
+      answerPage: 136,
+      questionNumber: "실기확장 15",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "대량 INSERT SELECT, 병렬 처리, 실행계획 해석을 종합 실습형으로 구성했다."
+    },
+    scenario: "월말 배송 분석용 테이블에 3개월 주문, 고객, 배송 데이터를 적재한다. 기존 SQL은 고객을 한 건씩 찾는 NL 반복과 불필요한 랜덤 액세스가 커서 야간 배치 제한 시간을 초과한다.",
+    requirements: ["대량 INSERT SELECT에 적합한 접근 방식과 힌트를 제안한다.", "고객과 배송 테이블 조인 방식을 Hash Join 중심으로 유도한다.", "APPEND와 PARALLEL 사용 시 제약조건, 인덱스 유지 비용, Undo/Redo 영향까지 설명한다."],
+    schemaSql: `CREATE TABLE 주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  주문일자 DATE NOT NULL,
+  주문금액 NUMBER NOT NULL,
+  배송상태 VARCHAR2(10) NOT NULL
+);
+
+CREATE TABLE 고객 (
+  고객번호 NUMBER PRIMARY KEY,
+  고객등급 VARCHAR2(10) NOT NULL,
+  활동상태 VARCHAR2(10) NOT NULL
+);
+
+CREATE TABLE 배송 (
+  주문번호 NUMBER PRIMARY KEY,
+  배송일자 DATE,
+  배송유형 VARCHAR2(10)
+);
+
+CREATE TABLE 주문배송적재 (
+  주문번호 NUMBER,
+  고객번호 NUMBER,
+  고객등급 VARCHAR2(10),
+  주문일자 DATE,
+  주문금액 NUMBER,
+  배송일자 DATE,
+  배송유형 VARCHAR2(10)
+);`,
+    currentSql: `INSERT INTO 주문배송적재
+SELECT o.주문번호,
+       o.고객번호,
+       c.고객등급,
+       o.주문일자,
+       o.주문금액,
+       d.배송일자,
+       d.배송유형
+FROM 주문 o,
+     고객 c,
+     배송 d
+WHERE o.고객번호 = c.고객번호
+  AND o.주문번호 = d.주문번호(+)
+  AND o.주문일자 BETWEEN DATE '2026-06-01' AND DATE '2026-08-31';`,
+    executionPlan: `교육용 현재 실행계획 예시
+------------------------------------------------------------------------------------------------
+Id | Operation                         | Name    | Starts | Rows  | Cost | IN-OUT
+------------------------------------------------------------------------------------------------
+ 0 | INSERT STATEMENT                  |         |      1 | 3000K | 9800 |
+ 1 |  LOAD TABLE CONVENTIONAL          | 주문배송적재 | 1 |       |      |
+ 2 |  NESTED LOOPS OUTER               |         |      1 | 3000K | 9800 |
+ 3 |   NESTED LOOPS                    |         |      1 | 3000K | 7600 |
+ 4 |    TABLE ACCESS FULL              | 주문    |      1 | 3000K | 3100 |
+ 5 |    TABLE ACCESS BY INDEX ROWID    | 고객    | 3000K | 3000K | 2400 |
+ 6 |     INDEX UNIQUE SCAN             | 고객_PK | 3000K | 3000K | 1200 |
+ 7 |   TABLE ACCESS BY INDEX ROWID     | 배송    | 3000K | 2800K | 2200 |
+ 8 |    INDEX UNIQUE SCAN              | 배송_PK | 3000K | 2800K | 1100 |
+------------------------------------------------------------------------------------------------
+Predicate Information
+4 - filter("O"."주문일자">=DATE '2026-06-01' AND "O"."주문일자"<=DATE '2026-08-31')
+6 - access("O"."고객번호"="C"."고객번호")
+8 - access("O"."주문번호"="D"."주문번호")`,
+    traceSummary: {
+      title: "교육용 Trace 핵심 요약",
+      headers: ["항목", "값", "의미"],
+      rows: [
+        ["Rows", "3,000,000", "적재 대상 주문"],
+        ["Starts", "3,000,000", "고객/배송 반복 인덱스 탐색"],
+        ["CR", "9,840,000", "대량 랜덤 액세스 논리 읽기"],
+        ["PR", "126,000", "배치 중 물리 읽기"],
+        ["Time", "00:18:42.00", "교육용 비교 기준"]
+      ]
+    },
+    answerSql: `INSERT /*+ APPEND PARALLEL(t 4) */ INTO 주문배송적재 t
+SELECT /*+ LEADING(o) USE_HASH(c) USE_HASH(d) FULL(o) FULL(c) FULL(d) PARALLEL(o 4) PARALLEL(c 4) PARALLEL(d 4) */
+       o.주문번호,
+       o.고객번호,
+       c.고객등급,
+       o.주문일자,
+       o.주문금액,
+       d.배송일자,
+       d.배송유형
+FROM 주문 o
+     JOIN 고객 c ON c.고객번호 = o.고객번호
+     LEFT JOIN 배송 d ON d.주문번호 = o.주문번호
+WHERE o.주문일자 >= DATE '2026-06-01'
+  AND o.주문일자 <  DATE '2026-09-01';`,
+    acceptedAlternatives: ["주문 기간 조건의 선택도가 높아 파티션 프루닝이 가능한 경우 주문 파티션 범위 스캔과 Hash Join을 조합한 답안 인정", "적재 대상 테이블 인덱스를 작업 후 재생성하는 운영 절차를 함께 제시하면 추가 인정"],
+    rubric: ["BETWEEN 말일 조건을 반열린 범위로 고쳐 시간 값을 안전하게 포함해야 한다.", "대량 조인에서 반복 INDEX UNIQUE SCAN을 줄이는 Hash Join 근거를 설명해야 한다.", "APPEND/PARALLEL은 제약조건, 인덱스, 로그, 동시성 영향을 함께 검토해야 한다."],
+    explanation: "대량 INSERT SELECT에서 수백만 행을 기준으로 작은 테이블을 반복 INDEX UNIQUE SCAN하면 Starts와 CR이 커진다. 대량 범위는 Hash Join과 병렬 처리, Direct Path Insert를 검토하되 운영 제약과 인덱스 유지 비용을 함께 판단해야 한다.",
+    relatedConcepts: ["대량 DML", "Parallel", "Hash Join", "SQL Trace"],
+    hints: ["실행계획에서 고객과 배송 접근 Starts가 주문 행 수와 같은지 확인한다.", "대량 적재에서는 한 건씩 찾는 방식보다 집합 조인 방식이 유리할 수 있다.", "APPEND와 PARALLEL은 성능만이 아니라 운영 제약까지 답안에 포함해야 한다."],
+    validationNotes: ["Rows, Starts, CR 수치가 반복 랜덤 액세스 병목을 설명하도록 검수했다."]
   }
 ];
 
