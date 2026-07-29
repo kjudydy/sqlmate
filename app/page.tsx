@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect } from "@/lib/grading";
-import { conceptArticles, createLocalExtraLabQuestions, createLocalExtraQuestions, labQuestions, objectiveQuestions, officialSourceVersion, subjects } from "@/lib/problem-bank";
+import { conceptArticles, labQuestions, objectiveQuestions, officialSourceVersion, subjects } from "@/lib/problem-bank";
 import { filterCurrentAnswers, filterCurrentAttempts } from "@/lib/study-versioning";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { FormEvent, ReactNode } from "react";
@@ -43,9 +43,8 @@ import type {
 
 type Section = "dashboard" | "practice" | "lab" | "wrong" | "concepts" | "notes";
 
-const verifiedExpansionReady = true;
-const objectiveExtraBatchSize = 10;
-const labExtraBatchSize = 5;
+const infiniteQuestionWindowSize = 10;
+const infiniteLabWindowSize = 5;
 
 type PendingHighlight = {
   text: string;
@@ -180,6 +179,24 @@ function getNextExtraStartCount(questions: ObjectiveQuestion[], subjectId: Subje
     .reduce((max, question) => Math.max(max, Math.max(0, question.number - 10)), 0);
 }
 
+function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
+  return (
+    question.sourceVersion === officialSourceVersion &&
+    question.reviewStatus === "approved" &&
+    question.validationStatus === "validated" &&
+    Boolean(question.contentHash)
+  );
+}
+
+function isPublishedLabQuestion(question: LabQuestion) {
+  return (
+    question.sourceVersion === officialSourceVersion &&
+    question.reviewStatus === "approved" &&
+    question.validationStatus === "validated" &&
+    Boolean(question.contentHash)
+  );
+}
+
 function findNthOccurrence(text: string, needle: string, occurrenceIndex: number) {
   if (!needle) return -1;
 
@@ -263,6 +280,7 @@ export default function Home() {
   const [personalNotes, setPersonalNotes] = usePersistentState<PersonalNote[]>("sqlmate.personalNotes", emptyState.personalNotes);
   const [extraQuestions, setExtraQuestions] = usePersistentState<ObjectiveQuestion[]>("sqlmate.extraQuestions", emptyState.extraQuestions);
   const [extraLabQuestions, setExtraLabQuestions] = usePersistentState<LabQuestion[]>("sqlmate.extraLabQuestions", emptyState.extraLabQuestions ?? []);
+  const [sessionAnswers, setSessionAnswers] = useState<Record<string, AnswerRecord>>({});
   const [selectedConceptId, setSelectedConceptId] = useState(conceptArticles[0]?.id ?? "");
   const [selectedPersonalNoteId, setSelectedPersonalNoteId] = useState("");
   const [conceptNavCollapsed, setConceptNavCollapsed] = useState(false);
@@ -282,18 +300,17 @@ export default function Home() {
   const [cloudReady, setCloudReady] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [cloudStatus, setCloudStatus] = useState("데모 저장");
-  const [isGenerating, setIsGenerating] = useState(false);
   const [wrongNoteSaveStatus, setWrongNoteSaveStatus] = useState<Record<string, "idle" | "saving" | "saved" | "failed">>({});
   const [pendingWrongDeleteId, setPendingWrongDeleteId] = useState<string | null>(null);
   const wrongMemoTimers = useRef<Record<string, number>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const activeExtraQuestions = useMemo(
-    () => extraQuestions.filter((question) => question.sourceVersion === officialSourceVersion && Boolean(question.contentHash)),
+    () => extraQuestions.filter(isPublishedObjectiveQuestion),
     [extraQuestions]
   );
   const activeExtraLabQuestions = useMemo(
-    () => extraLabQuestions.filter((question) => question.sourceVersion === officialSourceVersion && Boolean(question.contentHash)),
+    () => extraLabQuestions.filter(isPublishedLabQuestion),
     [extraLabQuestions]
   );
   const allQuestions = useMemo(() => [...objectiveQuestions, ...activeExtraQuestions], [activeExtraQuestions]);
@@ -312,8 +329,12 @@ export default function Home() {
     () => [...baseSubjectQuestions, ...subjectExtraQuestions].map((question, index) => ({ ...question, number: index + 1 })),
     [baseSubjectQuestions, subjectExtraQuestions]
   );
-  const currentQuestion = subjectQuestions[clampIndex(questionIndex, subjectQuestions.length)];
-  const currentAnswer = currentQuestion ? currentAnswers[currentQuestion.id] : undefined;
+  const getQuestionForRunIndex = (runIndex: number) => (subjectQuestions.length ? subjectQuestions[runIndex % subjectQuestions.length] : undefined);
+  const getQuestionRunKey = (runIndex: number, question?: ObjectiveQuestion) => `${activeSubject}:${runIndex}:${question?.id ?? "empty"}`;
+  const currentQuestionBase = getQuestionForRunIndex(questionIndex);
+  const currentQuestion = currentQuestionBase ? { ...currentQuestionBase, number: questionIndex + 1 } : undefined;
+  const currentQuestionRunKey = getQuestionRunKey(questionIndex, currentQuestionBase);
+  const currentAnswer = currentQuestion ? sessionAnswers[currentQuestionRunKey] : undefined;
   const conceptSubjectTabs = useMemo(
     () =>
       [
@@ -341,7 +362,8 @@ export default function Home() {
   );
   const selectedConcept = visibleConceptArticles.find((concept) => concept.id === selectedConceptId) ?? visibleConceptArticles[0];
   const selectedPersonalNote = personalNotes.find((note) => note.id === selectedPersonalNoteId) ?? personalNotes[0];
-  const activeLab = allLabQuestions[clampIndex(activeLabIndex, allLabQuestions.length)];
+  const activeLabBase = allLabQuestions.length ? allLabQuestions[activeLabIndex % allLabQuestions.length] : undefined;
+  const activeLab = activeLabBase ? { ...activeLabBase, number: activeLabIndex + 1 } : undefined;
   const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
 
   const completed = Object.keys(currentAnswers).length;
@@ -359,11 +381,11 @@ export default function Home() {
   const labProgressPercent = allLabQuestions.length ? Math.round((labCompleted / allLabQuestions.length) * 100) : 0;
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
   const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, currentAttempts, labAnswers), [currentAttempts, labAnswers, todayKey]);
-  const subjectAnsweredCount = subjectQuestions.filter((question) => currentAnswers[question.id]).length;
-  const canGenerateExtraBatch = subjectQuestions.length > 0 && subjectAnsweredCount === subjectQuestions.length;
-  const canGenerateExtraLabBatch = allLabQuestions.length > 0 && labCompleted === allLabQuestions.length;
-  const nextExtraBatchStart = subjectQuestions.length + 1;
-  const nextExtraBatchEnd = subjectQuestions.length + objectiveExtraBatchSize;
+  const subjectAnsweredCount = currentAttempts.filter((attempt) => attempt.subjectId === activeSubject).length;
+  const questionMarkerStart = Math.max(0, questionIndex - Math.floor(infiniteQuestionWindowSize / 2));
+  const questionMarkers = Array.from({ length: infiniteQuestionWindowSize }, (_, offset) => questionMarkerStart + offset);
+  const labMarkerStart = Math.max(0, activeLabIndex - Math.floor(infiniteLabWindowSize / 2));
+  const labMarkers = Array.from({ length: infiniteLabWindowSize }, (_, offset) => labMarkerStart + offset);
 
   const studyState = useMemo<StudyStatePayload>(
     () => ({
@@ -391,7 +413,7 @@ export default function Home() {
   useEffect(() => {
     setSelectedChoice(currentAnswer?.selectedChoiceId ?? null);
     setHintVisible(false);
-  }, [currentQuestion?.id, currentAnswer?.selectedChoiceId]);
+  }, [currentQuestionRunKey, currentAnswer?.selectedChoiceId]);
 
   useEffect(() => {
     if (!supabase) {
@@ -462,8 +484,8 @@ export default function Home() {
           setDismissedWrongNotes(state.dismissedWrongNotes ?? {});
           setConceptMarks(state.conceptMarks ?? {});
           setPersonalNotes(state.personalNotes ?? []);
-          setExtraQuestions(state.extraQuestions ?? []);
-          setExtraLabQuestions(state.extraLabQuestions ?? []);
+          setExtraQuestions((state.extraQuestions ?? []).filter(isPublishedObjectiveQuestion));
+          setExtraLabQuestions((state.extraLabQuestions ?? []).filter(isPublishedLabQuestion));
         }
         setCloudReady(true);
         setCloudStatus(error ? "클라우드 스키마 확인 필요" : "클라우드 동기화");
@@ -523,18 +545,24 @@ export default function Home() {
 
     const answerIsCorrect = isChoiceCorrect(currentQuestion, selectedChoice);
     const answeredAt = nowIso();
+    const answerRecord: AnswerRecord = {
+      questionId: currentQuestion.id,
+      selectedChoiceId: selectedChoice,
+      correct: answerIsCorrect,
+      answeredAt,
+      hintUsed: hintVisible,
+      questionContentHash: currentQuestion.contentHash,
+      questionSourceVersion: currentQuestion.sourceVersion
+    };
+
+    setSessionAnswers((prev) => ({
+      ...prev,
+      [currentQuestionRunKey]: answerRecord
+    }));
 
     setAnswers((prev) => ({
       ...prev,
-      [currentQuestion.id]: {
-        questionId: currentQuestion.id,
-        selectedChoiceId: selectedChoice,
-        correct: answerIsCorrect,
-        answeredAt,
-        hintUsed: hintVisible,
-        questionContentHash: currentQuestion.contentHash,
-        questionSourceVersion: currentQuestion.sourceVersion
-      }
+      [currentQuestion.id]: answerRecord
     }));
 
     setAttempts((prev) => [
@@ -582,33 +610,25 @@ export default function Home() {
     }
   }
 
-  function addExtraQuestionBatch() {
-    setIsGenerating(true);
-    const firstNewQuestionIndex = subjectQuestions.length;
-    try {
-      setExtraQuestions((prev) => {
-        const nextStartCount = getNextExtraStartCount(activeExtraQuestions, activeSubject);
-        const batch = createLocalExtraQuestions(activeSubject, nextStartCount, objectiveExtraBatchSize);
-        return [...prev, ...batch];
-      });
-      setQuestionIndex(firstNewQuestionIndex);
-    } finally {
-      setIsGenerating(false);
-    }
+  function goToNextQuestion() {
+    setQuestionIndex((prev) => prev + 1);
+    setSelectedChoice(null);
+    setHintVisible(false);
   }
 
-  function addExtraLabBatch() {
-    setIsGenerating(true);
-    const firstNewLabIndex = allLabQuestions.length;
-    try {
-      setExtraLabQuestions((prev) => [...prev, ...createLocalExtraLabQuestions(activeExtraLabQuestions.length, labExtraBatchSize)]);
-      setActiveLabIndex(firstNewLabIndex);
-      setLabSql("");
-      setLabResult(null);
-      setRemotePlan(null);
-    } finally {
-      setIsGenerating(false);
-    }
+  function skipQuestion() {
+    goToNextQuestion();
+  }
+
+  function goToNextLab() {
+    setActiveLabIndex((prev) => prev + 1);
+    setLabSql("");
+    setLabResult(null);
+    setRemotePlan(null);
+  }
+
+  function skipLab() {
+    goToNextLab();
   }
 
   async function runLab() {
@@ -1193,30 +1213,34 @@ export default function Home() {
                 </button>
               ))}
               <button className="subject-tab lab-entry" onClick={() => setSection("lab")}>
-                <span>SQL 실습</span>
+                <span>실기</span>
                 <strong>실행계획 · Trace · SQL Rewrite</strong>
               </button>
               <div className="extra-gate">
                 <span>
-                  {subjectAnsweredCount}/{subjectQuestions.length} 완료
-                  {subjectExtraQuestions.length > 0 ? ` · 추가 ${subjectExtraQuestions.length}문제` : ""}
+                  {questionIndex + 1}번째 풀이
+                  {subjectAnsweredCount > 0 ? ` · 제출 ${subjectAnsweredCount}회` : ""}
                 </span>
-                <p>PDF 기반 Variant / Similar 문제를 10문제씩 추가합니다.</p>
-                <button className="primary-button full" onClick={addExtraQuestionBatch} disabled={isGenerating || !verifiedExpansionReady}>
-                  <Plus size={17} />
-                  {isGenerating ? "생성 중" : `${nextExtraBatchStart}-${nextExtraBatchEnd}번 문제 추가`}
+                <p>검수된 PDF 기반 ORIGINAL / VARIANT / SIMILAR 풀에서 계속 이어서 출제합니다.</p>
+                <button className="primary-button full" onClick={goToNextQuestion}>
+                  <ChevronRight size={17} />
+                  다음 문제
                 </button>
               </div>
               <div className="question-list">
-                {subjectQuestions.map((question, index) => (
-                  <button
-                    key={question.id}
-                    className={`mini-question ${index === questionIndex ? "active" : ""} ${currentAnswers[question.id]?.correct ? "correct" : currentAnswers[question.id] ? "wrong" : ""}`}
-                    onClick={() => setQuestionIndex(index)}
-                  >
-                    {question.number}
-                  </button>
-                ))}
+                {questionMarkers.map((runIndex) => {
+                  const markerQuestion = getQuestionForRunIndex(runIndex);
+                  const markerAnswer = markerQuestion ? sessionAnswers[getQuestionRunKey(runIndex, markerQuestion)] : undefined;
+                  return (
+                    <button
+                      key={`${activeSubject}-run-${runIndex}`}
+                      className={`mini-question ${runIndex === questionIndex ? "active" : ""} ${markerAnswer?.correct ? "correct" : markerAnswer ? "wrong" : ""}`}
+                      onClick={() => setQuestionIndex(runIndex)}
+                    >
+                      {runIndex + 1}
+                    </button>
+                  );
+                })}
               </div>
             </section>
 
@@ -1319,25 +1343,33 @@ export default function Home() {
                   <Lightbulb size={17} />
                   힌트
                 </button>
-                <button className="primary-button" onClick={submitAnswer} disabled={!selectedChoice}>
+                <button className="primary-button" onClick={submitAnswer} disabled={!selectedChoice || Boolean(currentAnswer)}>
                   <CheckCircle2 size={17} />
                   제출
                 </button>
-                <button className="ghost-button icon-only" aria-label="Previous question" onClick={() => setQuestionIndex((prev) => clampIndex(prev - 1, subjectQuestions.length))}>
+                <button className="ghost-button" onClick={goToNextQuestion}>
+                  <ChevronRight size={17} />
+                  다음 문제
+                </button>
+                <button className="ghost-button" onClick={skipQuestion}>
+                  <RotateCcw size={17} />
+                  건너뛰기
+                </button>
+                <button className="ghost-button icon-only" aria-label="Previous question" onClick={() => setQuestionIndex((prev) => Math.max(0, prev - 1))}>
                   <ChevronLeft size={18} />
                 </button>
-                <button className="ghost-button icon-only" aria-label="Next question" onClick={() => setQuestionIndex((prev) => clampIndex(prev + 1, subjectQuestions.length))}>
+                <button className="ghost-button icon-only" aria-label="Next question" onClick={goToNextQuestion}>
                   <ChevronRight size={18} />
                 </button>
               </div>
               <div className="bottom-add-panel">
                 <div>
-                  <strong>문제 풀이 풀 확장</strong>
-                  <span>현재 과목에 PDF 기반 문제 10문제를 추가합니다.</span>
+                  <strong>무한 문제풀이</strong>
+                  <span>정답을 제출하거나 건너뛰면 오답 처리 없이 다음 문제로 이동합니다.</span>
                 </div>
-                <button className="primary-button" onClick={addExtraQuestionBatch} disabled={isGenerating || !verifiedExpansionReady}>
-                  <Plus size={17} />
-                  문제 추가
+                <button className="primary-button" onClick={goToNextQuestion}>
+                  <ChevronRight size={17} />
+                  다음 문제
                 </button>
               </div>
             </section>
@@ -1388,26 +1420,31 @@ export default function Home() {
                 <span>필기 문제풀이</span>
                 <strong>1과목 · 2과목 · 3과목 객관식으로 돌아가기</strong>
               </button>
-              {allLabQuestions.map((lab, index) => (
-                <button
-                  key={lab.id}
-                  className={index === activeLabIndex ? "subject-tab active" : "subject-tab"}
-                  onClick={() => {
-                    setActiveLabIndex(index);
-                    setLabSql("");
-                    setLabResult(null);
-                    setRemotePlan(null);
-                  }}
-                >
-                  실습 {lab.number}. {lab.topic}
-                </button>
-              ))}
+              {labMarkers.map((runIndex) => {
+                const markerLab = allLabQuestions.length ? allLabQuestions[runIndex % allLabQuestions.length] : undefined;
+                if (!markerLab) return null;
+
+                return (
+                  <button
+                    key={`lab-run-${runIndex}`}
+                    className={runIndex === activeLabIndex ? "subject-tab active" : "subject-tab"}
+                    onClick={() => {
+                      setActiveLabIndex(runIndex);
+                      setLabSql("");
+                      setLabResult(null);
+                      setRemotePlan(null);
+                    }}
+                  >
+                    실기 {runIndex + 1}. {markerLab.topic}
+                  </button>
+                );
+              })}
               <div className="extra-gate">
-                <span>{labCompleted}/{allLabQuestions.length} 시도 · 실습 풀 확장</span>
-                <p>실행계획·Trace 중심 실습을 5문제씩 추가합니다.</p>
-                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating || !verifiedExpansionReady}>
-                  <Sparkles size={17} />
-                  실습 5문제 추가
+                <span>{activeLabIndex + 1}번째 실기 풀이</span>
+                <p>PDF 실기 복기 스타일의 검수형 실습을 계속 이어서 풉니다.</p>
+                <button className="primary-button" onClick={goToNextLab}>
+                  <ChevronRight size={17} />
+                  다음 실기
                 </button>
               </div>
             </section>
@@ -1531,15 +1568,23 @@ export default function Home() {
                   <Sparkles size={17} />
                   기준 답안
                 </button>
+                <button className="ghost-button" onClick={goToNextLab}>
+                  <ChevronRight size={17} />
+                  다음 실기
+                </button>
+                <button className="ghost-button" onClick={skipLab}>
+                  <RotateCcw size={17} />
+                  건너뛰기
+                </button>
               </div>
               <div className="bottom-add-panel">
                 <div>
-                  <strong>실습 문제 풀 확장</strong>
-                  <span>실행계획·Trace·SQL Rewrite 실습 5문제를 추가합니다.</span>
+                  <strong>실기 무한 풀이</strong>
+                  <span>건너뛰기는 채점하지 않고 바로 다음 실기로 이동합니다.</span>
                 </div>
-                <button className="primary-button" onClick={addExtraLabBatch} disabled={isGenerating || !verifiedExpansionReady}>
-                  <Plus size={17} />
-                  문제 추가
+                <button className="primary-button" onClick={goToNextLab}>
+                  <ChevronRight size={17} />
+                  다음 실기
                 </button>
               </div>
 

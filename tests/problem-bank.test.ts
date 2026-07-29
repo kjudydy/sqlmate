@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createLocalExtraLabQuestion,
   createLocalExtraLabQuestions,
   createLocalExtraQuestion,
   createLocalExtraQuestions,
@@ -173,42 +174,29 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
-  it("generates 10-question objective expansion batches after the first ten reviewed questions", () => {
+  it("does not publish unverified objective expansion batches from templates", () => {
     for (const subject of subjects) {
       const batch = createLocalExtraQuestions(subject.id, 0, 10);
-      const baseIds = new Set(bySubject(subject.id).map((question) => question.id));
-
-      expect(batch).toHaveLength(10);
-      expect(batch[0].number).toBe(11);
-      expect(batch[9].number).toBe(20);
-      expect(batch.every((question) => question.subjectId === subject.id)).toBe(true);
-      expect(batch.every((question) => !baseIds.has(question.id))).toBe(true);
-      expect(batch.every((question) => question.sourceVersion === verifiedOfficialSourceVersion)).toBe(true);
-      expect(batch.every((question) => question.contentHash?.match(/^[0-9a-f]{8}$/))).toBe(true);
+      expect(batch).toHaveLength(0);
     }
   });
 
-  it("generates 5 SQL Practice expansion questions with unique ids and simulation labeling", () => {
+  it("does not publish unverified SQL Practice expansion batches from templates", () => {
     const batch = createLocalExtraLabQuestions(0, 5);
 
-    expect(batch).toHaveLength(5);
-    expect(batch[0].number).toBe(6);
-    expect(batch[4].number).toBe(10);
-    expect(new Set(batch.map((lab) => lab.id)).size).toBe(5);
-    expect(new Set(batch.map((lab) => lab.expectedSql)).size).toBe(5);
-    expect(batch.every((lab) => lab.sourceVersion === verifiedOfficialSourceVersion)).toBe(true);
-    expect(batch.every((lab) => lab.traceStats?.includes("Rows") && lab.traceStats.includes("Loop"))).toBe(true);
-    expect(batch.every((lab) => lab.simulationNotice?.includes("실제 Oracle 실행 결과로 표시하지 않는다"))).toBe(true);
+    expect(batch).toHaveLength(0);
   });
 
-  it("keeps single-question expansion API compatible with the AI fallback routes", () => {
+  it("keeps single-question fallback limited to verified PDF material", () => {
     const objective = createLocalExtraQuestion("tuning", 0);
     expect(objective.number).toBe(11);
     expect(objective.choices).toHaveLength(4);
     expect(objective.answer).toMatch(/[ABCD]/);
+    expect(objective.reviewStatus).toBe("approved");
 
-    const lab = createLocalExtraLabQuestions(0, 1)[0];
+    const lab = createLocalExtraLabQuestion(0);
     expect(lab.number).toBe(6);
     expect(lab.expectedSql.length).toBeGreaterThan(50);
+    expect(lab.reviewStatus).toBe("approved");
   });
 });

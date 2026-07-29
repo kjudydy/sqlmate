@@ -776,19 +776,48 @@ const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(l
 export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
-  return buildGeneratedQuestion(subjectId, count, false);
+  const pool = verifiedObjectiveQuestions.filter((question) => question.subjectId === subjectId);
+  if (!pool.length) {
+    throw new Error(`No verified PDF questions are available for ${subjectId}`);
+  }
+
+  const base = pool[count % pool.length];
+  return {
+    ...base,
+    id: `${base.id}-verified-cycle-${count + 1}`,
+    number: 11 + count,
+    parentQuestionId: base.id,
+    batchId: `verified-cycle-${subjectId}`,
+    duplicationCheck: "검수되지 않은 자동 생성 대신 approved PDF 문항 풀에서 재사용한다."
+  };
 }
 
 export function createVerifiedExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 10): ObjectiveQuestion[] {
-  return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraQuestion(subjectId, startCount + offset));
+  void subjectId;
+  void startCount;
+  void batchSize;
+  return [];
 }
 
 export function createVerifiedExtraLabQuestion(count: number): LabQuestion {
-  return buildPracticeLab(count, 6 + count, false);
+  if (!verifiedLabQuestions.length) {
+    throw new Error("No verified SQL Practice cases are available");
+  }
+
+  const base = verifiedLabQuestions[count % verifiedLabQuestions.length];
+  return {
+    ...base,
+    id: `${base.id}-verified-cycle-${count + 1}`,
+    number: 6 + count,
+    parentQuestionId: base.id,
+    batchId: "verified-cycle-sql-practice"
+  };
 }
 
 export function createVerifiedExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
-  return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraLabQuestion(startCount + offset));
+  void startCount;
+  void batchSize;
+  return [];
 }
 
 const bannedUserVisiblePatterns = [
