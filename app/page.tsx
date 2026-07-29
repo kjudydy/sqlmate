@@ -25,8 +25,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect, isStaticDesignSql } from "@/lib/grading";
 import {
   conceptArticles,
-  createLocalExtraLabQuestions,
-  createLocalExtraQuestions,
   labQuestions,
   objectiveQuestions,
   officialSourceVersion,
@@ -374,23 +372,17 @@ export default function Home() {
   const wrongMemoTimers = useRef<Record<string, number>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const activeExtraQuestions = useMemo<ObjectiveQuestion[]>(() => extraQuestions.filter(isPublishedObjectiveQuestion), [extraQuestions]);
-  const activeExtraLabQuestions = useMemo<LabQuestion[]>(() => extraLabQuestions.filter(isPublishedLabQuestion), [extraLabQuestions]);
-  const allQuestions = useMemo(() => [...objectiveQuestions, ...activeExtraQuestions], [activeExtraQuestions]);
-  const allLabQuestions = useMemo(() => [...labQuestions, ...activeExtraLabQuestions], [activeExtraLabQuestions]);
+  const allQuestions = useMemo(() => objectiveQuestions, []);
+  const allLabQuestions = useMemo(() => labQuestions, []);
   const currentAnswers = useMemo(() => filterCurrentAnswers(answers, allQuestions), [answers, allQuestions]);
   const currentAttempts = useMemo(() => filterCurrentAttempts(attempts, allQuestions), [attempts, allQuestions]);
   const baseSubjectQuestions = useMemo(
     () => objectiveQuestions.filter((question) => question.subjectId === activeSubject),
     [activeSubject]
   );
-  const subjectExtraQuestions = useMemo(
-    () => activeExtraQuestions.filter((question) => question.subjectId === activeSubject),
-    [activeSubject, activeExtraQuestions]
-  );
   const subjectQuestions = useMemo(
-    () => [...baseSubjectQuestions, ...subjectExtraQuestions].map((question, index) => ({ ...question, number: index + 1 })),
-    [baseSubjectQuestions, subjectExtraQuestions]
+    () => baseSubjectQuestions.map((question, index) => ({ ...question, number: index + 1 })),
+    [baseSubjectQuestions]
   );
   const getQuestionForRunIndex = (runIndex: number) => subjectQuestions[runIndex];
   const getQuestionRunKey = (runIndex: number, question?: ObjectiveQuestion) => `${activeSubject}:${runIndex}:${question?.id ?? "empty"}`;
@@ -547,8 +539,8 @@ export default function Home() {
           setDismissedWrongNotes(state.dismissedWrongNotes ?? {});
           setConceptMarks(state.conceptMarks ?? {});
           setPersonalNotes(state.personalNotes ?? []);
-          setExtraQuestions((state.extraQuestions ?? []).filter(isPublishedObjectiveQuestion));
-          setExtraLabQuestions((state.extraLabQuestions ?? []).filter(isPublishedLabQuestion));
+          setExtraQuestions([]);
+          setExtraLabQuestions([]);
         }
         setCloudReady(true);
         setCloudStatus(error ? "클라우드 스키마 확인 필요" : "클라우드 동기화");
@@ -680,60 +672,29 @@ export default function Home() {
     setHintVisible(false);
   }
 
-  function appendNextQuestionBatch(subjectId: SubjectId) {
-    setExtraQuestions((prev) => {
-      const publishedPrevious = prev.filter(isPublishedObjectiveQuestion);
-      const existingQuestions = [...objectiveQuestions, ...publishedPrevious];
-      const existingIds = new Set(existingQuestions.map((question) => question.id));
-      const existingHashes = new Set(existingQuestions.map((question) => question.contentHash).filter(Boolean));
-      const subjectExtraCount = publishedPrevious.filter((question) => question.subjectId === subjectId).length;
-      const batch = createLocalExtraQuestions(subjectId, subjectExtraCount, 20).filter(isPublishedObjectiveQuestion);
-      const uniqueBatch = batch.filter((question) => !existingIds.has(question.id) && !existingHashes.has(question.contentHash));
-
-      if (!uniqueBatch.length) return publishedPrevious;
-      return [...publishedPrevious, ...uniqueBatch];
-    });
-    setCloudStatus("다음 20문제 추가 준비");
-  }
-
   function goToNextQuestion() {
     const nextIndex = questionIndex + 1;
-    if (nextIndex >= subjectQuestions.length) {
-      appendNextQuestionBatch(activeSubject);
-    }
-    setQuestionIndex(nextIndex);
+    setQuestionIndex(Math.min(nextIndex, subjectQuestions.length));
     setSelectedChoice(null);
     setHintVisible(false);
+    if (nextIndex >= subjectQuestions.length) {
+      setCloudStatus("준비된 문제를 모두 풀었습니다");
+    }
   }
 
   function skipQuestion() {
     goToNextQuestion();
   }
 
-  function appendNextLabBatch() {
-    setExtraLabQuestions((prev) => {
-      const publishedPrevious = prev.filter(isPublishedLabQuestion);
-      const existingLabs = [...labQuestions, ...publishedPrevious];
-      const existingIds = new Set(existingLabs.map((lab) => lab.id));
-      const existingHashes = new Set(existingLabs.map((lab) => lab.contentHash).filter(Boolean));
-      const batch = createLocalExtraLabQuestions(publishedPrevious.length, 5).filter(isPublishedLabQuestion);
-      const uniqueBatch = batch.filter((lab) => !existingIds.has(lab.id) && !existingHashes.has(lab.contentHash));
-
-      if (!uniqueBatch.length) return publishedPrevious;
-      return [...publishedPrevious, ...uniqueBatch];
-    });
-    setCloudStatus("다음 실기 5문제 추가 준비");
-  }
-
   function goToNextLab() {
     const nextIndex = activeLabIndex + 1;
-    if (nextIndex >= allLabQuestions.length) {
-      appendNextLabBatch();
-    }
-    setActiveLabIndex(nextIndex);
+    setActiveLabIndex(Math.min(nextIndex, allLabQuestions.length));
     setLabSql("");
     setLabResult(null);
     setRemotePlan(null);
+    if (nextIndex >= allLabQuestions.length) {
+      setCloudStatus("준비된 실기 문제를 모두 풀었습니다");
+    }
   }
 
   function skipLab() {
@@ -1209,7 +1170,7 @@ export default function Home() {
                   <p className="eyebrow">Progress</p>
                   <h2>과목별 진행률</h2>
                 </div>
-                <span className="pill">{completed} / {objectiveQuestions.length + activeExtraQuestions.length}</span>
+                <span className="pill">{completed} / {allQuestions.length}</span>
               </div>
               <div className="dashboard-progress-list">
                 {subjects.map((subject) => {
@@ -1330,17 +1291,17 @@ export default function Home() {
             <section className="question-panel">
               <div className="question-meta">
                 <span>{subjects.find((subject) => subject.id === activeSubject)?.name ?? "문제풀이"}</span>
-                <span>PDF 원문 대조 중</span>
-                <span>비공개</span>
+                <span>검수 완료 문제 {subjectQuestions.length}개</span>
+                <span>종료</span>
               </div>
-              <h2>검수되지 않은 문제는 지금 표시하지 않습니다</h2>
+              <h2>준비된 문제를 모두 풀었습니다</h2>
               <p className="lead">
-                기존 1~10번 임시 문항도 공개 풀에서 내렸습니다. 이제 PDF 원문과 정답·해설을 문항 단위로 대조해서 깨짐 없는 문제만 다시 올릴게요.
+                이 과목에서 현재 공개 가능한 PDF 기반 검수 문제는 여기까지입니다. 더 이상 검수된 문제가 없으면 자동 템플릿으로 억지 생성하지 않습니다.
               </p>
               <div className="prompt-box">
-                <strong>다음 공개 기준</strong>
+                <strong>다음 문제 공개 기준</strong>
                 <p>
-                  ORIGINAL은 PDF 원문과 선택지·정답·해설이 정확히 일치해야 하고, VARIANT/SIMILAR는 원본의 핵심 개념과 함정을 유지하면서도 조건과 풀이 과정이 실질적으로 달라야 합니다. 이 기준을 통과하지 않은 문제는 사용자 화면에 노출하지 않습니다.
+                  PDF 원문과 정답·해설을 문항 단위로 대조해 깨짐이 없고, 정답이 확정된 문제만 공개합니다. 검수되지 않은 문제와 자동 템플릿 문제는 사용자 화면에 노출하지 않습니다.
                 </p>
               </div>
             </section>
@@ -1368,7 +1329,7 @@ export default function Home() {
                   {questionIndex + 1}번째 풀이
                   {subjectAnsweredCount > 0 ? ` · 제출 ${subjectAnsweredCount}회` : ""}
                 </span>
-                <p>검수된 PDF 기반 ORIGINAL / VARIANT / SIMILAR 풀에서 계속 이어서 출제합니다.</p>
+                <p>검수된 PDF 기반 문제 풀을 끝까지 이어서 풉니다.</p>
                 <button className="primary-button full" onClick={goToNextQuestion}>
                   <ChevronRight size={17} />
                   다음 문제
@@ -1512,8 +1473,8 @@ export default function Home() {
               </div>
               <div className="bottom-add-panel">
                 <div>
-                  <strong>무한 문제풀이</strong>
-                  <span>정답을 제출하거나 건너뛰면 오답 처리 없이 다음 문제로 이동합니다.</span>
+                  <strong>연속 문제풀이</strong>
+                  <span>정답을 제출하거나 건너뛰면 다음 검수 문제로 이동합니다.</span>
                 </div>
                 <button className="primary-button" onClick={goToNextQuestion}>
                   <ChevronRight size={17} />
@@ -1532,11 +1493,11 @@ export default function Home() {
                 <strong>1과목 · 2과목 · 3과목 객관식으로 돌아가기</strong>
               </button>
               <div className="extra-gate">
-                <span>SQL 실습 재검수 중</span>
-                <p>아까 예시 수준과 다른 실습 문제는 운영에서 내렸습니다.</p>
+                <span>준비된 실기 문제를 모두 풀었습니다</span>
+                <p>검수된 실습이 더 없으면 숫자만 바꾼 문제를 자동으로 만들지 않습니다.</p>
                 <button className="primary-button" disabled>
                   <Sparkles size={17} />
-                  원문 대조 중
+                  추가 검수 대기
                 </button>
               </div>
             </section>
@@ -1545,16 +1506,16 @@ export default function Home() {
               <div className="question-meta">
                 <span>SQL Practice</span>
                 <span>실행계획 · Trace · SQL Rewrite</span>
-                <span>검수 중</span>
+                <span>종료</span>
               </div>
-              <h2>SQL 실습 문제를 다시 검수하고 있어요</h2>
+              <h2>준비된 SQL 실습 문제를 모두 풀었습니다</h2>
               <p className="lead">
-                숫자만 바뀐 실습이나 예시와 다른 구성은 공개하지 않도록 내렸습니다. 다음 배치는 업무 상황, 테이블 구조, SQL, 실행계획, Trace, 채점 기준을 한 문제씩 대조한 뒤 다시 공개합니다.
+                현재 공개 가능한 실습은 여기까지입니다. 다음 실습은 업무 상황, 테이블 구조, SQL, 실행계획, Trace, 채점 기준을 한 문제씩 대조한 뒤 공개합니다.
               </p>
               <div className="prompt-box">
-                <strong>재작성 기준</strong>
+                <strong>공개 기준</strong>
                 <p>
-                  실습은 원문 자료를 기준으로 서로 다른 풀이 능력을 평가해야 합니다. JOIN 작성, 서브쿼리, 집계, 분석 함수, 인덱스 설계, 실행계획 분석, SQL Trace 분석, Lock/동시성 같은 유형을 숫자만 바꾸지 않고 별도 문제로 구성합니다.
+                  SQL Practice는 숫자만 바꾼 반복 문제를 공개하지 않습니다. PDF 원문과 복기 자료에서 확인 가능한 조건을 바탕으로 서로 다른 풀이 능력을 평가하는 문제만 올립니다.
                 </p>
               </div>
             </section>
@@ -1589,7 +1550,7 @@ export default function Home() {
               })}
               <div className="extra-gate">
                 <span>{activeLabIndex + 1}번째 실기 풀이</span>
-                <p>PDF 실기 복기 스타일의 검수형 실습을 계속 이어서 풉니다.</p>
+                <p>PDF 실기 복기 스타일의 검수형 실습을 끝까지 이어서 풉니다.</p>
                 <button className="primary-button" onClick={goToNextLab}>
                   <ChevronRight size={17} />
                   다음 실기
@@ -1727,8 +1688,8 @@ export default function Home() {
               </div>
               <div className="bottom-add-panel">
                 <div>
-                  <strong>실기 무한 풀이</strong>
-                  <span>건너뛰기는 채점하지 않고 바로 다음 실기로 이동합니다.</span>
+                  <strong>실기 연속 풀이</strong>
+                  <span>건너뛰기는 채점하지 않고 바로 다음 검수 실습으로 이동합니다.</span>
                 </div>
                 <button className="primary-button" onClick={goToNextLab}>
                   <ChevronRight size={17} />

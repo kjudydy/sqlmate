@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { gradeSqlSubmission, isReadOnlySql, isStaticDesignSql, normalizeSql, simulatePlan } from "@/lib/grading";
-import { createLocalExtraLabQuestion, labQuestions } from "@/lib/problem-bank";
+import { labQuestions } from "@/lib/problem-bank";
 
 const requestSchema = z.object({
   sql: z.string().min(1).max(12000),
@@ -15,11 +15,6 @@ function toPlanLines(rows: Array<Record<string, unknown>>) {
 function findLabQuestion(labId?: string) {
   const baseLab = labQuestions.find((item) => item.id === labId);
   if (baseLab) return baseLab;
-
-  const extraMatch = labId?.match(/^lab-extra-(\d{3,})$/);
-  if (extraMatch) {
-    return createLocalExtraLabQuestion(Number(extraMatch[1]) - 1);
-  }
 
   return labQuestions[0];
 }

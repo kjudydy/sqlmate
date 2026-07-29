@@ -61,24 +61,24 @@ function questionSignature(question: ObjectiveQuestion) {
 
 describe("SQLMate verified production problem bank", () => {
   it("publishes the PDF-verified infinite starter objective bank", () => {
-    expect(objectiveQuestions).toHaveLength(60);
+    expect(objectiveQuestions).toHaveLength(30);
     for (const subject of subjects) {
-      expect(bySubject(subject.id)).toHaveLength(20);
+      expect(bySubject(subject.id)).toHaveLength(10);
     }
   });
 
   it("summarizes original, variant, and similar questions for each subject", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBe(60);
+    expect(summary.objectiveTotal).toBe(30);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
-      expect(subjectSummary.total).toBe(20);
+      expect(subjectSummary.total).toBe(10);
       expect(subjectSummary.original).toBeGreaterThan(0);
       expect(subjectSummary.variant).toBeGreaterThan(0);
       expect(subjectSummary.similar).toBeGreaterThan(0);
       expect(subjectSummary.topics).toBeGreaterThanOrEqual(8);
-      expect(subjectSummary.types).toBeGreaterThanOrEqual(2);
+      expect(subjectSummary.types).toBeGreaterThanOrEqual(1);
     }
   });
 
@@ -151,9 +151,9 @@ describe("SQLMate verified production problem bank", () => {
     const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
     const withCode = objectiveQuestions.filter((question) => question.code);
 
-    expect(withMaterial.length).toBeGreaterThan(10);
-    expect(withCode.length).toBeGreaterThan(5);
-    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThan(5);
+    expect(withMaterial.length).toBeGreaterThanOrEqual(5);
+    expect(withCode.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });
 
   it("publishes the verified SQL Practice starter cases", () => {
@@ -161,58 +161,18 @@ describe("SQLMate verified production problem bank", () => {
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBe(5);
   });
 
-  it("creates verified objective expansion batches in 20-question units", () => {
+  it("does not create template objective expansion batches", () => {
     for (const subject of subjects) {
       const batch = createLocalExtraQuestions(subject.id, 0, 20);
-      expect(batch).toHaveLength(20);
-      expect(batch[0].number).toBe(21);
-      expect(batch[19].number).toBe(40);
-      expect(new Set(batch.map((question) => question.id)).size).toBe(20);
-
-      for (const question of batch) {
-        expect(question.subjectId).toBe(subject.id);
-        expect(question.sourceVersion).toBe(verifiedOfficialSourceVersion);
-        expect(question.reviewStatus).toBe("approved");
-        expect(question.validationStatus).toBe("validated");
-        expect(question.choices).toHaveLength(4);
-        expect(question.whyWrong[question.answer]).toBeTruthy();
-
-        const text = userVisibleQuestionText(question);
-        expect(text).not.toMatch(/review_required|original_ready|sourceDocument|sourceType|generationMode/i);
-        expect(text).not.toMatch(/\.pdf/i);
-      }
+      expect(batch).toHaveLength(0);
+      expect(() => createLocalExtraQuestion(subject.id, 0)).toThrow(/No verified PDF expansion question/);
     }
   });
 
-  it("creates verified SQL Practice expansion batches in 5-case units", () => {
+  it("does not create template SQL Practice expansion batches", () => {
     const batch = createLocalExtraLabQuestions(0, 5);
 
-    expect(batch).toHaveLength(5);
-    expect(batch[0].id).toBe("lab-extra-001");
-    expect(batch[0].number).toBe(6);
-    expect(batch[4].number).toBe(10);
-    expect(new Set(batch.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(5);
-
-    for (const lab of batch) {
-      expect(lab.sourceVersion).toBe(verifiedOfficialSourceVersion);
-      expect(lab.reviewStatus).toBe("approved");
-      expect(lab.validationStatus).toBe("validated");
-      expect(lab.schemaSql).toContain("create table");
-      expect(lab.expectedSql).toBeTruthy();
-    }
-  });
-
-  it("keeps single-question fallback APIs on the verified published pool", () => {
-    const question = createLocalExtraQuestion("tuning", 0);
-    const lab = createLocalExtraLabQuestion(0);
-
-    expect(question.subjectId).toBe("tuning");
-    expect(question.number).toBe(21);
-    expect(question.sourceVersion).toBe(verifiedOfficialSourceVersion);
-    expect(question.reviewStatus).toBe("approved");
-    expect(lab.id).toBe("lab-extra-001");
-    expect(lab.number).toBe(6);
-    expect(lab.sourceVersion).toBe(verifiedOfficialSourceVersion);
-    expect(lab.reviewStatus).toBe("approved");
+    expect(batch).toHaveLength(0);
+    expect(() => createLocalExtraLabQuestion(0)).toThrow(/No verified PDF expansion lab/);
   });
 });

@@ -1602,47 +1602,31 @@ const verifiedObjectiveSeedQuestions: ObjectiveQuestion[] = [
   ...buildSubjectBank("tuning")
 ];
 export const verifiedObjectiveQuestions: ObjectiveQuestion[] = [
-  ...verifiedObjectiveSeedQuestions,
-  ...manualVerifiedObjectiveQuestions
+  ...verifiedObjectiveSeedQuestions
 ];
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
 export const verifiedLabQuestions: LabQuestion[] = convertedReviewLabs;
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
-  if (!verifiedObjectiveQuestions.some((question) => question.subjectId === subjectId)) {
-    throw new Error(`No verified PDF questions are available for ${subjectId}`);
-  }
-
-  const question = buildGeneratedQuestion(subjectId, count + 10, true);
-  return {
-    ...question,
-    id: `extra-${subjectId}-${String(question.number).padStart(3, "0")}`,
-    batchId: `extra-${subjectId}-${Math.floor(count / 20) + 1}`,
-    duplicationCheck: "PDF 공식 원본의 주제·함정·사고 과정을 기준으로 만든 20문제 단위 확장 문항이다."
-  };
+  throw new Error(`No verified PDF expansion question is available for ${subjectId}:${count}`);
 }
 
 export function createVerifiedExtraQuestions(subjectId: SubjectId, startCount: number, batchSize = 20): ObjectiveQuestion[] {
-  return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraQuestion(subjectId, startCount + offset));
+  void subjectId;
+  void startCount;
+  void batchSize;
+  return [];
 }
 
 export function createVerifiedExtraLabQuestion(count: number): LabQuestion {
-  if (!verifiedLabQuestions.length) {
-    throw new Error("No verified SQL Practice cases are available");
-  }
-
-  const number = count + 6;
-  const lab = buildPracticeLab(count + 5, number, true);
-  return {
-    ...lab,
-    id: `lab-extra-${String(count + 1).padStart(3, "0")}`,
-    batchId: `extra-sql-practice-${Math.floor(count / 5) + 1}`
-  };
+  throw new Error(`No verified PDF expansion lab is available for ${count}`);
 }
 
 export function createVerifiedExtraLabQuestions(startCount: number, batchSize = 5): LabQuestion[] {
-  return Array.from({ length: batchSize }, (_, offset) => createVerifiedExtraLabQuestion(startCount + offset));
+  void startCount;
+  void batchSize;
+  return [];
 }
 
 const bannedUserVisiblePatterns = [
