@@ -961,28 +961,40 @@ export default function Home() {
   const latestWrongAttemptsByQuestion = useMemo(() => {
     const latest = new Map<string, AttemptRecord>();
 
-    for (const attempt of attempts) {
+    for (const attempt of currentAttempts) {
       if (!attempt.correct && !latest.has(attempt.questionId)) {
         latest.set(attempt.questionId, attempt);
       }
     }
 
     return latest;
-  }, [attempts]);
+  }, [currentAttempts]);
   const wrongQuestionIds = useMemo(() => {
     const ids = new Set([...Object.keys(wrongNotes), ...Array.from(latestWrongAttemptsByQuestion.keys())]);
 
     return Array.from(ids)
-      .filter((questionId) => !dismissedWrongNotes[questionId])
+      .filter((questionId) => {
+        if (dismissedWrongNotes[questionId]) return false;
+
+        const note = wrongNotes[questionId];
+        const snapshot = note?.questionSnapshot;
+        const liveQuestion = allQuestions.find((item) => item.id === questionId);
+
+        if (snapshot?.sourceVersion) return snapshot.sourceVersion === officialSourceVersion;
+        if (liveQuestion) return liveQuestion.sourceVersion === officialSourceVersion;
+        return latestWrongAttemptsByQuestion.has(questionId);
+      })
       .sort((left, right) => {
         const leftTime = wrongNotes[left]?.lastWrongAt ?? latestWrongAttemptsByQuestion.get(left)?.answeredAt ?? wrongNotes[left]?.updatedAt ?? "";
         const rightTime = wrongNotes[right]?.lastWrongAt ?? latestWrongAttemptsByQuestion.get(right)?.answeredAt ?? wrongNotes[right]?.updatedAt ?? "";
         return rightTime.localeCompare(leftTime);
       });
-  }, [dismissedWrongNotes, latestWrongAttemptsByQuestion, wrongNotes]);
+  }, [allQuestions, dismissedWrongNotes, latestWrongAttemptsByQuestion, wrongNotes]);
 
   function getWrongQuestion(questionId: string) {
-    return wrongNotes[questionId]?.questionSnapshot ?? allQuestions.find((item) => item.id === questionId);
+    const snapshot = wrongNotes[questionId]?.questionSnapshot;
+    if (snapshot?.sourceVersion === officialSourceVersion) return snapshot;
+    return allQuestions.find((item) => item.id === questionId);
   }
 
   function getWrongSelectedChoiceIds(note: WrongNote | undefined, attempt: AttemptRecord | undefined) {
