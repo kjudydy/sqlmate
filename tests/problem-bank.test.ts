@@ -60,17 +60,17 @@ function questionSignature(question: ObjectiveQuestion) {
 }
 
 describe("SQLMate verified production problem bank", () => {
-  it("publishes the PDF-verified infinite starter objective bank", () => {
-    expect(objectiveQuestions.length).toBeGreaterThanOrEqual(50);
-    expect(bySubject("modeling").length).toBeGreaterThanOrEqual(15);
-    expect(bySubject("sql-basic").length).toBeGreaterThanOrEqual(10);
-    expect(bySubject("tuning").length).toBeGreaterThanOrEqual(18);
+  it("publishes the fixed PDF-based objective bank", () => {
+    expect(objectiveQuestions).toHaveLength(300);
+    expect(bySubject("modeling")).toHaveLength(100);
+    expect(bySubject("sql-basic")).toHaveLength(100);
+    expect(bySubject("tuning")).toHaveLength(100);
   });
 
   it("summarizes original, variant, and similar questions for each subject", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBeGreaterThanOrEqual(50);
+    expect(summary.objectiveTotal).toBe(300);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
       expect(subjectSummary.total).toBe(bySubject(subject.id).length);
@@ -107,7 +107,7 @@ describe("SQLMate verified production problem bank", () => {
       /\bPROM\s+TBL\b/i,
       /\bN\s+U\s+LL\b/i,
       /\bV\s+A\s+R\s*CH\s*A?\s*R?2?\b/i,
-      /부적\s+절|부\s*적\s*절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델/,
+      /부\s+적\s+절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델/,
       /SESSIONJ?D|LOCKJ?D|PRODJ?D|STADIUMJ?D/i,
       /31正3/
     ];
@@ -209,7 +209,7 @@ describe("SQLMate verified production problem bank", () => {
   });
 
   it("publishes the verified SQL Practice starter cases", () => {
-    expect(labQuestions.length).toBeGreaterThanOrEqual(7);
+    expect(labQuestions).toHaveLength(20);
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(5);
   });
 

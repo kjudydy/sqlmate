@@ -5,10 +5,6 @@ import {
   type PdfReviewMode,
   type PdfReviewQuestion
 } from "@/lib/pdf-review-bank";
-import {
-  pdfExtractedLabQuestions,
-  pdfExtractedObjectiveQuestions
-} from "@/lib/pdf-extracted-original-bank";
 import type {
   Choice,
   ChoiceId,
@@ -365,7 +361,7 @@ order by 2 desc`,
   const cr = rows * starts + 120;
   return {
     passage: `${questionType} 문제다. 실행계획의 Operation 이름뿐 아니라 Rows, Starts, CR, Access/Filter Predicate의 역할을 함께 해석한다.`,
-    code: `select /* SQLP practice ${number} */ o.order_id, o.cust_id, o.amount
+    code: `select o.order_id, o.cust_id, o.amount
 from orders o join customers c on c.cust_id = o.cust_id
 where o.order_dt >= date '2026-07-01'
   and o.status_cd = :status_cd
@@ -1580,7 +1576,7 @@ order by amt desc`;
     oracleNotes: [
       "표시된 실행계획과 Trace는 교육용 예시다. 실제 Oracle 측정 결과가 아니라 문제 해결 근거를 학습하기 위한 자료로 본다.",
       "답안은 SQL 문자열 일치만으로 판단하지 않고 요구 결과, 접근 경로, Predicate 위치, 조인 순서, 불필요한 정렬 제거 여부를 함께 평가한다.",
-      `${topic}에서는 원본 문제 조건을 암기하기보다 데이터 분포와 실행계획 수치를 함께 설명해야 한다.`
+      `${topic}에서는 데이터 분포와 실행계획 수치를 함께 설명해야 한다.`
     ],
     hints: [
       "1단계: WHERE 조건 중 인덱스 시작점을 만들 수 있는 조건과 읽은 뒤 걸러지는 조건을 구분한다.",
@@ -1605,6 +1601,10 @@ const verifiedObjectiveSeedQuestions: ObjectiveQuestion[] = [
   ...buildSubjectBank("sql-basic"),
   ...buildSubjectBank("tuning")
 ];
+
+const generatedObjectiveQuestions: ObjectiveQuestion[] = (Object.keys(subjectNames) as SubjectId[]).flatMap((subjectId) =>
+  Array.from({ length: 140 }, (_, index) => buildGeneratedQuestion(subjectId, index, true))
+);
 
 function objectiveSignature(question: ObjectiveQuestion) {
   return [
@@ -1668,15 +1668,32 @@ function renumberLabQuestions(labs: LabQuestion[]) {
   }));
 }
 
+function capObjectiveQuestions(questions: ObjectiveQuestion[], targetPerSubject = 100) {
+  const counts: Record<SubjectId, number> = {
+    modeling: 0,
+    "sql-basic": 0,
+    tuning: 0
+  };
+
+  return questions.filter((question) => {
+    if (counts[question.subjectId] >= targetPerSubject) return false;
+    counts[question.subjectId] += 1;
+    return true;
+  });
+}
+
 const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
-  ...pdfExtractedObjectiveQuestions
+  ...generatedObjectiveQuestions
 ]);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
+const generatedPracticeLabs = Array.from({ length: 32 }, (_, index) =>
+  buildPracticeLab(index, convertedReviewLabs.length + index + 1, true)
+);
 const labQuestionCandidates = dedupeLabQuestions([
   ...convertedReviewLabs,
-  ...pdfExtractedLabQuestions
+  ...generatedPracticeLabs
 ]);
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
@@ -1730,7 +1747,7 @@ const bannedUserVisiblePatterns = [
   /凶/,
   /쏜벋/,
   /묘의 상태/,
-  /부적\s+절|부\s*적\s*절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델/,
+  /부\s+적\s+절|적\s+절|가\s+장|것\s+은|실\s+행|결\s+과|오\s+류|작\s+성|모\s+델/,
   /SESSIONJ?D|LOCKJ?D|PRODJ?D|STADIUMJ?D/i,
   /31正3/,
   /테아블/,
@@ -1834,11 +1851,11 @@ function visibleLabText(lab: LabQuestion) {
 }
 
 export const verifiedObjectiveQuestions: ObjectiveQuestion[] = renumberObjectiveQuestions(
-  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion)
+  capObjectiveQuestions(objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion), 100)
 );
 
 export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(
-  labQuestionCandidates.filter(isPublishedLabQuestion)
+  labQuestionCandidates.filter(isPublishedLabQuestion).slice(0, 20)
 );
 
 export function findPublishedUserVisibleIssues() {
