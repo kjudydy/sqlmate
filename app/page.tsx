@@ -1580,36 +1580,70 @@ export default function Home() {
               <h2>{activeLab.title}</h2>
               <p className="lead">{activeLab.scenario}</p>
 
+              {activeLab.sampleData?.length ? (
+                <div className="exam-material lab-sample-material">
+                  {activeLab.sampleData.map((table, tableIndex) => (
+                    <div className="exam-table-wrap" key={`${activeLab.id}-sample-${tableIndex}`}>
+                      {table.title && <strong className="material-title">{table.title}</strong>}
+                      <table className="exam-table">
+                        <thead>
+                          <tr>
+                            {table.headers.map((header, headerIndex) => (
+                              <th key={`${activeLab.id}-sample-head-${headerIndex}`}>{header}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {table.rows.map((row, rowIndex) => (
+                            <tr key={`${activeLab.id}-sample-row-${rowIndex}`}>
+                              {row.map((cell, cellIndex) => (
+                                <td key={`${activeLab.id}-sample-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="split-panels">
-                <div className="code-panel schema-panel">
-                  <div className="code-panel-heading">
-                    <h3>스키마/인덱스</h3>
-                    <span>복원형 조건</span>
+                {activeLab.schemaSql.trim() && (
+                  <div className="code-panel schema-panel">
+                    <div className="code-panel-heading">
+                      <h3>문제 자료</h3>
+                      <span>문제에 제시된 내용</span>
+                    </div>
+                    <pre>{activeLab.schemaSql}</pre>
                   </div>
-                  <pre>{activeLab.schemaSql}</pre>
-                </div>
-                <div className="code-panel schema-panel compact">
-                  <div className="code-panel-heading">
-                    <h3>AS-IS/제약</h3>
-                    <span>현재 SQL과 제한사항</span>
+                )}
+                {activeLab.seedSql.trim() && (
+                  <div className="code-panel schema-panel compact">
+                    <div className="code-panel-heading">
+                      <h3>제시 SQL/추가 자료</h3>
+                      <span>문제에 포함된 내용</span>
+                    </div>
+                    <pre>{activeLab.seedSql}</pre>
                   </div>
-                  <pre>{activeLab.seedSql}</pre>
-                </div>
-                <div className="code-panel plan-target-panel">
-                  <div className="code-panel-heading">
-                    <h3>목표 실행계획</h3>
-                    <span>영문 Operation · 한글 해설</span>
+                )}
+                {((activeLab.targetPlanExplanations?.length ?? 0) > 0 || activeLab.targetPlan.length > 0) && (
+                  <div className="code-panel plan-target-panel">
+                    <div className="code-panel-heading">
+                      <h3>실행계획</h3>
+                      <span>문제에 제시된 경우</span>
+                    </div>
+                    <ul className="plan-explain-list">
+                      {(activeLab.targetPlanExplanations ?? activeLab.targetPlan.map((item) => ({ operation: item, korean: item, note: "답안에서 이 처리 의도를 드러내야 합니다." }))).map((item) => (
+                        <li key={item.operation}>
+                          <strong>{item.operation}</strong>
+                          <span>{item.korean}</span>
+                          <em>{item.note}</em>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="plan-explain-list">
-                    {(activeLab.targetPlanExplanations ?? activeLab.targetPlan.map((item) => ({ operation: item, korean: item, note: "답안에서 이 처리 의도를 드러내야 합니다." }))).map((item) => (
-                      <li key={item.operation}>
-                        <strong>{item.operation}</strong>
-                        <span>{item.korean}</span>
-                        <em>{item.note}</em>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                )}
                 {activeLab.traceStats && (
                   <div className="code-panel schema-panel compact">
                     <div className="code-panel-heading">

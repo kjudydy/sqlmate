@@ -20,7 +20,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v9";
+export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v10";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -3175,24 +3175,13 @@ function reviewTraceText(lab: PdfReviewLab, fallback: string) {
 
 function reviewPredicateInfo(lab: PdfReviewLab) {
   if (/Predicate Information/i.test(lab.executionPlan ?? "")) return lab.executionPlan;
-  if (/Top-N|STOPKEY/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo("게시구분 = :board_type, 삭제여부 = 'N'", "ROWNUM <= 20");
-  if (/옵션 조건|OR Expansion/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo(":cust_no 분기 조건", "주문일시 반열린 범위");
-  if (/파티션|Partition/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo("주문일자 >= :dt1 AND 주문일자 < :dt2", "상태코드 = '정상'");
-  if (/Trace|NL|Nested|인덱스/.test(`${lab.title} ${lab.topic}`)) return makePredicateInfo("조인 키 또는 선택 조건", "비선두 컬럼 추가 필터");
   return undefined;
 }
 
 function convertReviewLab(lab: PdfReviewLab, index: number): LabQuestion {
-  const rows = 300 + index * 80;
-  const starts = 1 + index;
-  const pr = 5 + index * 2;
-  const cr = 1200 + index * 350;
-  const targetPlan = (lab.executionPlan?.split("\n").filter((line) => /JOIN|SCAN|SORT|GROUP|COUNT|MERGE|TABLE ACCESS|INDEX/i.test(line)).slice(0, 4) ?? []);
-  const normalizedPlan = targetPlan.length ? targetPlan : defaultPlanForReviewLab(lab);
   const signature = [lab.title, lab.schemaSql, lab.currentSql, lab.answerSql, lab.explanation].join("\n");
   const mode = lab.mode as GenerationBucket;
-  const fallbackTraceStats = makeTraceStats(lab.topic, rows, starts, pr, cr, normalizedPlan);
-  const traceStats = reviewTraceText(lab, fallbackTraceStats);
+  const traceStats = reviewTraceText(lab, "");
   const convertedTraceSummary = reviewTraceRows(lab.traceSummary);
 
   return {
@@ -3211,18 +3200,19 @@ function convertReviewLab(lab: PdfReviewLab, index: number): LabQuestion {
     topic: lab.topic,
     scenario: lab.scenario,
     schemaSql: lab.schemaSql,
-    seedSql: [lab.currentSql ? `[현재 SQL]\n${lab.currentSql}` : undefined, lab.executionPlan ? `[실행계획/관찰 정보]\n${lab.executionPlan}` : undefined, ...(lab.sampleData ?? []).map((table) => `[샘플 ${table.title ?? "데이터"}]\n${table.headers.join(" | ")}\n${table.rows.map((row) => row.join(" | ")).join("\n")}`)].filter(Boolean).join("\n\n"),
+    seedSql: [lab.currentSql ? `[현재 SQL]\n${lab.currentSql}` : undefined, lab.executionPlan ? `[실행계획/관찰 정보]\n${lab.executionPlan}` : undefined].filter(Boolean).join("\n\n"),
+    sampleData: lab.sampleData,
     traceStats,
     predicateInfo: reviewPredicateInfo(lab),
     prompt: lab.requirements.join("\n"),
     expectedSql: lab.answerSql,
-    targetPlan: normalizedPlan,
-    targetPlanExplanations: normalizedPlan.map(explainOperation),
-    oracleNotes: [lab.explanation, ...lab.rubric, "표시된 실행계획과 Trace는 학습용 예시이며 실제 Oracle에서 측정한 결과가 아니다."],
+    targetPlan: [],
+    targetPlanExplanations: undefined,
+    oracleNotes: [lab.explanation, ...lab.rubric],
     hints: lab.hints,
     rubric: lab.rubric,
-    traceSummary: convertedTraceSummary ?? (traceStats ? traceSummaryFrom(rows, starts, pr, cr, `00:00:0${Math.min(9, starts)}.${String(cr % 100).padStart(2, "0")}`) : undefined),
-    simulationNotice: traceStats ? "이 실행계획과 SQL Trace는 SQLP 학습용 설명 예시다. 실제 Oracle 실행 결과로 표시하지 않는다." : "이 실습은 정적 SQL 작성 및 설계 검토 모드다. 실제 Oracle 실행 결과로 표시하지 않는다.",
+    traceSummary: convertedTraceSummary,
+    simulationNotice: traceStats ? "문제에 제시된 실행계획 또는 Trace 성격의 자료만 표시한다. 실제 Oracle 실행 결과로 새로 측정한 값은 아니다." : undefined,
     relatedConceptIds: relatedConceptsForTopic(lab.topic)
   };
 }
@@ -3615,6 +3605,7 @@ function visibleLabText(lab: LabQuestion) {
     lab.scenario,
     lab.schemaSql,
     lab.seedSql,
+    ...(lab.sampleData ?? []).flatMap((table) => [table.title ?? "", ...table.headers, ...table.rows.flat()]),
     lab.traceStats,
     lab.predicateInfo,
     lab.prompt,

@@ -2528,6 +2528,14 @@ body {
   overflow: auto;
 }
 
+.material-title {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 850;
+}
+
 .exam-table {
   width: 100%;
   border-collapse: collapse;

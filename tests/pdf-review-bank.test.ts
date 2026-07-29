@@ -9,9 +9,9 @@ import {
 
 describe("PDF rebuild review gate", () => {
   it("builds the reviewed starter set with the requested distribution", () => {
-    expect(pdfReviewItems).toHaveLength(50);
+    expect(pdfReviewItems).toHaveLength(41);
     expect(pdfReviewQuestions).toHaveLength(30);
-    expect(pdfReviewLabs).toHaveLength(20);
+    expect(pdfReviewLabs).toHaveLength(11);
 
     for (const subjectName of ["1과목", "2과목", "3과목"]) {
       const subjectQuestions = pdfReviewQuestions.filter((question) => question.subjectName === subjectName);
@@ -40,9 +40,10 @@ describe("PDF rebuild review gate", () => {
   });
 
   it("keeps SQL Practice cases structurally different", () => {
-    expect(new Set(pdfReviewLabs.map((lab) => lab.topic)).size).toBe(20);
-    expect(new Set(pdfReviewLabs.map((lab) => lab.schemaSql)).size).toBe(20);
-    expect(new Set(pdfReviewLabs.map((lab) => lab.answerSql)).size).toBe(20);
+    expect(new Set(pdfReviewLabs.map((lab) => lab.topic)).size).toBe(11);
+    expect(new Set(pdfReviewLabs.map((lab) => lab.title)).size).toBe(11);
+    expect(new Set(pdfReviewLabs.map((lab) => lab.answerSql)).size).toBe(11);
+    expect(pdfReviewLabs.slice(0, 5).every((lab) => lab.schemaSql.trim() === "")).toBe(true);
   });
 
   it("requires choices, answers, explanations, concepts, and hints for each objective question", () => {

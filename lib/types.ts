@@ -81,6 +81,11 @@ export type LabQuestion = ContentSourceMetadata & {
   scenario: string;
   schemaSql: string;
   seedSql: string;
+  sampleData?: {
+    title?: string;
+    headers: string[];
+    rows: string[][];
+  }[];
   traceStats?: string;
   predicateInfo?: string;
   prompt: string;
