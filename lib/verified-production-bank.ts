@@ -20,7 +20,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-fixed-bank-2026-07-29-v4";
+export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v5";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -1602,10 +1602,6 @@ const verifiedObjectiveSeedQuestions: ObjectiveQuestion[] = [
   ...buildSubjectBank("tuning")
 ];
 
-const generatedObjectiveQuestions: ObjectiveQuestion[] = (Object.keys(subjectNames) as SubjectId[]).flatMap((subjectId) =>
-  Array.from({ length: 140 }, (_, index) => buildGeneratedQuestion(subjectId, index, true))
-);
-
 function objectiveSignature(question: ObjectiveQuestion) {
   return [
     question.subjectId,
@@ -1682,19 +1678,10 @@ function capObjectiveQuestions(questions: ObjectiveQuestion[], targetPerSubject 
   });
 }
 
-const objectiveQuestionCandidates = dedupeObjectiveQuestions([
-  ...verifiedObjectiveSeedQuestions,
-  ...generatedObjectiveQuestions
-]);
+const objectiveQuestionCandidates = dedupeObjectiveQuestions(verifiedObjectiveSeedQuestions);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
-const generatedPracticeLabs = Array.from({ length: 32 }, (_, index) =>
-  buildPracticeLab(index, convertedReviewLabs.length + index + 1, true)
-);
-const labQuestionCandidates = dedupeLabQuestions([
-  ...convertedReviewLabs,
-  ...generatedPracticeLabs
-]);
+const labQuestionCandidates = dedupeLabQuestions(convertedReviewLabs);
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {
   throw new Error(`No verified PDF expansion question is available for ${subjectId}:${count}`);
@@ -1851,11 +1838,11 @@ function visibleLabText(lab: LabQuestion) {
 }
 
 export const verifiedObjectiveQuestions: ObjectiveQuestion[] = renumberObjectiveQuestions(
-  capObjectiveQuestions(objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion), 100)
+  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion)
 );
 
 export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(
-  labQuestionCandidates.filter(isPublishedLabQuestion).slice(0, 20)
+  labQuestionCandidates.filter(isPublishedLabQuestion)
 );
 
 export function findPublishedUserVisibleIssues() {
