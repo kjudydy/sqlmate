@@ -1339,6 +1339,277 @@ WHERE o.주문일시 = :ord_dt;`,
     relatedConcepts: ["조인 제거", "SQL Trace", "테이블 랜덤 액세스"],
     hints: ["SELECT, WHERE에서 고객 테이블 컬럼을 실제로 쓰는지 확인한다.", "Starts가 38,420인 오퍼레이션이 무엇인지 본다.", "조인을 제거할 수 있다면 반복 인덱스 탐색과 CR이 어떻게 변하는지 설명한다."],
     validationNotes: ["교육용 Trace 수치는 부모/자식 관계와 Starts 반복이 논리적으로 맞도록 수작업 검수했다.", "실제 Oracle 측정값이 아니므로 화면에서 교육용 예시로 표시한다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-06-anti-join-null",
+    title: "NULL 포함 제외 조건 SQL Rewrite",
+    topic: "NOT EXISTS와 NULL",
+    difficulty: "상급",
+    mode: "variant",
+    status: "variant_verified",
+    source: {
+      document: sqlExam,
+      page: 26,
+      answerPage: 121,
+      questionNumber: "실기확장 6",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "NULL과 NOT IN 함정을 실습형 SQL Rewrite로 재구성했다."
+    },
+    scenario: "이벤트 대상 고객 중 최근 30일 안에 수신거부 이력이 없는 고객만 추출해야 한다.",
+    requirements: ["수신거부 테이블의 고객번호에 NULL이 존재해도 결과가 비정상적으로 비지 않아야 한다.", "최근 30일 조건은 수신거부 이력에 적용한다.", "NOT IN 방식의 위험과 NOT EXISTS 방식의 장점을 설명한다."],
+    schemaSql: `CREATE TABLE 고객 (
+  고객번호 NUMBER PRIMARY KEY,
+  고객명 VARCHAR2(50) NOT NULL,
+  가입상태 VARCHAR2(10) NOT NULL
+);
+
+CREATE TABLE 수신거부이력 (
+  이력번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER,
+  거부일자 DATE NOT NULL
+);
+
+CREATE INDEX 수신거부이력_IX01 ON 수신거부이력(고객번호, 거부일자);`,
+    currentSql: `SELECT c.고객번호, c.고객명
+FROM 고객 c
+WHERE c.가입상태 = '정상'
+  AND c.고객번호 NOT IN (
+    SELECT h.고객번호
+    FROM 수신거부이력 h
+    WHERE h.거부일자 >= TRUNC(SYSDATE) - 30
+  );`,
+    answerSql: `SELECT c.고객번호, c.고객명
+FROM 고객 c
+WHERE c.가입상태 = '정상'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM 수신거부이력 h
+    WHERE h.고객번호 = c.고객번호
+      AND h.거부일자 >= TRUNC(SYSDATE) - 30
+  );`,
+    acceptedAlternatives: ["서브쿼리에서 h.고객번호 IS NOT NULL을 보장한 NOT IN은 부분 인정", "반조인으로 변환 가능한 NOT EXISTS 구조면 인정"],
+    rubric: ["NOT IN의 NULL 위험을 제거해야 한다.", "상관 조건 h.고객번호 = c.고객번호가 있어야 한다.", "최근 30일 조건이 수신거부 이력에 적용되어야 한다."],
+    explanation: "NOT IN 하위 결과에 NULL이 포함되면 비교 결과가 UNKNOWN이 되어 전체 결과가 사라질 수 있다. 제외 조건은 NOT EXISTS로 작성하면 NULL 영향을 피하면서 고객별 존재 여부를 판단할 수 있다.",
+    relatedConcepts: ["NULL", "NOT EXISTS", "Anti Join"],
+    hints: ["NOT IN 목록에 NULL이 있으면 어떤 일이 생기는지 떠올린다.", "고객별로 거부 이력이 존재하는지 확인해야 한다.", "존재 여부 검사는 NOT EXISTS가 안전하다."],
+    validationNotes: ["PDF의 NULL/NOT IN 판단 유형을 SQL 작성 실습으로 확장했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-07-rollup-label",
+    title: "ROLLUP 소계 라벨링 SQL 작성",
+    topic: "ROLLUP과 GROUPING",
+    difficulty: "중급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 36,
+      answerPage: 128,
+      questionNumber: "실기확장 7",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "ROLLUP과 GROUPING 함수 출제 의도를 실습 문제로 구성했다."
+    },
+    scenario: "월별 매출을 지역과 상품별로 집계하고 지역 소계와 전체 합계를 구분해 보고서에 표시한다.",
+    requirements: ["지역, 상품, 매출합계를 출력한다.", "상품 소계 행에는 상품명을 '지역소계'로 표시한다.", "전체 합계 행에는 지역명을 '전체합계'로 표시한다.", "원천 데이터의 NULL과 집계 행의 NULL을 구분한다."],
+    schemaSql: `CREATE TABLE 매출 (
+  매출월 CHAR(6) NOT NULL,
+  지역명 VARCHAR2(30),
+  상품명 VARCHAR2(50),
+  매출금액 NUMBER NOT NULL
+);`,
+    sampleData: [
+      {
+        title: "매출",
+        headers: ["매출월", "지역명", "상품명", "매출금액"],
+        rows: [["202607", "서울", "노트북", "100"], ["202607", "서울", "모니터", "80"], ["202607", "부산", "노트북", "70"]]
+      }
+    ],
+    answerSql: `SELECT CASE WHEN GROUPING(지역명) = 1 THEN '전체합계' ELSE NVL(지역명, '지역미상') END AS 지역명,
+       CASE WHEN GROUPING(상품명) = 1 THEN '지역소계' ELSE NVL(상품명, '상품미상') END AS 상품명,
+       SUM(매출금액) AS 매출합계
+FROM 매출
+WHERE 매출월 = '202607'
+GROUP BY ROLLUP(지역명, 상품명)
+ORDER BY GROUPING(지역명), 지역명, GROUPING(상품명), 상품명;`,
+    acceptedAlternatives: ["GROUPING_ID를 사용해 소계와 합계를 구분해도 인정", "라벨 문구가 달라도 소계/합계 구분이 정확하면 인정"],
+    rubric: ["ROLLUP(지역명, 상품명)을 사용해야 한다.", "GROUPING 함수로 집계 NULL과 원천 NULL을 구분해야 한다.", "월 조건은 집계 전에 적용해야 한다."],
+    explanation: "ROLLUP 결과의 NULL은 원천 NULL과 집계 행 표시용 NULL이 섞일 수 있다. GROUPING 함수를 사용하면 집계 연산으로 생성된 NULL인지 구분할 수 있다.",
+    relatedConcepts: ["ROLLUP", "GROUPING 함수", "GROUP BY"],
+    hints: ["소계 행의 NULL은 원천 데이터의 NULL과 다를 수 있다.", "GROUPING 함수의 반환값을 라벨링에 사용한다.", "ROLLUP 컬럼 순서가 소계 계층을 결정한다."],
+    validationNotes: ["집계/소계 PDF 유형을 SQL 작성 실습으로 확장했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-08-topn-stopkey",
+    title: "Top-N 게시글 조회 실행계획 유도",
+    topic: "Top-N과 STOPKEY",
+    difficulty: "상급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 84,
+      answerPage: 135,
+      questionNumber: "실기확장 8",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "Top-N과 인덱스 정렬 활용 튜닝 문제를 신규 업무 시나리오로 구성했다."
+    },
+    scenario: "공지 게시판에서 특정 게시구분의 최신 글 20건만 첫 화면에 보여준다. 현재 SQL은 전체 정렬 후 20건을 잘라 응답이 느리다.",
+    requirements: ["전체 정렬을 피하거나 줄이는 SQL과 인덱스 설계를 제시한다.", "상위 20건만 읽고 조기 종료될 수 있는 실행계획을 설명한다.", "동일 등록일시의 정렬 안정성을 보장한다."],
+    schemaSql: `CREATE TABLE 게시글 (
+  게시글번호 NUMBER PRIMARY KEY,
+  게시구분 VARCHAR2(10) NOT NULL,
+  등록일시 DATE NOT NULL,
+  제목 VARCHAR2(200) NOT NULL,
+  삭제여부 CHAR(1) DEFAULT 'N' NOT NULL
+);`,
+    currentSql: `SELECT *
+FROM (
+  SELECT 게시글번호, 게시구분, 등록일시, 제목
+  FROM 게시글
+  WHERE 게시구분 = :board_type
+    AND 삭제여부 = 'N'
+  ORDER BY 등록일시 DESC, 게시글번호 DESC
+)
+WHERE ROWNUM <= 20;`,
+    executionPlan: `교육용 현재 계획
+SORT ORDER BY STOPKEY
+  TABLE ACCESS FULL 게시글
+
+목표 계획 예시
+COUNT STOPKEY
+  TABLE ACCESS BY INDEX ROWID 게시글
+    INDEX RANGE SCAN DESCENDING 게시글_IX01`,
+    answerSql: `CREATE INDEX 게시글_IX01 ON 게시글(게시구분, 삭제여부, 등록일시 DESC, 게시글번호 DESC);
+
+SELECT *
+FROM (
+  SELECT /*+ INDEX_DESC(b 게시글_IX01) */
+         b.게시글번호, b.게시구분, b.등록일시, b.제목
+  FROM 게시글 b
+  WHERE b.게시구분 = :board_type
+    AND b.삭제여부 = 'N'
+  ORDER BY b.등록일시 DESC, b.게시글번호 DESC
+)
+WHERE ROWNUM <= 20;`,
+    acceptedAlternatives: ["DELETE 여부 선택도가 낮다면 인덱스 컬럼 순서를 게시구분, 등록일시 DESC, 게시글번호 DESC, 삭제여부로 조정하는 설명도 부분 인정", "FETCH FIRST 20 ROWS ONLY를 사용해도 Top-N 의미가 같으면 인정"],
+    rubric: ["등치 조건 컬럼이 인덱스 앞쪽에 있어야 한다.", "ORDER BY 컬럼과 방향이 인덱스 뒤쪽과 맞아야 한다.", "ROWNUM 또는 FETCH FIRST가 정렬 후 상위 N건 의미를 보존해야 한다."],
+    explanation: "Top-N 조회는 정렬 순서와 맞는 인덱스를 사용하면 전체 정렬 없이 필요한 건수 근처에서 멈출 수 있다. 게시구분과 삭제여부로 범위를 좁히고 등록일시, 게시글번호 역순 정렬을 인덱스 순서로 처리하는 것이 핵심이다.",
+    relatedConcepts: ["Top-N", "STOPKEY", "결합 인덱스"],
+    hints: ["조건 컬럼과 정렬 컬럼을 한 인덱스에서 함께 처리할 수 있는지 본다.", "정렬 방향이 DESC인지 확인한다.", "COUNT STOPKEY 또는 STOPKEY 계열 처리가 목표다."],
+    validationNotes: ["실행계획은 교육용 예시이며 논리 관계를 검수했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-09-merge-deduplicate-source",
+    title: "MERGE 소스 중복 제거 후 요약 반영",
+    topic: "MERGE와 DML",
+    difficulty: "상급",
+    mode: "variant",
+    status: "variant_verified",
+    source: {
+      document: sqlExam,
+      page: 39,
+      answerPage: 130,
+      questionNumber: "실기확장 9",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "MERGE 원리와 소스 키 유일성 함정을 실습형으로 재구성했다."
+    },
+    scenario: "일별 상품 매출 요약 테이블에 당일 주문 데이터를 반영한다. 주문 원천에는 같은 상품이 여러 건 존재한다.",
+    requirements: ["소스 집합을 요약 키 기준으로 먼저 집계한다.", "기존 요약 행은 UPDATE, 없는 행은 INSERT한다.", "같은 대상 행을 여러 번 갱신하는 MERGE 오류를 방지한다."],
+    schemaSql: `CREATE TABLE 주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  주문일자 DATE NOT NULL,
+  상품번호 NUMBER NOT NULL,
+  주문금액 NUMBER NOT NULL
+);
+
+CREATE TABLE 일별상품매출 (
+  매출일자 DATE NOT NULL,
+  상품번호 NUMBER NOT NULL,
+  매출금액 NUMBER NOT NULL,
+  CONSTRAINT 일별상품매출_PK PRIMARY KEY (매출일자, 상품번호)
+);`,
+    currentSql: `MERGE INTO 일별상품매출 t
+USING (
+  SELECT 주문일자 AS 매출일자, 상품번호, 주문금액
+  FROM 주문
+  WHERE 주문일자 = :work_dt
+) s
+ON (t.매출일자 = s.매출일자 AND t.상품번호 = s.상품번호)
+WHEN MATCHED THEN UPDATE SET t.매출금액 = t.매출금액 + s.주문금액
+WHEN NOT MATCHED THEN INSERT (매출일자, 상품번호, 매출금액)
+VALUES (s.매출일자, s.상품번호, s.주문금액);`,
+    answerSql: `MERGE INTO 일별상품매출 t
+USING (
+  SELECT 주문일자 AS 매출일자,
+         상품번호,
+         SUM(주문금액) AS 주문금액
+  FROM 주문
+  WHERE 주문일자 = :work_dt
+  GROUP BY 주문일자, 상품번호
+) s
+ON (t.매출일자 = s.매출일자 AND t.상품번호 = s.상품번호)
+WHEN MATCHED THEN UPDATE SET t.매출금액 = t.매출금액 + s.주문금액
+WHEN NOT MATCHED THEN INSERT (매출일자, 상품번호, 매출금액)
+VALUES (s.매출일자, s.상품번호, s.주문금액);`,
+    acceptedAlternatives: ["원천을 별도 임시 집계 테이블로 만든 뒤 MERGE하는 방식도 인정", "동일 키가 유일한 소스만 MERGE에 제공된다는 전제를 명확히 보장하면 인정"],
+    rubric: ["USING 소스가 매출일자, 상품번호 기준으로 유일해야 한다.", "기존 행은 누적 UPDATE되어야 한다.", "미존재 행은 INSERT되어야 한다."],
+    explanation: "MERGE 대상 키에 대해 소스 행이 중복되면 하나의 대상 행을 여러 번 갱신하려는 문제가 생길 수 있다. 원천 주문을 요약 키 기준으로 먼저 GROUP BY하여 MERGE 소스의 유일성을 보장해야 한다.",
+    relatedConcepts: ["MERGE", "DML 튜닝", "GROUP BY"],
+    hints: ["MERGE의 ON 조건이 어떤 키를 대상으로 하는지 본다.", "주문 원천에는 같은 상품이 여러 건 있을 수 있다.", "USING 절에서 대상 키 기준 한 행만 남겨야 한다."],
+    validationNotes: ["MERGE 중복 소스 오류 가능성을 검수 가능한 실습 요구로 구성했다."]
+  },
+  {
+    kind: "lab",
+    id: "pdf-lab-10-fk-lock-analysis",
+    title: "외래키 인덱스 누락 Lock 원인 분석",
+    topic: "Lock과 동시성",
+    difficulty: "최상급",
+    mode: "similar",
+    status: "similar_verified",
+    source: {
+      document: sqlExam,
+      page: 91,
+      answerPage: 136,
+      questionNumber: "실기확장 10",
+      verifiedBy: "derived_from_verified_original",
+      verificationNote: "Lock과 외래키 인덱스 판단을 SQLP 실기형 분석 문제로 구성했다."
+    },
+    scenario: "고객 삭제 배치 시간에 주문 입력 트랜잭션이 대기한다. 주문.고객번호는 고객.고객번호를 참조하지만 주문.고객번호 인덱스가 없다.",
+    requirements: ["대기 원인을 Lock과 참조 무결성 검증 관점에서 설명한다.", "필요한 인덱스와 적용 시 주의사항을 제시한다.", "무조건 제약조건 삭제가 답이 아님을 설명한다."],
+    schemaSql: `CREATE TABLE 고객 (
+  고객번호 NUMBER PRIMARY KEY,
+  고객상태 VARCHAR2(10) NOT NULL
+);
+
+CREATE TABLE 주문 (
+  주문번호 NUMBER PRIMARY KEY,
+  고객번호 NUMBER NOT NULL,
+  주문일시 DATE NOT NULL,
+  주문금액 NUMBER NOT NULL,
+  CONSTRAINT 주문_FK01 FOREIGN KEY (고객번호) REFERENCES 고객(고객번호)
+);`,
+    executionPlan: `교육용 관찰 정보
+Session 1: DELETE FROM 고객 WHERE 고객상태 = '탈퇴'
+Session 2: INSERT INTO 주문(주문번호, 고객번호, 주문일시, 주문금액) VALUES (...)
+
+대기 이벤트 예시
+enq: TM - contention
+enq: TX - row lock contention`,
+    answerSql: `CREATE INDEX 주문_IX01 ON 주문(고객번호);
+
+-- 추가 설명:
+-- 부모 고객 삭제/변경 시 자식 주문 존재 여부를 빠르게 확인할 수 있어야 한다.
+-- 운영 적용 전 중복 인덱스 여부, DML 증가 비용, 배치 시간대를 함께 검토한다.`,
+    acceptedAlternatives: ["주문(고객번호, 주문일시)처럼 주요 조회 조건까지 포함한 결합 인덱스도 업무 조회와 맞으면 인정", "부모 삭제 정책을 논리 삭제로 바꾸는 업무 대안은 인덱스 검토와 함께 부분 인정"],
+    rubric: ["자식 외래키 인덱스 누락을 원인 후보로 지적해야 한다.", "부모 삭제/변경과 자식 DML 사이 잠금 경합을 설명해야 한다.", "제약조건 삭제가 아니라 무결성 유지와 인덱스 설계를 우선해야 한다."],
+    explanation: "외래키 제약은 자동으로 자식 인덱스를 만들지 않는다. 부모 키 삭제나 변경이 발생하면 자식 존재 여부 확인과 잠금 범위가 커질 수 있어 주문.고객번호 인덱스를 검토해야 한다.",
+    relatedConcepts: ["Lock", "외래키", "동시성"],
+    hints: ["부모 행 삭제가 자식 테이블을 왜 확인해야 하는지 생각한다.", "자식 외래키 컬럼에 인덱스가 없으면 검증 범위가 커진다.", "무결성을 지우기보다 인덱스와 트랜잭션 순서를 조정한다."],
+    validationNotes: ["동시성 실습은 실제 운영 측정값이 아닌 교육용 관찰 정보로 명확히 표시한다."]
   }
 ];
 
