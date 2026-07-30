@@ -1,3 +1,4 @@
 tmp/
 *.pdf
 *.png
+!public/problem-visuals/*.png
