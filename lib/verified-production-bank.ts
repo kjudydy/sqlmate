@@ -5798,36 +5798,6 @@ function addVisualAssetOnce(question: ObjectiveQuestion, asset: NonNullable<Obje
 
 function withKnownVisualAssets(question: ObjectiveQuestion): ObjectiveQuestion {
   if (
-    question.subjectId === "sql-basic" &&
-    question.sourceQuestionNumber === 84 &&
-    question.generationMode === "original" &&
-    question.stem.includes("R1")
-  ) {
-    return addVisualAssetOnce(question, {
-      src: "/problem-visuals/sql-cert-q84-union-row-count.png",
-      title: "UNION과 UNION ALL 결과 자료",
-      alt: "R1, R2 테이블과 UNION ALL 및 UNION SQL의 결과 행 수 선택지",
-      caption: "중복 행 제거 여부를 눈으로 비교할 수 있도록 원문 대조 자료를 함께 제공합니다.",
-      kind: "table"
-    });
-  }
-
-  if (
-    question.subjectId === "sql-basic" &&
-    question.sourceQuestionNumber === 67 &&
-    question.generationMode === "original" &&
-    question.stem.includes("UNION")
-  ) {
-    return addVisualAssetOnce(question, {
-      src: "/problem-visuals/sql-cert-q67-union-all-dictionary.png",
-      title: "ERD와 Dictionary 조회 자료",
-      alt: "EMP 컬럼 구성, NUM_DISTINCT 조회 결과, UNION을 UNION ALL로 바꿀 수 있는 SQL 선택지",
-      caption: "컬럼 고유성 판단과 SQL 선택지가 함께 필요한 문항이라 원문 자료 이미지를 병행 표시합니다.",
-      kind: "diagram"
-    });
-  }
-
-  if (
     question.id === "prod-ext-tuning-051" &&
     question.parentQuestionId === "pdf-o-3-trace-cpu-elapsed"
   ) {

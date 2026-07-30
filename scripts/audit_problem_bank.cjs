@@ -185,6 +185,10 @@ for (const question of objectiveQuestions) {
   const longestChoice = Math.max(...question.choices.map((choice) => choice.text.length));
   const totalTableRows = (question.table ? question.table.rows.length : 0) + (question.tables ?? []).reduce((sum, table) => sum + table.rows.length, 0);
   const codeLines = (question.code ?? "").split(/\r?\n/).filter(Boolean).length;
+  const fullQuestionImageAssets = (question.visualAssets ?? []).filter((asset) => {
+    const assetText = textParts(asset).join(" ");
+    return /선택지|보기|문항|원문|문제 전체|전체 캡처|대조 자료/i.test(assetText);
+  });
 
   for (const { pattern, reason } of bannedPatterns) {
     if (pattern.test(text)) {
@@ -233,6 +237,17 @@ for (const question of objectiveQuestions) {
         action: "왜 맞고 왜 틀렸는지 선택지별로 보강"
       });
     }
+  }
+
+  if (fullQuestionImageAssets.length) {
+    addIssue(objectiveIssues, {
+      severity: "HIGH",
+      item: title,
+      id: question.id,
+      category: "이미지 자료",
+      reason: "이미지 설명상 문제 본문/선택지까지 포함한 전체 캡처일 가능성",
+      action: "사용자 화면에는 표, ERD, 실행계획, Trace 등 풀이 자료만 이미지로 분리하고 전체 문제 캡처는 제거"
+    });
   }
 
   if ((question.difficulty.includes("기본") || question.difficulty.includes("湲")) && !hasStructuredMaterial && question.stem.length < 55 && longestChoice < 30) {
