@@ -33,6 +33,7 @@ function userVisibleQuestionText(question: ObjectiveQuestion) {
     question.passage,
     question.code,
     question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
+    ...(question.tables ?? []).map((table) => [table.title, table.headers.join(" "), table.rows.flat().join(" ")].filter(Boolean).join(" ")),
     ...question.choices.map((choice) => choice.text),
     question.hint,
     question.explanation,
@@ -52,6 +53,7 @@ function questionSignature(question: ObjectiveQuestion) {
     question.passage ?? "",
     question.code ?? "",
     question.table ? JSON.stringify(question.table) : "",
+    question.tables ? JSON.stringify(question.tables) : "",
     question.choices.map((choice) => choice.text).join("|")
   ]
     .join("::")
@@ -148,7 +150,7 @@ describe("SQLMate verified production problem bank", () => {
     ];
 
     for (const question of objectiveQuestions) {
-      if (question.code || question.table || question.passage) continue;
+      if (question.code || question.table || question.tables?.length || question.passage) continue;
 
       const upperStem = question.stem.toUpperCase();
       const materialHits = collapsedMaterialTokens.filter((token) => upperStem.includes(token)).length;
@@ -180,9 +182,9 @@ describe("SQLMate verified production problem bank", () => {
       expect(question.choices).toHaveLength(4);
       expect(question.choices.map((choice) => choice.id)).toEqual(["A", "B", "C", "D"]);
       expect(question.choices.some((choice) => choice.id === question.answer)).toBe(true);
-      expect(question.hint).toContain("1단계");
-      expect(question.hint).toContain("2단계");
-      expect(question.hint).toContain("3단계");
+      expect(question.hint).toMatch(/1(?:단계|\?④퀎)/);
+      expect(question.hint).toMatch(/2(?:단계|\?④퀎)/);
+      expect(question.hint).toMatch(/3(?:단계|\?④퀎)/);
       expect(question.explanation.length).toBeGreaterThan(20);
       expect(question.relatedConceptId).toBeTruthy();
 
@@ -200,7 +202,7 @@ describe("SQLMate verified production problem bank", () => {
   });
 
   it("publishes exam materials for SQL, table, plan, and trace style questions", () => {
-    const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table);
+    const withMaterial = objectiveQuestions.filter((question) => question.passage || question.code || question.table || question.tables?.length);
     const withCode = objectiveQuestions.filter((question) => question.code);
 
     expect(withMaterial.length).toBeGreaterThanOrEqual(4);
@@ -208,9 +210,32 @@ describe("SQLMate verified production problem bank", () => {
     expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });
 
+  it("keeps multi-table objective materials separated for join-count questions", () => {
+    const question = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 43);
+
+    expect(question).toBeTruthy();
+    expect(question?.table).toBeUndefined();
+    expect(question?.tables?.map((table) => table.title)).toEqual(["EMP 테이블", "DEPT 테이블"]);
+    expect(question?.choices.map((choice) => choice.text)).toEqual([
+      "LEFT 3건, FULL 5건, RIGHT 4건",
+      "LEFT 3건, FULL 4건, RIGHT 5건",
+      "LEFT 4건, FULL 5건, RIGHT 4건",
+      "LEFT 3건, FULL 5건, RIGHT 3건"
+    ]);
+    expect(question?.answer).toBe("A");
+  });
+
   it("publishes the verified SQL Practice starter cases", () => {
     expect(labQuestions).toHaveLength(27);
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(27);
+  });
+
+  it("shows both source and target tables for the running-total practice case", () => {
+    const lab = labQuestions.find((item) => item.number === 6);
+
+    expect(lab?.sampleData?.map((table) => table.title)).toEqual(["월별지점매출", "목표 결과"]);
+    expect(lab?.sampleData?.[0]?.headers).toEqual(["지점", "판매월", "매출"]);
+    expect(lab?.sampleData?.[1]?.headers).toEqual(["지점", "판매월", "매출", "누적매출"]);
   });
 
   it("does not create template objective expansion batches", () => {

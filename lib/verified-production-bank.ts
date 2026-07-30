@@ -461,7 +461,7 @@ function convertReviewQuestion(question: PdfReviewQuestion, number: number): Obj
   const source = question.source;
   const choices = question.choices.map((choice) => ({ id: choice.id as ChoiceId, text: choice.text }));
   const whyWrong = Object.fromEntries(question.choices.map((choice) => [choice.id, choice.explanation])) as Record<ChoiceId, string>;
-  const signature = [question.stem, question.passage, question.code, JSON.stringify(question.table), choices.map((choice) => choice.text).join("|")].join("\n");
+  const signature = [question.stem, question.passage, question.code, JSON.stringify(question.table), JSON.stringify(question.tables), choices.map((choice) => choice.text).join("|")].join("\n");
 
   return {
     ...metadataForObjective({
@@ -489,7 +489,8 @@ function convertReviewQuestion(question: PdfReviewQuestion, number: number): Obj
     stem: question.stem,
     passage: question.passage,
     code: question.code,
-    table: question.table ? { headers: question.table.headers, rows: question.table.rows } : undefined,
+    table: question.table ? { title: question.table.title, headers: question.table.headers, rows: question.table.rows } : undefined,
+    tables: question.tables?.map((table) => ({ title: table.title, headers: table.headers, rows: table.rows })),
     choices,
     answer,
     relatedConceptId: conceptIdForQuestion(question),
@@ -543,6 +544,7 @@ type ManualPublishedQuestion = {
   passage?: string;
   code?: string;
   table?: ObjectiveQuestion["table"];
+  tables?: ObjectiveQuestion["tables"];
   choices: Array<{ id: ChoiceId; text: string; explanation: string }>;
   answer: ChoiceId;
   relatedConceptId: string;
@@ -561,6 +563,7 @@ function makeManualQuestion(input: ManualPublishedQuestion): ObjectiveQuestion {
     input.passage ?? "",
     input.code ?? "",
     input.table ? JSON.stringify(input.table) : "",
+    input.tables ? JSON.stringify(input.tables) : "",
     input.choices.map((choice) => `${choice.id}:${choice.text}`).join("|")
   ].join("\n");
 
@@ -591,6 +594,7 @@ function makeManualQuestion(input: ManualPublishedQuestion): ObjectiveQuestion {
     passage: input.passage,
     code: input.code,
     table: input.table,
+    tables: input.tables,
     choices: input.choices.map((choice) => ({ id: choice.id, text: choice.text })),
     answer: input.answer,
     relatedConceptId: input.relatedConceptId,
@@ -3405,6 +3409,7 @@ function objectiveSignature(question: ObjectiveQuestion) {
     question.passage ?? "",
     question.code ?? "",
     question.table ? JSON.stringify(question.table) : "",
+    question.tables ? JSON.stringify(question.tables) : "",
     question.choices.map((choice) => choice.text).join("|")
   ]
     .join("::")
@@ -5249,6 +5254,7 @@ function visibleQuestionText(question: ObjectiveQuestion) {
     question.explanation,
     question.hint,
     question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
+    ...(question.tables ?? []).map((table) => [table.title, table.headers.join(" "), table.rows.flat().join(" ")].filter(Boolean).join(" ")),
     ...question.choices.map((choice) => choice.text),
     ...Object.values(question.whyWrong)
   ]
@@ -5261,7 +5267,7 @@ function hasBannedUserVisibleText(value: string) {
 }
 
 function hasCollapsedMaterialInStem(question: ObjectiveQuestion) {
-  if (question.code || question.table || question.passage) return false;
+  if (question.code || question.table || question.tables?.length || question.passage) return false;
 
   const stem = question.stem.toUpperCase();
   const materialHits = collapsedMaterialTokens.filter((token) => stem.includes(token)).length;
@@ -5310,8 +5316,54 @@ function visibleLabText(lab: LabQuestion) {
     .join("\n");
 }
 
+function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): ObjectiveQuestion {
+  if (question.id !== "prod-ext-sql-basic-053") return question;
+
+  return {
+    ...question,
+    stem: "EMP.C는 DEPT.C와 연결된다. EMP 테이블과 DEPT 테이블을 각각 LEFT OUTER JOIN, FULL OUTER JOIN, RIGHT OUTER JOIN 했을 때 결과 건수로 가장 적절한 것은?",
+    passage: "조인 조건은 EMP.C = DEPT.C 이며, 결과 건수는 LEFT, FULL, RIGHT 순서로 판단한다.",
+    table: undefined,
+    tables: [
+      {
+        title: "EMP 테이블",
+        headers: ["A", "B", "C"],
+        rows: [
+          ["1", "b", "w"],
+          ["3", "d", "w"],
+          ["5", "y", "y"]
+        ]
+      },
+      {
+        title: "DEPT 테이블",
+        headers: ["C", "D", "E"],
+        rows: [
+          ["w", "1", "10"],
+          ["z", "4", "11"],
+          ["v", "2", "22"]
+        ]
+      }
+    ],
+    choices: [
+      { id: "A", text: "LEFT 3건, FULL 5건, RIGHT 4건" },
+      { id: "B", text: "LEFT 3건, FULL 4건, RIGHT 5건" },
+      { id: "C", text: "LEFT 4건, FULL 5건, RIGHT 4건" },
+      { id: "D", text: "LEFT 3건, FULL 5건, RIGHT 3건" }
+    ],
+    answer: "A",
+    hint: "1단계: EMP의 C=w 두 행은 DEPT의 C=w 한 행과 각각 매칭된다.\n2단계: EMP의 C=y는 LEFT/FULL에서만 보존되고, DEPT의 C=z, C=v는 RIGHT/FULL에서 보존된다.\n3단계: FULL OUTER JOIN은 양쪽 미매칭 행을 모두 포함하므로 LEFT 결과에 DEPT 미매칭 두 행을 더한다.",
+    explanation: "EMP 기준 LEFT OUTER JOIN은 EMP의 3행을 보존한다. C=w 두 행은 DEPT의 C=w와 매칭되고, C=y 한 행은 DEPT 쪽 NULL로 남으므로 3건이다. FULL OUTER JOIN은 LEFT 결과 3건에 DEPT에서 매칭되지 않은 C=z, C=v 두 행을 더해 5건이다. RIGHT OUTER JOIN은 DEPT 기준으로 C=w 매칭 2건과 C=z, C=v 미매칭 2건을 포함하므로 4건이다.",
+    whyWrong: {
+      A: "정답이다. LEFT 3건, FULL 5건, RIGHT 4건으로 외부 조인의 보존 방향과 양쪽 미매칭 행을 모두 반영했다.",
+      B: "오답이다. FULL OUTER JOIN은 양쪽 미매칭 행을 모두 포함하므로 RIGHT보다 작아질 수 없다.",
+      C: "오답이다. LEFT OUTER JOIN은 EMP 기준 3행을 보존하며 DEPT의 미매칭 z, v는 포함하지 않는다.",
+      D: "오답이다. RIGHT OUTER JOIN은 DEPT의 C=w가 EMP 두 행과 매칭되고, z/v 두 행도 보존되므로 4건이다."
+    }
+  };
+}
+
 export const verifiedObjectiveQuestions: ObjectiveQuestion[] = renumberObjectiveQuestions(
-  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion)
+  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion).map(patchKnownObjectiveQuestionIssues)
 );
 
 export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(

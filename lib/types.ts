@@ -47,9 +47,15 @@ export type ObjectiveQuestion = ContentSourceMetadata & {
   passage?: string;
   code?: string;
   table?: {
+    title?: string;
     headers: string[];
     rows: string[][];
   };
+  tables?: {
+    title?: string;
+    headers: string[];
+    rows: string[][];
+  }[];
   choices: Choice[];
   answer: ChoiceId;
   relatedConceptId?: string;

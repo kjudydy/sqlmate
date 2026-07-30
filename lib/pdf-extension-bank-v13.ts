@@ -16,6 +16,7 @@ export type PdfExtensionQuestion = {
   passage?: string;
   code?: string;
   table?: ObjectiveQuestion["table"];
+  tables?: ObjectiveQuestion["tables"];
   choices: Array<[ChoiceId, string, string]>;
   answer: ChoiceId;
   relatedConceptId: string;
@@ -626,22 +627,31 @@ FROM TAB1;`,
     sourceQuestionNumber: 74,
     parentQuestionId: "sql-cert-emp-dept-outer-join-count",
     stem: "EMP와 DEPT를 LEFT, FULL, RIGHT 외부조인한 결과 건수의 조합으로 가장 적절한 것은?",
-    table: {
-      headers: ["테이블", "컬럼1", "컬럼2", "컬럼3"],
-      rows: [
-        ["EMP", "A=1", "B=b", "C=w"],
-        ["EMP", "A=3", "B=d", "C=w"],
-        ["EMP", "A=5", "B=y", "C=y"],
-        ["DEPT", "C=w", "D=1", "E=10"],
-        ["DEPT", "C=z", "D=4", "E=11"],
-        ["DEPT", "C=v", "D=2", "E=22"]
-      ]
-    },
+    tables: [
+      {
+        title: "EMP 테이블",
+        headers: ["A", "B", "C"],
+        rows: [
+          ["1", "b", "w"],
+          ["3", "d", "w"],
+          ["5", "y", "y"]
+        ]
+      },
+      {
+        title: "DEPT 테이블",
+        headers: ["C", "D", "E"],
+        rows: [
+          ["w", "1", "10"],
+          ["z", "4", "11"],
+          ["v", "2", "22"]
+        ]
+      }
+    ],
     passage: "EMP.C는 DEPT.C와 연결된다. LEFT, FULL, RIGHT OUTER JOIN의 결과 건수를 순서대로 고른다.",
     choices: [
-      ["A", "3건, 4건, 3건", "정답이다. w는 EMP 2건과 DEPT 1건이 매칭되어 2건, EMP의 y 미매칭 1건, DEPT의 z/v 미매칭 2건을 합산한다."],
+      ["A", "3건, 4건, 3건", "오답이다. FULL OUTER JOIN은 EMP의 y 미매칭 1건과 DEPT의 z, v 미매칭 2건을 모두 보존하므로 4건이 아니라 5건이다."],
       ["B", "4건, 5건, 3건", "오답이다. LEFT JOIN은 EMP 기준 3건이지 DEPT 미매칭까지 포함하지 않는다."],
-      ["C", "4건, 5건, 3건", "오답이다. LEFT JOIN은 EMP 기준이므로 DEPT 미매칭 행까지 포함하지 않는다."],
+      ["C", "3건, 4건, 5건", "오답이다. FULL OUTER JOIN과 RIGHT OUTER JOIN의 결과 건수를 서로 바꿨다."],
       ["D", "3건, 5건, 4건", "정답이다. LEFT는 EMP 기준 3건, FULL은 양쪽 미매칭을 모두 포함해 5건, RIGHT는 DEPT 기준 4건이다."]
     ],
     answer: "D",

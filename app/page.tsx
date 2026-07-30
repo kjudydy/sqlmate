@@ -212,6 +212,7 @@ function objectiveUserVisibleText(question: ObjectiveQuestion) {
     question.passage,
     question.code,
     question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
+    ...(question.tables ?? []).map((table) => [table.title, table.headers.join(" "), table.rows.flat().join(" ")].filter(Boolean).join(" ")),
     ...question.choices.map((choice) => `${choice.id} ${choice.text}`),
     question.hint,
     question.explanation,
@@ -285,62 +286,6 @@ function splitLabMaterial(seedSql: string): LabMaterialSection[] {
   ];
 }
 
-function renderPersonalNoteInline(text: string): ReactNode[] {
-  const parts = text.split(/(==[^=\n]+==)/g);
-
-  return parts.map((part, index) => {
-    if (part.startsWith("==") && part.endsWith("==") && part.length > 4) {
-      return (
-        <mark className="note-mark" key={`${part}-${index}`}>
-          {part.slice(2, -2)}
-        </mark>
-      );
-    }
-
-    return <span key={`${part}-${index}`}>{part}</span>;
-  });
-}
-
-function renderPersonalNotePreview(body: string) {
-  return body.split("\n").map((line, index) => {
-    const leadingSpaces = line.match(/^\s*/)?.[0].length ?? 0;
-    const indentLevel = Math.min(3, Math.floor(leadingSpaces / 2));
-    const trimmedStart = line.trimStart();
-    const indentClass = `note-preview-indent-${indentLevel}`;
-
-    if (!trimmedStart.trim()) {
-      return (
-        <div className={`note-preview-line ${indentClass} empty`} key={`note-line-${index}`}>
-          &nbsp;
-        </div>
-      );
-    }
-
-    if (trimmedStart.startsWith("## ")) {
-      return (
-        <div className={`note-preview-line note-preview-heading ${indentClass}`} key={`note-line-${index}`}>
-          {renderPersonalNoteInline(trimmedStart.slice(3))}
-        </div>
-      );
-    }
-
-    if (trimmedStart.startsWith("- ")) {
-      return (
-        <div className={`note-preview-line note-preview-bullet ${indentClass}`} key={`note-line-${index}`}>
-          <span aria-hidden="true">•</span>
-          <p>{renderPersonalNoteInline(trimmedStart.slice(2))}</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className={`note-preview-line ${indentClass}`} key={`note-line-${index}`}>
-        {renderPersonalNoteInline(trimmedStart)}
-      </div>
-    );
-  });
-}
-
 function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
   return (
     question.sourceVersion === officialSourceVersion &&
@@ -388,6 +333,67 @@ function countOccurrencesBefore(text: string, needle: string) {
     count += 1;
     fromIndex = foundIndex + needle.length;
   }
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function sanitizePersonalNoteHtml(value: string) {
+  return value
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\s+on\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/<\/?(?!h1\b|h2\b|h3\b|div\b|p\b|br\b|ul\b|ol\b|li\b|b\b|strong\b|i\b|em\b|u\b|mark\b|span\b|font\b)[a-z][^>]*>/gi, "");
+}
+
+function renderLegacyNoteMarkup(line: string) {
+  return escapeHtml(line).replace(/==([^=\n]+)==/g, "<mark>$1</mark>");
+}
+
+function personalNoteBodyToHtml(body: string) {
+  if (!body.trim()) return "";
+  if (/<[a-z][\s\S]*>/i.test(body)) return sanitizePersonalNoteHtml(body);
+
+  return body
+    .split("\n")
+    .map((line) => {
+      const leadingSpaces = line.match(/^\s*/)?.[0].length ?? 0;
+      const indent = Math.min(72, Math.floor(leadingSpaces / 2) * 24);
+      const trimmed = line.trimStart();
+      const style = indent ? ` style="margin-left: ${indent}px;"` : "";
+
+      if (!trimmed.trim()) return "<div><br></div>";
+      if (trimmed.startsWith("## ")) return `<h2${style}>${renderLegacyNoteMarkup(trimmed.slice(3))}</h2>`;
+      if (trimmed.startsWith("- ")) return `<ul${style}><li>${renderLegacyNoteMarkup(trimmed.slice(2))}</li></ul>`;
+      return `<div${style}>${renderLegacyNoteMarkup(trimmed)}</div>`;
+    })
+    .join("");
+}
+
+function personalNoteBodyToSummary(body: string) {
+  const text = body
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/(div|p|li|h1|h2|h3)>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/==([^=\n]+)==/g, "$1")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text || "내용 없음";
 }
 
 function buildStudyCalendar(today: Date, attempts: AttemptRecord[], labAnswers: StudyStatePayload["labAnswers"]) {
@@ -466,8 +472,10 @@ export default function Home() {
   const [cloudStatus, setCloudStatus] = useState("데모 저장");
   const [wrongNoteSaveStatus, setWrongNoteSaveStatus] = useState<Record<string, "idle" | "saving" | "saved" | "failed">>({});
   const [pendingWrongDeleteId, setPendingWrongDeleteId] = useState<string | null>(null);
+  const [noteUndoCounts, setNoteUndoCounts] = useState<Record<string, number>>({});
   const wrongMemoTimers = useRef<Record<string, number>>({});
-  const personalNoteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const personalNoteEditorRef = useRef<HTMLDivElement | null>(null);
+  const personalNoteUndoStacks = useRef<Record<string, string[]>>({});
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const allQuestions = useMemo(() => objectiveQuestions, []);
@@ -1021,64 +1029,56 @@ export default function Home() {
     );
   }
 
+  function pushPersonalNoteUndo(note: PersonalNote) {
+    const stack = personalNoteUndoStacks.current[note.id] ?? [];
+    const previous = stack[stack.length - 1];
+    if (previous !== note.body) {
+      stack.push(note.body);
+      if (stack.length > 30) stack.shift();
+      personalNoteUndoStacks.current[note.id] = stack;
+      setNoteUndoCounts((prev) => ({ ...prev, [note.id]: stack.length }));
+    }
+  }
+
+  function updatePersonalNoteFromEditor(trackUndo = true) {
+    if (!selectedPersonalNote || !personalNoteEditorRef.current) return;
+    const nextBody = sanitizePersonalNoteHtml(personalNoteEditorRef.current.innerHTML);
+    if (nextBody === selectedPersonalNote.body) return;
+    if (trackUndo) pushPersonalNoteUndo(selectedPersonalNote);
+    updatePersonalNote(selectedPersonalNote.id, { body: nextBody });
+  }
+
   function applyPersonalNoteFormat(format: "heading" | "bullet" | "indent" | "outdent" | "highlight") {
     if (!selectedPersonalNote) return;
 
-    const textarea = personalNoteTextareaRef.current;
-    const body = selectedPersonalNote.body;
-    const selectionStart = textarea?.selectionStart ?? body.length;
-    const selectionEnd = textarea?.selectionEnd ?? body.length;
-    const hasSelection = selectionEnd > selectionStart;
+    pushPersonalNoteUndo(selectedPersonalNote);
+    personalNoteEditorRef.current?.focus();
 
-    let start = selectionStart;
-    let end = selectionEnd;
+    if (format === "heading") document.execCommand("formatBlock", false, "H2");
+    if (format === "bullet") document.execCommand("insertUnorderedList");
+    if (format === "indent") document.execCommand("indent");
+    if (format === "outdent") document.execCommand("outdent");
+    if (format === "highlight") document.execCommand("backColor", false, "#ffec8b");
 
-    if (!hasSelection && format !== "highlight") {
-      start = body.lastIndexOf("\n", selectionStart - 1) + 1;
-      const nextBreak = body.indexOf("\n", selectionStart);
-      end = nextBreak === -1 ? body.length : nextBreak;
-    }
+    updatePersonalNoteFromEditor(false);
+  }
 
-    const selectedText = body.slice(start, end);
-    const selectedOrCurrentWord = hasSelection ? selectedText : "형광펜";
+  function undoPersonalNote() {
+    if (!selectedPersonalNote) return;
 
-    const formatLines = (text: string, transform: (line: string) => string) => text.split("\n").map(transform).join("\n");
-    let replacement = selectedText;
+    const stack = personalNoteUndoStacks.current[selectedPersonalNote.id] ?? [];
+    const previousBody = stack.pop();
+    if (previousBody === undefined) return;
 
-    if (format === "heading") {
-      replacement = formatLines(selectedText || "큰 글씨", (line) => {
-        const clean = line.trimStart().replace(/^##\s*/, "");
-        return clean ? `## ${clean}` : "## ";
-      });
-    }
-
-    if (format === "bullet") {
-      replacement = formatLines(selectedText || "목록", (line) => {
-        const clean = line.trimStart().replace(/^[-•]\s*/, "");
-        return clean ? `- ${clean}` : "- ";
-      });
-    }
-
-    if (format === "indent") {
-      replacement = formatLines(selectedText || "", (line) => `  ${line}`);
-    }
-
-    if (format === "outdent") {
-      replacement = formatLines(selectedText || "", (line) => line.replace(/^ {1,2}/, ""));
-    }
-
-    if (format === "highlight") {
-      replacement = `==${selectedOrCurrentWord.replace(/^==|==$/g, "")}==`;
-    }
-
-    const nextBody = `${body.slice(0, start)}${replacement}${body.slice(end)}`;
-    updatePersonalNote(selectedPersonalNote.id, { body: nextBody });
+    personalNoteUndoStacks.current[selectedPersonalNote.id] = stack;
+    setNoteUndoCounts((prev) => ({ ...prev, [selectedPersonalNote.id]: stack.length }));
+    updatePersonalNote(selectedPersonalNote.id, { body: previousBody });
 
     window.requestAnimationFrame(() => {
-      const nextTextarea = personalNoteTextareaRef.current;
-      if (!nextTextarea) return;
-      nextTextarea.focus();
-      nextTextarea.setSelectionRange(start, start + replacement.length);
+      if (personalNoteEditorRef.current) {
+        personalNoteEditorRef.current.innerHTML = personalNoteBodyToHtml(previousBody);
+        personalNoteEditorRef.current.focus();
+      }
     });
   }
 
@@ -1536,31 +1536,32 @@ export default function Home() {
                 <h2>{currentQuestion.stem}</h2>
               </div>
 
-              {(currentQuestion.passage || currentQuestion.code || currentQuestion.table) && (
+              {(currentQuestion.passage || currentQuestion.code || currentQuestion.table || currentQuestion.tables?.length) && (
                 <div className="exam-material">
                   {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
-                  {currentQuestion.table && (
-                    <div className="exam-table-wrap">
+                  {[...(currentQuestion.tables ?? []), ...(currentQuestion.table ? [currentQuestion.table] : [])].map((table, tableIndex) => (
+                    <div className="exam-table-wrap" key={`${currentQuestion.id}-table-${tableIndex}`}>
+                      {table.title && <strong className="exam-table-title">{table.title}</strong>}
                       <table className="exam-table">
                         <thead>
                           <tr>
-                            {currentQuestion.table.headers.map((header) => (
-                              <th key={header}>{header}</th>
+                            {table.headers.map((header, headerIndex) => (
+                              <th key={`${currentQuestion.id}-${tableIndex}-header-${headerIndex}`}>{header}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {currentQuestion.table.rows.map((row, rowIndex) => (
-                            <tr key={`${currentQuestion.id}-row-${rowIndex}`}>
+                          {table.rows.map((row, rowIndex) => (
+                            <tr key={`${currentQuestion.id}-${tableIndex}-row-${rowIndex}`}>
                               {row.map((cell, cellIndex) => (
-                                <td key={`${currentQuestion.id}-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                <td key={`${currentQuestion.id}-${tableIndex}-${rowIndex}-${cellIndex}`}>{cell}</td>
                               ))}
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                  )}
+                  ))}
                   {currentQuestion.code && <pre className="exam-code">{currentQuestion.code}</pre>}
                 </div>
               )}
@@ -2406,7 +2407,7 @@ export default function Home() {
                           }}
                         >
                           <strong>{note.title || "제목 없는 노트"}</strong>
-                          <span>{note.body || "내용 없음"}</span>
+                          <span>{personalNoteBodyToSummary(note.body)}</span>
                           <small>
                             {note.tags || "태그 없음"} · {formatDateTime(note.updatedAt)}
                           </small>
@@ -2445,18 +2446,29 @@ export default function Home() {
                       <Highlighter size={16} />
                       형광펜
                     </button>
+                    <button className="ghost-button" onClick={undoPersonalNote} disabled={!noteUndoCounts[selectedPersonalNote.id]}>
+                      <RotateCcw size={16} />
+                      되돌리기
+                    </button>
                   </div>
-                  <textarea
-                    ref={personalNoteTextareaRef}
-                    value={selectedPersonalNote.body}
-                    onChange={(event) => updatePersonalNote(selectedPersonalNote.id, { body: event.target.value })}
-                    placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
+                  <div
+                    key={selectedPersonalNote.id}
+                    ref={personalNoteEditorRef}
+                    className="rich-note-editor"
+                    contentEditable
+                    suppressContentEditableWarning
+                    role="textbox"
+                    aria-label="노트 본문"
+                    data-placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
+                    dangerouslySetInnerHTML={{ __html: personalNoteBodyToHtml(selectedPersonalNote.body) }}
+                    onInput={() => updatePersonalNoteFromEditor(true)}
+                    onBlur={() => updatePersonalNoteFromEditor(false)}
+                    onPaste={(event) => {
+                      event.preventDefault();
+                      document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
+                      updatePersonalNoteFromEditor(true);
+                    }}
                   />
-                  {selectedPersonalNote.body.trim() && (
-                    <div className="note-preview" aria-label="노트 미리보기">
-                      {renderPersonalNotePreview(selectedPersonalNote.body)}
-                    </div>
-                  )}
                   <div className="note-footer">
                     <input
                       aria-label="노트 태그"
