@@ -142,14 +142,6 @@ function getChoiceStatusText(choiceId: ChoiceId, selectedIds: ChoiceId[], correc
   return "오답";
 }
 
-function getMaterialLabel(code: string) {
-  if (/Rows|Loop|Starts|CR|PR|Predicate|Operation|PLAN|Trace|TKPROF/i.test(code)) {
-    return "SQL / 실행계획 / Trace";
-  }
-
-  return "SQL";
-}
-
 function toDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -270,6 +262,158 @@ type LabMaterialSection = {
   body: string;
   kind: "sql" | "plan" | "trace" | "material";
 };
+
+function classifyMaterial(body: string): LabMaterialSection["kind"] {
+  if (/Trace|TKPROF|Call\s+Count|Rows\s+Row Source|CR|PR|consistent gets|physical reads|대기 이벤트|enq:/i.test(body)) return "trace";
+  if (/\bOperation\b|Predicate Information|실행계획|TABLE ACCESS|INDEX (?:RANGE|FULL|FAST|UNIQUE|SKIP)|NESTED LOOPS|HASH JOIN|SORT MERGE|PX COORDINATOR|PARTITION RANGE/i.test(body)) return "plan";
+  if (/\bSELECT\b|\bFROM\b|\bWHERE\b|\bJOIN\b|\bINSERT\b|\bUPDATE\b|\bMERGE\b|\bDELETE\b|\bCREATE\b/i.test(body)) return "sql";
+  return "material";
+}
+
+function materialTitle(kind: LabMaterialSection["kind"]) {
+  if (kind === "trace") return "SQL Trace / TKPROF";
+  if (kind === "plan") return "실행계획";
+  if (kind === "sql") return "SQL";
+  return "문제 자료";
+}
+
+function materialBadge(kind: LabMaterialSection["kind"]) {
+  if (kind === "trace") return "TRACE";
+  if (kind === "plan") return "PLAN";
+  if (kind === "sql") return "SQL";
+  return "MATERIAL";
+}
+
+function splitQuestionMaterial(code: string): LabMaterialSection[] {
+  const source = code.trim();
+  if (!source) return [];
+
+  const sections: LabMaterialSection[] = [];
+  const pattern = /\[(SQL|현재 SQL|실행계획|Execution Plan|SQL Trace|TKPROF|Predicate Information|문제 자료)\]\n([\s\S]*?)(?=\n\n\[(?:SQL|현재 SQL|실행계획|Execution Plan|SQL Trace|TKPROF|Predicate Information|문제 자료)\]\n|$)/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(source))) {
+    const label = match[1];
+    const body = match[2]?.trim();
+    if (!body) continue;
+    const kind = /Trace|TKPROF/i.test(label) ? "trace" : /실행계획|Execution Plan|Predicate/i.test(label) ? "plan" : classifyMaterial(body);
+    sections.push({
+      title: materialTitle(kind),
+      badge: materialBadge(kind),
+      body,
+      kind
+    });
+  }
+
+  if (sections.length) return sections;
+
+  const kind = classifyMaterial(source);
+  return [
+    {
+      title: materialTitle(kind),
+      badge: materialBadge(kind),
+      body: source,
+      kind
+    }
+  ];
+}
+
+const operationGuide = [
+  ["TABLE ACCESS FULL", "테이블 전체 스캔", "조건과 무관하게 테이블 블록을 폭넓게 읽는 접근이다."],
+  ["TABLE ACCESS BY INDEX ROWID", "인덱스 ROWID 기반 테이블 액세스", "인덱스에서 찾은 ROWID로 테이블 블록을 방문한다."],
+  ["INDEX RANGE SCAN", "인덱스 범위 스캔", "시작점과 종료점이 있는 인덱스 리프 범위를 읽는다."],
+  ["INDEX UNIQUE SCAN", "인덱스 유일 스캔", "유일 조건으로 최대 한 건을 찾는 접근이다."],
+  ["INDEX FULL SCAN", "인덱스 전체 스캔", "인덱스를 순서대로 전체 탐색하며 정렬 대체 가능성이 있다."],
+  ["INDEX FAST FULL SCAN", "인덱스 빠른 전체 스캔", "인덱스를 멀티블록으로 읽지만 정렬 순서는 보장하지 않는다."],
+  ["INDEX SKIP SCAN", "인덱스 스킵 스캔", "선두 컬럼 조건이 없어도 후행 컬럼 조건으로 반복 탐색한다."],
+  ["NESTED LOOPS", "중첩 루프 조인", "선행 집합 각 행마다 후행 집합을 반복 탐색한다."],
+  ["HASH JOIN", "해시 조인", "작은 입력을 해시 테이블로 만들고 큰 입력을 탐색한다."],
+  ["SORT MERGE JOIN", "소트 머지 조인", "양쪽을 조인 키로 정렬한 뒤 병합한다."],
+  ["SORT ORDER BY", "정렬", "ORDER BY 요구를 만족하기 위한 정렬 작업이다."],
+  ["HASH GROUP BY", "해시 그룹 집계", "해시 영역으로 그룹을 묶어 집계한다."],
+  ["COUNT STOPKEY", "상위 N건 중단", "필요한 건수를 채우면 더 읽지 않고 멈출 수 있다."],
+  ["PARTITION RANGE", "파티션 범위 접근", "조건에 맞는 파티션 범위를 선택한다."],
+  ["PX COORDINATOR", "병렬 실행 조정자", "병렬 서버 프로세스의 작업을 조정한다."]
+] as const;
+
+function getOperationGuides(body: string) {
+  return operationGuide.filter(([operation]) => new RegExp(operation.replace(/\s+/g, "\\s+"), "i").test(body));
+}
+
+function buildInlineTraceSummary(body: string) {
+  const rows: Array<{ metric: string; value: string; meaning: string }> = [];
+  const patterns: Array<[RegExp, string, string]> = [
+    [/\bcr\s*[=:]\s*([\d,]+)/i, "CR", "논리적 블록 읽기"],
+    [/\bpr\s*[=:]\s*([\d,]+)/i, "PR", "물리적 블록 읽기"],
+    [/\brows\s*[=:]\s*([\d,]+)/i, "Rows", "처리 또는 반환 행 수"],
+    [/\bstarts\s*[=:]\s*([\d,]+)/i, "Starts", "오퍼레이션 반복 시작 횟수"],
+    [/\bfetch\s+(\d+)/i, "Fetch", "Fetch 호출 횟수"],
+    [/\bexecute\s+(\d+)/i, "Execute", "Execute 호출 횟수"],
+    [/\bparse\s+(\d+)/i, "Parse", "Parse 호출 횟수"]
+  ];
+
+  for (const [pattern, metric, meaning] of patterns) {
+    const match = body.match(pattern);
+    if (match?.[1]) rows.push({ metric, value: match[1], meaning });
+  }
+
+  return rows.slice(0, 6);
+}
+
+function MaterialCodeCard({ material }: { material: LabMaterialSection }) {
+  const guides = material.kind === "plan" ? getOperationGuides(material.body) : [];
+  const traceRows = material.kind === "trace" ? buildInlineTraceSummary(material.body) : [];
+
+  return (
+    <div className={`code-panel schema-panel lab-material-card objective-material-card ${material.kind === "sql" ? "sql-material" : ""} ${material.kind === "plan" ? "plan-material" : ""} ${material.kind === "trace" ? "trace-material" : ""}`}>
+      <div className="code-panel-heading">
+        <h3>{material.title}</h3>
+        <span>{material.badge}</span>
+      </div>
+      {guides.length ? (
+        <ul className="operation-guide">
+          {guides.map(([operation, korean, note]) => (
+            <li key={operation}>
+              <strong>{operation}</strong>
+              <span>{korean}</span>
+              <em>{note}</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {traceRows.length ? (
+        <div className="trace-summary-table inline-trace-summary">
+          <table>
+            <thead>
+              <tr>
+                <th>항목</th>
+                <th>값</th>
+                <th>의미</th>
+              </tr>
+            </thead>
+            <tbody>
+              {traceRows.map((row) => (
+                <tr key={row.metric}>
+                  <td>{row.metric}</td>
+                  <td>{row.value}</td>
+                  <td>{row.meaning}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {material.kind === "trace" ? (
+        <details className="trace-raw lab-material-details" open>
+          <summary>원문 보기</summary>
+          <pre>{material.body}</pre>
+        </details>
+      ) : (
+        <pre>{material.body}</pre>
+      )}
+    </div>
+  );
+}
 
 function splitLabMaterial(seedSql: string): LabMaterialSection[] {
   const source = seedSql.trim();
@@ -1581,7 +1725,10 @@ export default function Home() {
                       </table>
                     </div>
                   ))}
-                  {currentQuestion.code && <pre className="exam-code">{currentQuestion.code}</pre>}
+                  {currentQuestion.code &&
+                    splitQuestionMaterial(currentQuestion.code).map((material, materialIndex) => (
+                      <MaterialCodeCard material={material} key={`${currentQuestion.id}-material-${materialIndex}`} />
+                    ))}
                 </div>
               )}
 
@@ -2072,8 +2219,9 @@ export default function Home() {
                           )}
                           {question.code && (
                             <div className="wrong-code-block">
-                              <span>{getMaterialLabel(question.code)}</span>
-                              <pre className="exam-code">{question.code}</pre>
+                              {splitQuestionMaterial(question.code).map((material, materialIndex) => (
+                                <MaterialCodeCard material={material} key={`${question.id}-wrong-material-${materialIndex}`} />
+                              ))}
                             </div>
                           )}
                         </section>

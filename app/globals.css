@@ -2246,6 +2246,12 @@ body {
   resize: vertical;
 }
 
+@media (max-width: 640px) {
+  .operation-guide li {
+    grid-template-columns: 1fr;
+  }
+}
+
 .note-format-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -2664,6 +2670,58 @@ body {
   font-size: 13px;
   white-space: pre;
   overflow-x: auto;
+}
+
+.objective-material-card {
+  margin-top: 2px;
+  padding: 13px;
+}
+
+.objective-material-card pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.68;
+}
+
+.operation-guide {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.operation-guide li {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(120px, 0.7fr) minmax(0, 1.5fr);
+  gap: 8px;
+  align-items: start;
+  border: 1px solid rgba(8, 117, 104, 0.14);
+  border-radius: 8px;
+  background: rgba(240, 250, 247, 0.72);
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+.operation-guide strong {
+  color: var(--ink);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.operation-guide span {
+  color: #075f56;
+  font-weight: 850;
+}
+
+.operation-guide em {
+  color: var(--muted);
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.inline-trace-summary {
+  margin-bottom: 10px;
 }
 
 .exam-table-wrap {
