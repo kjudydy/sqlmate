@@ -5287,7 +5287,10 @@ function hasCollapsedMaterialInStem(question: ObjectiveQuestion) {
   );
 }
 
+const rejectedKnownDuplicateQuestionIds = new Set(["prod-ext-tuning-210"]);
+
 function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
+  if (rejectedKnownDuplicateQuestionIds.has(question.id)) return false;
   if (question.reviewStatus !== "approved" || question.validationStatus !== "validated") return false;
   if (hasBannedUserVisibleText(visibleQuestionText(question))) return false;
   if (hasCollapsedMaterialInStem(question)) return false;
@@ -5443,6 +5446,46 @@ PARTITION BY RANGE (거래일시) (
         D: "오답이다. 거래일시가 포함되어 있더라도 선두 컬럼이 종목코드이므로 Prefixed 조건을 만족하지 않는다."
       },
       duplicationCheck: "manual PDF recheck: SQL-자격검정 실전문제 78번 원문 DDL의 p2013 파티션과 선택지를 복원"
+    };
+  }
+
+  if (
+    question.subjectId === "tuning" &&
+    question.sourceQuestionNumber === 70 &&
+    question.generationMode === "original" &&
+    question.stem.includes("INSERT")
+  ) {
+    return {
+      ...question,
+      code: `INSERT /*+ APPEND */ ALL
+WHEN :v_주식선물구분 = '주식'
+THEN INTO 주식월별시세(종목코드, 거래일자, 종가)
+WHEN :v_주식선물구분 = '선물'
+THEN INTO 선물월별시세(종목코드, 거래일자, 종가)
+SELECT a.종목코드
+     , :v_기준일자 AS 거래일자
+     , AVG(a.종가) AS 종가
+FROM 주식일별시세 a
+WHERE :v_주식선물구분 = '주식'
+  AND a.거래일자 BETWEEN ADD_MONTHS(:v_기준일자, -1) AND :v_기준일자
+GROUP BY a.종목코드
+UNION ALL
+SELECT a.종목코드
+     , :v_기준일자 AS 거래일자
+     , AVG(a.종가) AS 종가
+FROM 선물일별시세 a
+WHERE :v_주식선물구분 = '선물'
+  AND a.거래일자 BETWEEN ADD_MONTHS(:v_기준일자, -1) AND :v_기준일자
+GROUP BY a.종목코드;
+
+-- 세션 100
+EXEC :v_주식선물구분 := '주식';
+/
+
+-- 세션 200
+EXEC :v_주식선물구분 := '선물';
+/`,
+      duplicationCheck: "manual PDF recheck: SQL-자격검정 실전문제 70번 원문 INSERT ALL/UNION ALL 실행 SQL 복원"
     };
   }
 
@@ -5651,6 +5694,51 @@ function addVisualAssetOnce(question: ObjectiveQuestion, asset: NonNullable<Obje
 }
 
 function withKnownVisualAssets(question: ObjectiveQuestion): ObjectiveQuestion {
+  if (
+    question.subjectId === "sql-basic" &&
+    question.sourceQuestionNumber === 84 &&
+    question.generationMode === "original" &&
+    question.stem.includes("R1")
+  ) {
+    return addVisualAssetOnce(question, {
+      src: "/problem-visuals/sql-cert-q84-union-row-count.png",
+      title: "UNION과 UNION ALL 결과 자료",
+      alt: "R1, R2 테이블과 UNION ALL 및 UNION SQL의 결과 행 수 선택지",
+      caption: "중복 행 제거 여부를 눈으로 비교할 수 있도록 원문 대조 자료를 함께 제공합니다.",
+      kind: "table"
+    });
+  }
+
+  if (
+    question.subjectId === "sql-basic" &&
+    question.sourceQuestionNumber === 67 &&
+    question.generationMode === "original" &&
+    question.stem.includes("UNION")
+  ) {
+    return addVisualAssetOnce(question, {
+      src: "/problem-visuals/sql-cert-q67-union-all-dictionary.png",
+      title: "ERD와 Dictionary 조회 자료",
+      alt: "EMP 컬럼 구성, NUM_DISTINCT 조회 결과, UNION을 UNION ALL로 바꿀 수 있는 SQL 선택지",
+      caption: "컬럼 고유성 판단과 SQL 선택지가 함께 필요한 문항이라 원문 자료 이미지를 병행 표시합니다.",
+      kind: "diagram"
+    });
+  }
+
+  if (
+    question.subjectId === "tuning" &&
+    question.sourceQuestionNumber === 70 &&
+    question.generationMode === "original" &&
+    question.stem.includes("INSERT")
+  ) {
+    return addVisualAssetOnce(question, {
+      src: "/problem-visuals/sql-cert-q70-direct-path-lock.png",
+      title: "Direct Path Insert 실행 정보",
+      alt: "APPEND 힌트가 포함된 INSERT ALL 문장과 세션 100, 세션 200 실행 정보 및 락 상태 선택지",
+      caption: "병렬/Direct Path Insert의 대상 테이블 락 판단에 필요한 SQL과 실행 조건을 원문 형태로 확인합니다.",
+      kind: "sql"
+    });
+  }
+
   if (
     question.subjectId === "tuning" &&
     question.sourcePage === 99 &&

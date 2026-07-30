@@ -17,6 +17,12 @@ import {
 } from "@/lib/verified-production-bank";
 import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 
+const expectedObjectiveCounts: Record<SubjectId, number> = {
+  modeling: 100,
+  "sql-basic": 120,
+  tuning: 119
+};
+
 function bySubject(subjectId: SubjectId) {
   return objectiveQuestions.filter((question) => question.subjectId === subjectId);
 }
@@ -32,6 +38,7 @@ function userVisibleQuestionText(question: ObjectiveQuestion) {
     question.stem,
     question.passage,
     question.code,
+    ...(question.visualAssets ?? []).map((asset) => [asset.title, asset.alt, asset.caption].filter(Boolean).join(" ")),
     question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
     ...(question.tables ?? []).map((table) => [table.title, table.headers.join(" "), table.rows.flat().join(" ")].filter(Boolean).join(" ")),
     ...question.choices.map((choice) => choice.text),
@@ -63,16 +70,16 @@ function questionSignature(question: ObjectiveQuestion) {
 
 describe("SQLMate verified production problem bank", () => {
   it("publishes only reviewed PDF objective questions", () => {
-    expect(objectiveQuestions).toHaveLength(340);
-    expect(bySubject("modeling")).toHaveLength(100);
-    expect(bySubject("sql-basic")).toHaveLength(120);
-    expect(bySubject("tuning")).toHaveLength(120);
+    expect(objectiveQuestions).toHaveLength(Object.values(expectedObjectiveCounts).reduce((sum, count) => sum + count, 0));
+    expect(bySubject("modeling")).toHaveLength(expectedObjectiveCounts.modeling);
+    expect(bySubject("sql-basic")).toHaveLength(expectedObjectiveCounts["sql-basic"]);
+    expect(bySubject("tuning")).toHaveLength(expectedObjectiveCounts.tuning);
   });
 
   it("summarizes original, variant, and similar questions for each subject", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBe(340);
+    expect(summary.objectiveTotal).toBe(Object.values(expectedObjectiveCounts).reduce((sum, count) => sum + count, 0));
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
       expect(subjectSummary.total).toBe(bySubject(subject.id).length);
