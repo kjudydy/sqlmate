@@ -113,6 +113,25 @@ function formatChoiceIds(choiceIds: ChoiceId[]) {
   return choiceIds.length ? choiceIds.join(", ") : "이전 선택 답 정보 없음";
 }
 
+function isSqlLikeChoiceText(text: string) {
+  return (
+    text.includes("\n") ||
+    /\b(SELECT|FROM|WHERE|JOIN|GROUP BY|HAVING|ORDER BY|UNION|WITH|INSERT|UPDATE|DELETE|MERGE|CREATE|CONNECT BY|START WITH)\b/i.test(text)
+  );
+}
+
+function ChoiceText({ text }: { text: string }) {
+  if (!isSqlLikeChoiceText(text)) {
+    return <span className="choice-text">{text}</span>;
+  }
+
+  return (
+    <span className="choice-text choice-code-text">
+      <pre>{text}</pre>
+    </span>
+  );
+}
+
 function getChoiceStatusText(choiceId: ChoiceId, selectedIds: ChoiceId[], correctId: ChoiceId) {
   const selected = selectedIds.includes(choiceId);
   const correct = choiceId === correctId;
@@ -1578,7 +1597,7 @@ export default function Home() {
                       onClick={() => setSelectedChoice(choice.id)}
                     >
                       <strong>{choice.id}</strong>
-                      <span>{choice.text}</span>
+                      <ChoiceText text={choice.text} />
                     </button>
                   );
                 })}
@@ -2072,10 +2091,10 @@ export default function Home() {
                                 key={`${question.id}-wrong-choice-${choice.id}`}
                                 className={`wrong-choice ${selected ? "selected-wrong" : ""} ${correctChoice ? "answer" : ""} ${selected && correctChoice ? "selected-correct" : ""}`}
                               >
-                                <div className="wrong-choice-label">
-                                  <strong>{choice.id}</strong>
-                                  <span>{choice.text}</span>
-                                </div>
+                              <div className="wrong-choice-label">
+                                <strong>{choice.id}</strong>
+                                <ChoiceText text={choice.text} />
+                              </div>
                                 <em>{statusText}</em>
                               </div>
                             );

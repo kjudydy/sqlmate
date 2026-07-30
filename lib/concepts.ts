@@ -1739,4 +1739,293 @@ const conceptSeeds: ConceptSeed[] = [
   }
 ];
 
-export const conceptArticles: ConceptArticle[] = conceptSeeds.map(concept);
+const supplementalConceptSeeds: ConceptSeed[] = [
+  {
+    id: "modeling-super-subtype",
+    subjectId: "modeling",
+    subjectName: modelingSubject,
+    majorTopic: "데이터 모델링의 이해",
+    detailTopic: "슈퍼타입과 서브타입",
+    summary: "슈퍼타입은 여러 엔터티가 공통으로 갖는 속성과 관계를 일반화한 것이고, 서브타입은 업무 규칙에 따라 분화된 특수 집합이다.",
+    keyPoints: ["서브타입은 배타/중복 가능 여부와 전체/부분 참여 여부를 먼저 확인한다.", "통합, 개별, 슈퍼+서브 테이블 설계는 조회 패턴과 무결성 관리 방식이 달라진다.", "서브타입 식별자는 슈퍼타입 식별자를 상속하는 경우가 많다."],
+    examTrap: "서브타입이 있다고 무조건 테이블을 분리하거나 통합하는 것이 아니다. 트랜잭션 범위와 조회 빈도를 함께 봐야 한다.",
+    oracleAngle: "물리 모델에서는 조인 비용, NULL 컬럼 증가, 제약조건 구현 방식까지 고려한다."
+  },
+  {
+    id: "modeling-history",
+    subjectId: "modeling",
+    subjectName: modelingSubject,
+    majorTopic: "데이터 모델링의 이해",
+    detailTopic: "이력 모델링",
+    summary: "이력 모델링은 값의 현재 상태뿐 아니라 변경 시점, 변경 전후 값, 유효 기간을 보존해 과거 기준 조회와 감사 요구를 만족시키는 설계다.",
+    keyPoints: ["발생 이력, 변경 이력, 진행 상태 이력은 저장 목적이 다르다.", "유효시작일과 유효종료일을 둘 때 기간 중복과 현재 행 식별 조건을 명확히 해야 한다.", "최근 이력 조회는 인덱스 컬럼 순서와 정렬 제거 가능성이 중요하다."],
+    examTrap: "이력을 단순히 같은 테이블에 컬럼 추가로 해결하면 반복 컬럼, NULL, 과거 조회 불가능 문제가 생길 수 있다.",
+    oracleAngle: "최신 행 조회는 `(업무키, 변경일자 DESC)` 또는 종료일 NULL 조건 등 접근 경로까지 같이 설계한다."
+  },
+  {
+    id: "modeling-distributed",
+    subjectId: "modeling",
+    subjectName: modelingSubject,
+    majorTopic: "데이터 모델링과 성능",
+    detailTopic: "분산 데이터베이스 설계",
+    summary: "분산 데이터베이스는 데이터 위치를 나누어 저장하면서도 사용자는 하나의 논리 데이터베이스처럼 접근하게 하는 구조다.",
+    keyPoints: ["분산 설계는 위치 투명성, 중복 투명성, 장애 투명성을 고려한다.", "지역별 사용 데이터는 분산 저장으로 응답 시간을 줄일 수 있다.", "중복 배치는 조회 성능을 높이지만 동기화와 정합성 비용이 생긴다."],
+    examTrap: "분산은 무조건 성능을 높이지 않는다. 원격 조인과 분산 트랜잭션은 오히려 병목이 될 수 있다.",
+    oracleAngle: "DB Link, Materialized View, 복제 구조를 사용할 때 네트워크 왕복과 커밋 범위를 확인한다."
+  },
+  {
+    id: "sql-date",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "날짜 조건과 날짜 함수",
+    summary: "DATE 조건은 시간 성분과 컬럼 가공 여부가 결과와 성능을 동시에 좌우한다. 월 조건은 시작일 이상, 다음 시작일 미만의 반개구간이 안전하다.",
+    keyPoints: ["DATE 리터럴은 시각이 00:00:00이다.", "컬럼에 TO_CHAR, TRUNC 같은 함수를 씌우면 일반 인덱스 접근이 어려워질 수 있다.", "BETWEEN 종료일은 시간값 누락 함정을 만든다."],
+    examTrap: "2015-01-31까지라는 표현을 `BETWEEN DATE '2015-01-01' AND DATE '2015-01-31'`로 쓰면 1월 31일 낮 이후 자료가 빠질 수 있다.",
+    oracleAngle: "월 범위는 `col >= DATE 'YYYY-MM-01' AND col < ADD_MONTHS(DATE 'YYYY-MM-01', 1)` 형태가 안정적이다."
+  },
+  {
+    id: "sql-group-by",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "GROUP BY와 HAVING",
+    summary: "GROUP BY는 행을 그룹으로 접고, HAVING은 집계된 그룹에 조건을 적용한다. SELECT 목록에는 그룹 기준 컬럼이나 집계식만 안정적으로 올 수 있다.",
+    keyPoints: ["WHERE는 그룹 전 행 조건, HAVING은 그룹 후 조건이다.", "COUNT(*)와 COUNT(컬럼)은 NULL 처리 방식이 다르다.", "ROLLUP/CUBE/GROUPING SETS는 소계 행까지 결과 건수를 계산해야 한다."],
+    examTrap: "집계 후 조건을 WHERE에 쓰거나, 그룹 기준이 아닌 일반 컬럼을 SELECT에 그대로 두는 선택지가 자주 오답이다.",
+    oracleAngle: "집계 전 필터를 WHERE로 밀어 넣으면 처리 행 수와 TEMP 사용량을 줄일 수 있다."
+  },
+  {
+    id: "sql-null",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "NULL과 UNKNOWN",
+    summary: "NULL은 값이 없거나 알 수 없음을 나타내며, 비교 연산 결과가 TRUE/FALSE가 아닌 UNKNOWN이 될 수 있다.",
+    keyPoints: ["WHERE 절은 TRUE만 통과시키며 UNKNOWN은 제외한다.", "NULL 비교는 `IS NULL` 또는 `IS NOT NULL`을 사용한다.", "NOT IN 목록이나 서브쿼리에 NULL이 있으면 결과가 크게 달라질 수 있다."],
+    examTrap: "`NULL <> 'A'`를 TRUE로 판단하거나, `NOT IN`과 `NOT EXISTS`를 항상 같다고 보는 선택지가 함정이다.",
+    oracleAngle: "NVL/COALESCE는 결과 보정에는 유용하지만 컬럼 가공으로 인덱스 접근성을 낮출 수 있다."
+  },
+  {
+    id: "sql-hierarchical",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "계층형 질의",
+    summary: "Oracle 계층형 질의는 START WITH에서 루트를 정하고 CONNECT BY에서 부모-자식 탐색 방향을 정의한다.",
+    keyPoints: ["PRIOR가 어느 쪽에 붙는지에 따라 탐색 방향이 달라진다.", "LEVEL, CONNECT_BY_ROOT, SYS_CONNECT_BY_PATH는 계층 결과 해석에 사용된다.", "순환 데이터는 NOCYCLE 처리 여부를 확인한다."],
+    examTrap: "START WITH 조건과 CONNECT BY 방향을 뒤섞으면 같은 테이블이어도 전혀 다른 행 집합이 나온다.",
+    oracleAngle: "계층형 질의는 재귀 확장 과정에서 행 수가 급격히 늘 수 있어 시작 조건과 인덱스가 중요하다."
+  },
+  {
+    id: "sql-hierarchical-query",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "계층형 질의 결과 해석",
+    summary: "계층형 질의 결과는 루트 선택, 탐색 방향, 형제 정렬, LEVEL 조건의 적용 순서로 해석한다.",
+    keyPoints: ["START WITH가 루트 후보를 줄인다.", "CONNECT BY 조건은 부모 행에서 자식 행을 찾는 규칙이다.", "ORDER SIBLINGS BY는 같은 부모 아래 형제 순서만 정렬한다."],
+    examTrap: "ORDER BY를 사용하면 계층 구조 순서가 깨질 수 있다는 점을 놓치기 쉽다.",
+    oracleAngle: "계층 결과 정렬은 일반 정렬이 아니라 계층 출력 순서 보존 여부를 함께 봐야 한다."
+  },
+  {
+    id: "sql-joins",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "JOIN 결과 해석",
+    summary: "JOIN은 기준 집합과 매칭 조건, 보존 방향에 따라 결과 건수와 NULL 확장 여부가 달라진다.",
+    keyPoints: ["INNER JOIN은 매칭 행만 남긴다.", "OUTER JOIN은 보존 테이블의 미매칭 행을 NULL 확장한다.", "조인 조건과 필터 조건 위치가 결과를 바꿀 수 있다."],
+    examTrap: "OUTER JOIN 뒤 WHERE에서 반대편 테이블 컬럼을 필터링하면 사실상 INNER JOIN처럼 변할 수 있다.",
+    oracleAngle: "ANSI JOIN에서는 보존해야 할 쪽의 조건을 ON과 WHERE 중 어디에 둘지 정확히 구분한다."
+  },
+  {
+    id: "sql-pivot",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "PIVOT과 UNPIVOT",
+    summary: "PIVOT은 행 값을 컬럼으로 펼치고, UNPIVOT은 컬럼을 행으로 되돌린다. 집계 기준과 NULL 포함 여부가 결과를 좌우한다.",
+    keyPoints: ["PIVOT은 내부적으로 그룹화와 집계를 수행한다.", "IN 목록에 없는 값은 별도 컬럼으로 나오지 않는다.", "UNPIVOT은 기본적으로 NULL 값을 제외할 수 있다."],
+    examTrap: "행열 변환 전의 그룹 기준을 놓치면 결과 행 수와 집계값을 잘못 계산한다.",
+    oracleAngle: "PIVOT 대신 조건부 집계로 같은 결과를 만들 수 있는지 비교 문제가 자주 나온다."
+  },
+  {
+    id: "sql-transaction",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "트랜잭션 제어",
+    summary: "트랜잭션은 하나의 논리 작업 단위이며 COMMIT, ROLLBACK, SAVEPOINT로 변경 확정과 취소 범위를 제어한다.",
+    keyPoints: ["COMMIT 이후에는 일반 ROLLBACK으로 되돌릴 수 없다.", "DDL은 Oracle에서 암시적 COMMIT을 유발할 수 있다.", "SAVEPOINT는 트랜잭션 내부 일부 구간만 되돌릴 때 사용한다."],
+    examTrap: "DML과 DDL의 트랜잭션 처리 차이를 혼동하면 최종 데이터 상태를 틀리기 쉽다.",
+    oracleAngle: "트랜잭션은 Lock 보유 시간과 동시성 대기에도 직접 영향을 준다."
+  },
+  {
+    id: "sql-constraints",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "제약조건",
+    summary: "제약조건은 데이터 무결성을 DBMS가 보장하게 하는 규칙이며 PRIMARY KEY, FOREIGN KEY, UNIQUE, NOT NULL, CHECK가 대표적이다.",
+    keyPoints: ["PK는 NOT NULL과 UNIQUE 성격을 함께 가진다.", "FK는 참조 무결성과 삭제/수정 동작을 제어한다.", "CHECK는 컬럼 값의 허용 범위를 제한한다."],
+    examTrap: "UNIQUE는 NULL 처리에서 DBMS별 차이가 있을 수 있으며, FK 삭제 옵션은 결과 행 상태를 바꾼다.",
+    oracleAngle: "제약조건은 옵티마이저가 조인 제거나 카디널리티 추정에 활용할 수 있는 메타데이터이기도 하다."
+  },
+  {
+    id: "sql-ddl-constraints",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "DDL과 제약조건 정의",
+    summary: "DDL에서 정의한 제약조건은 데이터 입력 가능 여부와 참조 동작을 결정하며, 컬럼 레벨과 테이블 레벨로 선언할 수 있다.",
+    keyPoints: ["복합키는 테이블 레벨 제약조건으로 정의한다.", "ON DELETE CASCADE와 SET NULL은 자식 행 처리 방식이 다르다.", "NOT NULL은 컬럼에 직접 정의되는 경우가 많다."],
+    examTrap: "부모 행 삭제 시 자식 행이 삭제되는지, NULL로 바뀌는지, 삭제가 거부되는지 옵션을 정확히 읽어야 한다.",
+    oracleAngle: "FK 컬럼 인덱스 유무는 부모 삭제/갱신 시 자식 테이블 잠금과 성능에 영향을 준다."
+  },
+  {
+    id: "tuning-execution-plan",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "SQL 튜닝",
+    detailTopic: "실행계획 읽기",
+    summary: "실행계획은 SQL을 어떤 접근 경로와 조인 순서, 조인 방식, 정렬 방식으로 처리할지 보여주는 튜닝의 핵심 근거다.",
+    keyPoints: ["Operation 이름보다 Starts, Rows, Predicate, PSTART/PSTOP 관계를 함께 읽는다.", "들여쓰기는 부모-자식 오퍼레이션 관계를 나타낸다.", "예상 Rows와 실제 Rows 차이는 통계/조건 추정 문제를 의심하게 한다."],
+    examTrap: "가장 위 Operation부터 실행된다고 착각하면 조인 순서와 병목을 잘못 판단한다.",
+    oracleAngle: "DBMS_XPLAN의 ALLSTATS LAST, Predicate Information, Outline 정보를 함께 확인한다."
+  },
+  {
+    id: "tuning-optimizer",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "SQL 옵티마이저",
+    detailTopic: "옵티마이저 판단 원리",
+    summary: "옵티마이저는 통계정보, 조건 선택도, 카디널리티, 비용을 기반으로 접근 경로와 조인 방식을 선택한다.",
+    keyPoints: ["CBO는 비용이 낮다고 추정되는 계획을 선택한다.", "통계정보가 부정확하면 조인 순서와 방식이 어긋날 수 있다.", "힌트는 옵티마이저 선택을 유도하지만 결과 보존을 대신하지 않는다."],
+    examTrap: "옵티마이저가 항상 최적 계획을 고른다고 단정하는 선택지는 위험하다.",
+    oracleAngle: "실행계획 불안정은 통계, 바인드 값 분포, 히스토그램, Adaptive Cursor Sharing과 연결된다."
+  },
+  {
+    id: "tuning-cardinality",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "SQL 옵티마이저",
+    detailTopic: "선택도와 카디널리티",
+    summary: "선택도는 조건을 만족할 비율이고, 카디널리티는 각 단계에서 예상되는 행 수다. 둘은 비용과 조인 순서를 결정하는 핵심 입력이다.",
+    keyPoints: ["선택도가 낮은 조건은 선행 집합 축소에 유리하다.", "카디널리티 오류는 잘못된 조인 방식 선택으로 이어진다.", "상관관계가 강한 컬럼은 단순 독립 가정이 빗나갈 수 있다."],
+    examTrap: "선택도와 카디널리티를 같은 말로 보거나, 인덱스 유무만으로 계획을 판단하면 틀리기 쉽다.",
+    oracleAngle: "히스토그램, 확장 통계, 동적 샘플링은 카디널리티 추정 보정에 사용된다."
+  },
+  {
+    id: "tuning-composite-index",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "인덱스 튜닝",
+    detailTopic: "결합 인덱스 설계",
+    summary: "결합 인덱스는 여러 컬럼을 하나의 키 순서로 구성하는 인덱스이며, 선두 컬럼과 조건 형태가 스캔 범위를 결정한다.",
+    keyPoints: ["등치 조건 컬럼, 범위 조건 컬럼, 정렬/그룹핑 요구를 함께 고려한다.", "선두 컬럼이 조건에 없으면 일반 Range Scan이 어려울 수 있다.", "인덱스 컬럼 순서는 선택도만이 아니라 액세스 패턴과 정렬 제거까지 본다."],
+    examTrap: "선택도가 가장 높은 컬럼을 무조건 맨 앞에 두는 공식은 위험하다.",
+    oracleAngle: "부분범위 처리와 ORDER BY 제거가 중요하면 정렬 순서와 인덱스 컬럼 순서를 함께 설계한다."
+  },
+  {
+    id: "tuning-index-break-even",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "인덱스 튜닝",
+    detailTopic: "인덱스 손익분기점",
+    summary: "인덱스 손익분기점은 인덱스 경유 랜덤 액세스 비용이 테이블 전체 스캔 비용보다 커지는 지점이다.",
+    keyPoints: ["반환 비율이 높고 클러스터링 팩터가 나쁘면 인덱스가 불리해진다.", "테이블 랜덤 액세스가 많이 반복될수록 손익분기점은 낮아진다.", "인덱스 Only 처리나 부분범위 처리는 손익분기점을 높일 수 있다."],
+    examTrap: "인덱스가 있으면 무조건 빠르다는 선택지는 SQLP 튜닝 문제의 대표 함정이다.",
+    oracleAngle: "CR, 테이블 블록 방문 수, 클러스터링 팩터를 함께 봐야 한다."
+  },
+  {
+    id: "tuning-clustering-factor",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "인덱스 튜닝",
+    detailTopic: "클러스터링 팩터",
+    summary: "클러스터링 팩터는 인덱스 키 순서와 테이블 블록 저장 순서가 얼마나 비슷한지를 나타내며 테이블 랜덤 액세스 비용 추정에 영향을 준다.",
+    keyPoints: ["값이 테이블 블록 수에 가까울수록 같은 키 범위가 물리적으로 모여 있다.", "값이 행 수에 가까우면 인덱스 순서로 읽을 때 테이블 블록 이동이 많다.", "같은 선택도라도 클러스터링 팩터에 따라 인덱스 효율이 달라진다."],
+    examTrap: "선택도만 보고 인덱스 사용 여부를 판단하면 클러스터링 팩터 함정을 놓친다.",
+    oracleAngle: "대량 정렬 적재나 테이블 재구성은 클러스터링 팩터 개선과 연결될 수 있다."
+  },
+  {
+    id: "tuning-nested-loops",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "조인 튜닝",
+    detailTopic: "Nested Loops Join",
+    summary: "Nested Loops Join은 선행 집합의 각 행마다 후행 집합을 반복 탐색하는 방식이다.",
+    keyPoints: ["선행 집합이 작고 후행 테이블 조인 컬럼 인덱스가 효율적이면 유리하다.", "선행 행 수가 커지면 후행 반복 액세스 비용이 급증한다.", "부분범위 처리와 빠른 최초 응답이 필요한 경우 강점이 있다."],
+    examTrap: "NL Join은 항상 소량 데이터에만 좋다는 식의 단정은 부정확하다. 후행 인덱스와 반복 횟수를 함께 봐야 한다.",
+    oracleAngle: "LEADING, USE_NL, INDEX 힌트 조합은 조인 순서와 후행 접근 경로를 함께 유도한다."
+  },
+  {
+    id: "tuning-partition-pruning",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "파티션 튜닝",
+    detailTopic: "Partition Pruning",
+    summary: "Partition Pruning은 조건에 맞지 않는 파티션을 읽지 않도록 제외하는 최적화다.",
+    keyPoints: ["파티션 키 컬럼을 가공하면 Pruning이 어려워질 수 있다.", "PSTART/PSTOP이 좁혀졌는지 실행계획에서 확인한다.", "LOCAL/GLOBAL 인덱스 선택은 파티션 키와 인덱스 키 관계에 따라 달라진다."],
+    examTrap: "파티션 테이블이라고 항상 일부 파티션만 읽는 것은 아니다. 조건이 파티션 키에 SARGable하게 걸려야 한다.",
+    oracleAngle: "월 단위 Range 파티션은 날짜 반개구간 조건으로 Pruning을 안정적으로 유도한다."
+  },
+  {
+    id: "tuning-parallel",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "대량 처리 튜닝",
+    detailTopic: "Parallel Execution",
+    summary: "Parallel Execution은 작업을 여러 서버 프로세스가 나누어 처리하게 해 대량 처리 시간을 줄이는 방식이다.",
+    keyPoints: ["Parallel Degree는 자원 사용량과 동시성에 영향을 준다.", "PX SEND, PX RECEIVE, QC, TQ 정보를 실행계획에서 읽는다.", "병렬 DML은 세션 설정과 APPEND/Direct Path 조건을 함께 확인한다."],
+    examTrap: "병렬도를 높이면 항상 빨라진다고 보는 선택지는 위험하다. 분배 비용과 자원 경합을 봐야 한다.",
+    oracleAngle: "대량 INSERT/CTAS/스캔에서는 Direct Path와 병렬 실행 조건을 함께 검토한다."
+  },
+  {
+    id: "tuning-direct-path-insert",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "대량 처리 튜닝",
+    detailTopic: "Direct Path Insert",
+    summary: "Direct Path Insert는 버퍼 캐시를 경유하는 일반 INSERT와 달리 세그먼트의 새 블록에 직접 적재해 대량 입력 효율을 높이는 방식이다.",
+    keyPoints: ["APPEND 힌트와 병렬 DML 설정이 주요 조건이다.", "인덱스 유지, 제약조건, 트리거, 동시성 제한을 함께 검토한다.", "Direct Path는 TM Lock 모드와 세션 동시성에 영향을 줄 수 있다."],
+    examTrap: "APPEND 힌트만 쓰면 모든 INSERT가 Direct Path로 수행된다고 단정하면 안 된다.",
+    oracleAngle: "SQL Trace와 실행계획에서 LOAD AS SELECT, PX COORDINATOR, APPEND 의도를 함께 확인한다."
+  },
+  {
+    id: "tuning-sql-rewrite",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "SQL 튜닝",
+    detailTopic: "SQL Rewrite",
+    summary: "SQL Rewrite는 결과를 보존하면서 조건 위치, 조인 구조, 집계 단계, 서브쿼리 형태를 바꿔 더 효율적인 실행계획을 유도하는 작업이다.",
+    keyPoints: ["결과 보존이 최우선이다.", "반복 스칼라 서브쿼리는 조인과 사전 집계로 줄일 수 있다.", "컬럼 가공 제거와 조건 Pushdown은 접근 범위를 줄인다."],
+    examTrap: "성능만 좋아 보이고 OUTER JOIN 보존 행이나 NULL 의미가 바뀌는 Rewrite는 오답이다.",
+    oracleAngle: "NO_MERGE, UNNEST, PUSH_PRED 같은 힌트는 변환 방향을 제어할 때 사용한다."
+  },
+  {
+    id: "tuning-top-n",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "SQL 튜닝",
+    detailTopic: "Top-N과 페이징 튜닝",
+    summary: "Top-N과 페이징은 필요한 순서의 일부 행만 빠르게 가져오는 문제이며 정렬, STOPKEY, 인덱스 순서가 핵심이다.",
+    keyPoints: ["ORDER BY가 적용된 뒤 상위 N건을 잘라야 의미가 맞다.", "정렬 컬럼과 인덱스 순서가 맞으면 SORT를 줄일 수 있다.", "OFFSET이 커질수록 앞 행을 버리는 비용이 커진다."],
+    examTrap: "ROWNUM을 ORDER BY보다 먼저 적용하면 정렬 후 상위 N건이 아니라 임의 N건 정렬이 될 수 있다.",
+    oracleAngle: "COUNT STOPKEY, WINDOW SORT PUSHED RANK, INDEX RANGE SCAN DESCENDING 여부를 본다."
+  },
+  {
+    id: "tuning-memory",
+    subjectId: "tuning",
+    subjectName: tuningSubject,
+    majorTopic: "Oracle 구조와 성능",
+    detailTopic: "PGA와 작업 메모리",
+    summary: "PGA 작업 메모리는 정렬, 해시 조인, 그룹핑 같은 작업의 메모리 사용량과 TEMP Spill 여부를 좌우한다.",
+    keyPoints: ["정렬/해시가 메모리에 끝나면 optimal, 일부만 디스크를 쓰면 one-pass, 반복 디스크 처리는 multi-pass다.", "작업 대상 행 수와 행 크기가 커질수록 TEMP 사용 위험이 커진다.", "메모리 부족은 elapsed time과 physical I/O 증가로 드러난다."],
+    examTrap: "CPU Time과 Elapsed Time 차이를 무조건 CPU 문제로만 보면 대기와 TEMP I/O를 놓칠 수 있다.",
+    oracleAngle: "V$SQL_WORKAREA, SQL Monitor, Trace의 disk/query/current 지표를 함께 본다."
+  }
+];
+
+export const conceptArticles: ConceptArticle[] = [...conceptSeeds, ...supplementalConceptSeeds].map(concept);

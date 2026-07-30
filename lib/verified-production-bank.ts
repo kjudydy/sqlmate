@@ -5321,7 +5321,227 @@ function visibleLabText(lab: LabQuestion) {
     .join("\n");
 }
 
+const choiceExplanationPatches: Record<string, Partial<Record<ChoiceId, string>>> = {
+  "prod-sql-basic-008": {
+    A: "오답이다. 일반 식별자는 문자로 시작하고 허용된 문자 조합을 사용해야 한다. 하이픈은 뺄셈 연산자로 해석될 수 있어 별도 인용부호 없이 객체명으로 쓰기 부적절하다.",
+    B: "오답이다. 별도 인용부호를 쓰지 않는 일반 객체명은 숫자로 시작할 수 없다. 숫자로 시작하는 이름을 쓰려면 인용 식별자가 필요하지만 실무와 시험에서는 피하는 편이 안전하다.",
+    C: "정답이다. 문자로 시작하고 영문자, 숫자, 밑줄 조합만 사용하므로 별도 인용부호 없이 Oracle 일반 식별자로 쓰기 적절하다.",
+    D: "오답이다. 공백이 포함된 이름은 별도 인용부호가 없으면 하나의 객체명으로 인식되지 않는다. 인용 식별자는 대소문자와 공백까지 관리해야 해 일반 설계에서는 권장되지 않는다."
+  },
+  "prod-ext-sql-basic-074": {
+    A: "정답이다. PIVOT은 행 값을 컬럼으로 펼치면서 각 교차 셀에 들어갈 값을 집계해야 하므로 집계 함수가 필요하고, 어떤 값을 컬럼으로 만들지 IN 목록으로 지정해야 한다.",
+    B: "오답이다. CONNECT BY PRIOR는 계층형 질의에서 부모-자식 탐색 방향을 정하는 조건이다. 행 값을 컬럼으로 전환하는 PIVOT의 필수 요소가 아니다.",
+    C: "오답이다. ON DELETE CASCADE는 참조 무결성에서 부모 행 삭제 시 자식 행 삭제를 지정하는 옵션이다. PIVOT 집계나 행열 변환과 관계가 없다.",
+    D: "오답이다. FOR UPDATE는 조회한 행에 잠금을 거는 절이다. PIVOT 결과를 만들기 위한 집계 기준이나 대상 값 목록을 대신할 수 없다."
+  },
+  "prod-ext-tuning-054": {
+    A: "오답이다. `LIKE 'ABC%'`는 선행 문자열이 고정되어 있어 일반 B-Tree 인덱스에서 시작점과 종료점을 잡는 Range Scan이 가능하다.",
+    B: "오답이다. BETWEEN은 하한과 상한이 모두 제시된 범위 조건이므로 인덱스의 수직 탐색 후 리프 블록 범위 스캔으로 이어질 수 있다.",
+    C: "정답이다. `SUBSTR(C1,1,3)`처럼 컬럼을 함수로 가공하면 일반 인덱스의 키 값과 조건을 직접 비교하기 어렵다. 함수 기반 인덱스가 없다면 access predicate가 되기 힘들다.",
+    D: "오답이다. 동등 조건은 B-Tree 인덱스에서 가장 전형적으로 시작점을 만들 수 있는 조건이다. 선택도가 낮아도 조건 형태 자체는 access에 적합하다."
+  },
+  "prod-ext-tuning-060": {
+    A: "정답이다. OR Expansion은 OR 조건을 UNION ALL 분기로 나누어 각 분기에서 선택도 높은 인덱스를 독립적으로 활용하게 만드는 쿼리 변환이다.",
+    B: "오답이다. OR 조건이 있다고 항상 Full Scan만 가능한 것은 아니다. OR Expansion, Bitmap 변환, IN-list 처리 등 조건과 인덱스 구성에 따라 여러 대안이 있다.",
+    C: "오답이다. C2 조건을 삭제하면 원래 OR 조건의 결과 집합이 바뀐다. 튜닝 Rewrite는 성능 이전에 결과 보존이 먼저 검증되어야 한다.",
+    D: "오답이다. ORDER BY는 최종 결과 정렬 요구사항일 뿐 OR 조건을 자동으로 제거하지 않는다. 오히려 불필요한 정렬 비용을 추가할 수 있다."
+  },
+  "prod-ext-tuning-067": {
+    A: "정답이다. Bind Peeking은 최초 실행 바인드 값으로 계획을 만들고 공유하면서 다른 선택도의 값에서 비효율이 생길 수 있는 현상과 관련된다. Adaptive Cursor Sharing은 이런 편차를 완화하기 위한 기능이다.",
+    B: "오답이다. Cartesian Product는 조인 조건 누락 등으로 두 집합의 곱이 만들어지는 현상이다. 바인드 값별 선택도 편차와 계획 공유 문제를 설명하지 않는다.",
+    C: "오답이다. Direct Path Insert는 대량 입력 경로와 관련된 개념이다. SELECT 조건의 바인드 값 분포와 실행계획 공유 문제와는 초점이 다르다.",
+    D: "오답이다. GROUPING SETS는 여러 집계 기준을 한 번에 계산하는 SQL 구문이다. 바인드 값별 실행계획 편차를 제어하는 기능이 아니다."
+  },
+  "prod-ext-modeling-106": {
+    A: "오답이다. 피터 첸 표기법에서 사각형은 보통 엔터티를 나타낸다. 관계 자체를 표현하는 기본 도형과 구분해야 한다.",
+    B: "오답이다. 타원은 속성을 나타내는 데 사용된다. 속성과 관계를 혼동하면 ERD 해석 문제에서 연결 의미를 잘못 읽게 된다.",
+    C: "정답이다. 피터 첸 표기법에서 관계는 마름모로 표현한다. 엔터티 사각형과 속성 타원을 연결해 업무 규칙을 나타낸다.",
+    D: "오답이다. 삼각형은 피터 첸 표기법에서 관계를 나타내는 일반 기본 도형이 아니다. 표기법별 도형 의미를 구분해야 한다."
+  },
+  "prod-ext-tuning-108": {
+    A: "오답이다. FILTER 방식은 외부 행을 읽고 각 행마다 서브쿼리 조건을 평가할 수 있으므로 대량 외부 행에서는 반복 수행이 병목이 될 수 있다. 이 설명 자체는 타당하다.",
+    B: "오답이다. FILTER Operation은 메인 쿼리 행을 기준으로 내부 조건을 확인하는 구조이므로 메인 쿼리 집합이 반복 평가의 출발점이 된다.",
+    C: "정답이다. 메인 쿼리 건수가 많고 서브쿼리 조인 컬럼 인덱스가 없다면 반복 Full Scan이 발생할 수 있다. 이런 경우 Hash Semi Join 등으로 변환하는 편이 유리할 수 있어 항상 우수하다는 설명은 틀렸다.",
+    D: "오답이다. 조건과 의미가 맞으면 UNNEST 계열 힌트나 옵티마이저 변환을 통해 Semi Join으로 바뀔 수 있다. 다만 변환 가능 여부는 NULL, 중복, 집계 여부에 따라 검토해야 한다."
+  },
+  "prod-ext-tuning-113": {
+    A: "오답이다. APPEND 힌트는 Direct Path Insert를 유도하는 대표 수단이며, HWM 위쪽 새 블록에 적재하는 동작과 연결된다.",
+    B: "오답이다. Direct Path Insert는 버퍼 캐시 경유와 기존 블록 탐색 부담을 줄여 대량 입력에서 유리할 수 있다. 이 설명은 장점으로 적절하다.",
+    C: "정답이다. NOLOGGING은 Redo를 줄일 수 있지만 모든 Redo가 완전히 0이 되거나 복구 위험이 사라지는 것은 아니다. 백업과 장애 복구 전략을 함께 고려해야 한다.",
+    D: "오답이다. Direct Path 작업은 일반 DML과 다른 잠금, 세그먼트 사용, 동시성 제약을 만들 수 있으므로 운영 영향 검토가 필요하다."
+  },
+  "prod-ext-tuning-116": {
+    A: "정답이다. ROWS 프레임은 물리적인 행 개수를 기준으로 하므로 현재 행과 바로 앞 2개 행까지 최대 3개 행이 계산 범위가 된다.",
+    B: "오답이다. 값이 같은 모든 행을 포함하는 설명은 RANGE 프레임의 동률 처리와 혼동한 것이다. ROWS는 값 동률이 아니라 행 위치 기준이다.",
+    C: "오답이다. 파티션 전체를 항상 포함하는 것은 `UNBOUNDED PRECEDING`부터 `UNBOUNDED FOLLOWING` 같은 전체 프레임에 가깝다.",
+    D: "오답이다. PRECEDING은 현재 행 이전 방향을 뜻한다. 이후 2개 행을 포함하려면 FOLLOWING을 사용해야 한다."
+  }
+};
+
 function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): ObjectiveQuestion {
+  const whyWrongPatch = choiceExplanationPatches[question.id];
+  const withPatchedWhyWrong = whyWrongPatch
+    ? {
+        ...question,
+        whyWrong: {
+          ...question.whyWrong,
+          ...whyWrongPatch
+        }
+      }
+    : question;
+
+  question = withPatchedWhyWrong;
+
+  if (question.id === "prod-modeling-001") {
+    return {
+      ...question,
+      difficulty: "중급",
+      stem:
+        "회원, 주문, 주문상세, 상품 후보를 도출하는 모델링 회의에서 엔터티 후보를 검토하고 있다. 다음 중 일반적인 엔터티 판단 기준으로 가장 부적절한 설명은?",
+      passage:
+        "엔터티는 업무에서 관리해야 하는 대상이며, 식별 가능하고 여러 인스턴스를 가질 수 있어야 한다. 다만 공통코드나 통계성 엔터티처럼 관계 표현 방식에 예외가 생길 수 있다.",
+      explanation:
+        "엔터티는 업무에서 필요로 하고, 식별 가능하며, 속성을 가지고, 업무 프로세스에서 이용되는 데이터 집합이다. 일반적으로 다른 엔터티와 관계를 갖지만, 공통코드나 통계성 엔터티처럼 관계 표현이 단순하거나 생략되는 예외가 있을 수 있다.",
+      whyWrong: {
+        A: "정답이다. 엔터티가 항상 다른 엔터티와의 관계를 전혀 가지지 않는다는 설명은 부적절하다. 대부분의 엔터티는 업무 규칙에 따라 관계를 가지며, 예외가 있더라도 일반 원칙을 부정할 수는 없다.",
+        B: "오답이다. 엔터티 인스턴스는 업무적으로 구분되어야 하므로 식별자에 의해 식별 가능해야 한다.",
+        C: "오답이다. 업무 프로세스에서 사용되지 않는 데이터 집합은 관리 대상 엔터티로 보기 어렵다.",
+        D: "오답이다. 엔터티는 관리할 속성을 포함해야 하며, 속성 없이 존재 의미를 설명하기 어렵다."
+      }
+    };
+  }
+
+  if (question.id === "prod-sql-basic-001") {
+    return {
+      ...question,
+      difficulty: "중급",
+      stem:
+        "운영 담당자가 퇴사한 사용자에게 부여된 특정 테이블 조회 권한을 회수하려고 한다. SQL 명령어 분류와 목적을 모두 고려할 때 사용할 명령어로 가장 적절한 것은?",
+      passage: "DCL은 데이터베이스 객체 접근 권한을 부여하거나 회수하는 명령어 집합이다. DML, DDL, TCL과 목적이 다르다.",
+      explanation:
+        "권한 회수는 데이터 제어어(DCL)의 역할이며 REVOKE를 사용한다. INSERT는 데이터 조작어, RENAME은 객체 정의 변경에 가까운 DDL, COMMIT은 트랜잭션 제어어다.",
+      whyWrong: {
+        A: "오답이다. INSERT는 테이블에 행을 추가하는 DML이다. 사용자 권한을 회수하는 기능이 없다.",
+        B: "오답이다. RENAME은 객체 이름을 바꾸는 DDL 성격의 명령이다. 권한 회수와 목적이 다르다.",
+        C: "오답이다. COMMIT은 현재 트랜잭션의 변경을 확정하는 TCL이다. 권한을 변경하지 않는다.",
+        D: "정답이다. REVOKE는 사용자나 역할에 부여된 객체 권한을 회수하는 DCL 명령이다."
+      }
+    };
+  }
+
+  if (question.id === "prod-sql-basic-005") {
+    return {
+      ...question,
+      difficulty: "중급",
+      stem:
+        "Oracle에서 별도 인용부호를 사용하지 않고 물리 테이블명을 생성하려 한다. 다음 후보 중 일반 식별자 규칙과 유지보수성을 함께 고려할 때 가장 적절한 것은?",
+      passage: "일반 식별자는 문자로 시작하고, 허용된 문자 조합을 사용해야 하며, 연산자처럼 해석될 수 있는 기호나 공백을 피해야 한다.",
+      explanation:
+        "EMP_10은 문자로 시작하고 밑줄과 숫자를 포함하는 일반적인 식별자 형태다. 숫자로 시작하거나 하이픈을 포함한 이름은 별도 인용부호 없이는 일반 객체명으로 부적절하다.",
+      whyWrong: {
+        A: "정답이다. 문자로 시작하고 밑줄과 숫자만 사용하므로 일반 식별자로 적절하다.",
+        B: "오답이다. 숫자로 시작하고 하이픈도 포함하므로 별도 인용부호 없이 일반 테이블명으로 사용하기 부적절하다.",
+        C: "오답이다. 문자로 시작하더라도 하이픈은 뺄셈 연산자처럼 해석될 수 있어 일반 식별자에 적절하지 않다.",
+        D: "오답이다. 숫자로 시작하는 일반 식별자는 허용되지 않는다. 인용 식별자를 쓰면 가능하더라도 운영 SQL 작성과 유지보수에 불리하다."
+      }
+    };
+  }
+
+  if (question.id === "prod-sql-basic-008") {
+    return {
+      ...question,
+      difficulty: "중급",
+      stem:
+        "주문 상세 테이블을 생성하면서 SQL에서 매번 큰따옴표를 붙이지 않아도 되는 객체명을 선택하려 한다. Oracle 일반 식별자 규칙상 가장 적절한 후보는?",
+      passage:
+        "인용 식별자를 사용하면 공백이나 특수문자를 포함할 수 있지만, 이후 SQL 작성 시 대소문자와 인용부호를 계속 맞춰야 하므로 일반 객체명으로는 피하는 것이 좋다."
+    };
+  }
+
+  if (question.id === "prod-ext-modeling-106") {
+    return {
+      ...question,
+      difficulty: "중급",
+      stem:
+        "피터 첸 표기법으로 고객과 주문 사이의 업무 규칙을 ERD로 표현하려 한다. 엔터티, 속성, 관계의 도형 의미를 구분할 때 관계를 나타내는 도형으로 가장 적절한 것은?",
+      passage: "피터 첸 표기법은 엔터티, 속성, 관계를 서로 다른 도형으로 표현해 업무 대상과 연결 규칙을 시각적으로 구분한다."
+    };
+  }
+
+  if (question.id === "prod-ext-modeling-118") {
+    return {
+      ...question,
+      difficulty: "중급",
+      stem:
+        "주문 생성, 결제 승인, 재고 차감이 하나의 논리 작업으로 처리되어야 하는 시스템을 설계하고 있다. 트랜잭션의 ACID 특성에 포함되지 않는 것은?",
+      passage:
+        "ACID는 트랜잭션이 중간 실패나 동시 실행 상황에서도 데이터 정합성을 보장하기 위해 갖추어야 하는 대표 특성이다."
+    };
+  }
+
+  if (question.id === "prod-ext-sql-basic-012") {
+    return {
+      ...question,
+      majorTopic: "SQL 기본 및 활용",
+      middleTopic: "함수와 조건절",
+      topic: "날짜 조건과 인덱스 활용",
+      difficulty: "상급",
+      questionType: "최적 SQL 선택형",
+      stem:
+        "서비스 가입 이력 테이블에서 2015년 1월에 시작된 유효 가입 건수를 서비스ID별로 집계하려 한다. 결과 정확성과 날짜 컬럼 인덱스 활용을 함께 고려할 때 가장 적절한 SQL은?",
+      passage:
+        "SVC_START_DATE와 SVC_END_DATE는 DATE 타입이다. 종료일이 없거나 2015년 2월 1일 이후인 행은 2015년 1월 말 기준으로 유효한 가입으로 본다.",
+      code: undefined,
+      table: {
+        title: "SVC_JOIN",
+        headers: ["컬럼", "설명"],
+        rows: [
+          ["SVC_ID", "서비스ID"],
+          ["CUST_ID", "고객ID"],
+          ["SVC_START_DATE", "가입 시작일"],
+          ["SVC_END_DATE", "가입 종료일, 미종료 시 NULL"],
+          ["JOIN_YMD", "가입일자 문자값, YYYYMMDD"]
+        ]
+      },
+      tables: undefined,
+      choices: [
+        {
+          id: "A",
+          text:
+            "SELECT svc_id, COUNT(*) AS cnt\nFROM svc_join\nWHERE TO_CHAR(svc_start_date, 'YYYYMM') = '201501'\n  AND NVL(svc_end_date, DATE '9999-12-31') >= DATE '2015-02-01'\nGROUP BY svc_id"
+        },
+        {
+          id: "B",
+          text:
+            "SELECT svc_id, COUNT(*) AS cnt\nFROM svc_join\nWHERE svc_start_date >= DATE '2015-01-01'\n  AND svc_start_date <  DATE '2015-02-01'\n  AND (svc_end_date IS NULL OR svc_end_date >= DATE '2015-02-01')\nGROUP BY svc_id"
+        },
+        {
+          id: "C",
+          text:
+            "SELECT svc_id, COUNT(*) AS cnt\nFROM svc_join\nWHERE svc_start_date BETWEEN DATE '2015-01-01' AND DATE '2015-01-31'\n  AND (svc_end_date IS NULL OR svc_end_date >= DATE '2015-02-01')\nGROUP BY svc_id"
+        },
+        {
+          id: "D",
+          text:
+            "SELECT svc_id, COUNT(*) AS cnt\nFROM svc_join\nWHERE DATE '2015-01-31' BETWEEN svc_start_date AND svc_end_date\nGROUP BY svc_id"
+        }
+      ],
+      answer: "B",
+      relatedConceptId: "sql-date",
+      hint:
+        "1단계: DATE 컬럼에 함수를 씌우면 일반 B-Tree 인덱스의 range scan 가능성이 낮아진다.\n2단계: 1월 전체는 시작 이상, 다음 달 시작 미만의 반개구간으로 표현해야 시간값 누락이 없다.\n3단계: 종료일 NULL은 BETWEEN으로 비교하면 UNKNOWN이 되므로 별도 조건으로 보존해야 한다.",
+      explanation:
+        "DATE 타입 월 조건은 `>= 월 시작일`과 `< 다음 월 시작일` 형태가 가장 안전하다. 이 방식은 시간값이 포함된 DATE도 누락하지 않고, SVC_START_DATE 인덱스의 범위 스캔 가능성을 유지한다. 종료일이 NULL인 미종료 가입은 `svc_end_date IS NULL`로 별도 보존해야 한다.",
+      whyWrong: {
+        A: "오답이다. 시작일 컬럼에 TO_CHAR 함수를 적용해 일반 인덱스 활용을 어렵게 만들고, NVL도 종료일 컬럼 가공이므로 조건 평가와 인덱스 활용 측면에서 불리하다.",
+        B: "정답이다. 시작일은 반개구간으로 처리해 시간값 누락을 피하고, 종료일 NULL을 별도 보존해 결과 정확성과 인덱스 접근 가능성을 함께 만족한다.",
+        C: "오답이다. `DATE '2015-01-31'`은 2015-01-31 00:00:00이므로 1월 31일 오전 0시 이후의 데이터가 누락될 수 있다.",
+        D: "오답이다. 1월에 시작된 가입을 찾는 문제가 아니라 1월 31일 시점 유효 여부만 판단하며, 종료일 NULL인 미종료 행도 BETWEEN에서 제외된다."
+      },
+      duplicationCheck: "replaced duplicate NULL count skeleton with PDF-style date predicate and index access question"
+    };
+  }
+
   if (question.id !== "prod-ext-sql-basic-053") return question;
 
   return {

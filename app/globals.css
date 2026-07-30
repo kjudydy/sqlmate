@@ -1009,10 +1009,29 @@ ul {
   color: #344054;
 }
 
-.choice span {
+.choice .choice-text {
   line-height: 1.58;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.choice-code-text pre,
+.wrong-choice .choice-code-text pre {
+  margin: 0;
+  border: 1px solid rgba(31, 41, 55, 0.12);
+  border-radius: 8px;
+  background: #111827;
+  color: #f8fafc;
+  padding: 12px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.62;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.choice-code-text {
+  min-width: 0;
 }
 
 .choice.selected {
