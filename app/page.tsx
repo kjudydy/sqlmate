@@ -371,7 +371,7 @@ function MaterialCodeCard({ material }: { material: LabMaterialSection }) {
     <div className={`code-panel schema-panel lab-material-card objective-material-card ${material.kind === "sql" ? "sql-material" : ""} ${material.kind === "plan" ? "plan-material" : ""} ${material.kind === "trace" ? "trace-material" : ""}`}>
       <div className="code-panel-heading">
         <h3>{material.title}</h3>
-        <span>{material.badge}</span>
+        {material.badge !== material.title && <span>{material.badge}</span>}
       </div>
       {guides.length ? (
         <ul className="operation-guide">
@@ -1573,11 +1573,13 @@ export default function Home() {
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">My study room</p>
-            <h1>{sectionTitle(section)}</h1>
-          </div>
+        <header className={section === "dashboard" ? "topbar" : "topbar compact"}>
+          {section === "dashboard" && (
+            <div>
+              <p className="eyebrow">My study room</p>
+              <h1>{sectionTitle(section)}</h1>
+            </div>
+          )}
           <div className="top-actions">
             <span className="pill">{scoreLabel(accuracy)} · 정답률 {accuracy}%</span>
             {cloudUser ? (
@@ -1780,10 +1782,6 @@ export default function Home() {
                   {subjectAnsweredCount > 0 ? ` · 제출 ${subjectAnsweredCount}회` : ""}
                 </span>
                 <p>검수된 PDF 기반 문제 풀을 끝까지 이어서 풉니다.</p>
-                <button className="primary-button full" onClick={goToNextQuestion}>
-                  <ChevronRight size={17} />
-                  다음 문제
-                </button>
               </div>
               <div className="question-list">
                 {questionMarkers.map((runIndex) => {
@@ -1818,10 +1816,6 @@ export default function Home() {
                 <div className="exam-material">
                   {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
                   <VisualAssetGallery assets={currentQuestion.visualAssets} submitted={Boolean(currentAnswer)} />
-                  <DataMaterialVisual
-                    tables={getObjectiveTables(currentQuestion)}
-                    context={[currentQuestion.stem, currentQuestion.passage, currentQuestion.code].filter(Boolean).join("\n")}
-                  />
                   {getObjectiveTables(currentQuestion).length ? (
                     <div className={`exam-table-grid ${getObjectiveTables(currentQuestion).length > 1 ? "multi-table" : ""}`}>
                       {getObjectiveTables(currentQuestion).map((table, tableIndex) => (
@@ -1896,6 +1890,10 @@ export default function Home() {
                   <Lightbulb size={17} />
                   힌트
                 </button>
+                <button className="ghost-button" onClick={() => setQuestionIndex((prev) => Math.max(0, prev - 1))} disabled={questionIndex === 0}>
+                  <ChevronLeft size={17} />
+                  이전 문제
+                </button>
                 <button className="primary-button" onClick={submitAnswer} disabled={!selectedChoice || Boolean(currentAnswer)}>
                   <CheckCircle2 size={17} />
                   제출
@@ -1907,22 +1905,6 @@ export default function Home() {
                 <button className="ghost-button" onClick={skipQuestion}>
                   <RotateCcw size={17} />
                   건너뛰기
-                </button>
-                <button className="ghost-button icon-only" aria-label="Previous question" onClick={() => setQuestionIndex((prev) => Math.max(0, prev - 1))}>
-                  <ChevronLeft size={18} />
-                </button>
-                <button className="ghost-button icon-only" aria-label="Next question" onClick={goToNextQuestion}>
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-              <div className="bottom-add-panel">
-                <div>
-                  <strong>연속 문제풀이</strong>
-                  <span>정답을 제출하거나 건너뛰면 다음 검수 문제로 이동합니다.</span>
-                </div>
-                <button className="primary-button" onClick={goToNextQuestion}>
-                  <ChevronRight size={17} />
-                  다음 문제
                 </button>
               </div>
             </section>
@@ -1995,10 +1977,6 @@ export default function Home() {
               <div className="extra-gate">
                 <span>{activeLabIndex + 1}번째 실기 풀이</span>
                 <p>PDF 실기 복기 스타일의 검수형 실습을 끝까지 이어서 풉니다.</p>
-                <button className="primary-button" onClick={goToNextLab}>
-                  <ChevronRight size={17} />
-                  다음 실기
-                </button>
               </div>
             </section>
 
@@ -2015,7 +1993,6 @@ export default function Home() {
 
               {activeLab.sampleData?.length ? (
                 <div className="exam-material lab-sample-material">
-                  <DataMaterialVisual tables={activeLab.sampleData} context={[activeLab.scenario, activeLab.prompt, activeLab.schemaSql, activeLab.seedSql].filter(Boolean).join("\n")} />
                   <div className={`exam-table-grid ${activeLab.sampleData.length > 1 ? "multi-table" : ""}`}>
                     {activeLab.sampleData.map((table, tableIndex) => (
                       <ExamDataTable table={table} tableKey={`${activeLab.id}-sample-${tableIndex}`} key={`${activeLab.id}-sample-${tableIndex}`} />
@@ -2156,16 +2133,6 @@ export default function Home() {
                   건너뛰기
                 </button>
               </div>
-              <div className="bottom-add-panel">
-                <div>
-                  <strong>실기 연속 풀이</strong>
-                  <span>건너뛰기는 채점하지 않고 바로 다음 검수 실습으로 이동합니다.</span>
-                </div>
-                <button className="primary-button" onClick={goToNextLab}>
-                  <ChevronRight size={17} />
-                  다음 실기
-                </button>
-              </div>
 
               {labResult && (
                 <div className="lab-result">
@@ -2285,10 +2252,6 @@ export default function Home() {
                         <section className="wrong-note-section">
                           <h4>문제 자료</h4>
                           <VisualAssetGallery assets={question.visualAssets} submitted />
-                          <DataMaterialVisual
-                            tables={getObjectiveTables(question)}
-                            context={[question.stem, question.passage, question.code].filter(Boolean).join("\n")}
-                          />
                           {getObjectiveTables(question).length ? (
                             <div className={`exam-table-grid ${getObjectiveTables(question).length > 1 ? "multi-table" : ""}`}>
                               {getObjectiveTables(question).map((table, tableIndex) => (
