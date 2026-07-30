@@ -455,6 +455,77 @@ function ExamDataTable({ table, tableKey }: { table: ExamTableData; tableKey: st
   );
 }
 
+function tableDisplayName(table: ExamTableData) {
+  return table.title?.replace(/\s*테이블\s*$/i, "").trim() || "자료";
+}
+
+function extractRelationHints(tables: ExamTableData[], context: string) {
+  const hints: string[] = [];
+  const names = tables.map(tableDisplayName).filter(Boolean);
+
+  for (let i = 0; i < names.length; i += 1) {
+    for (let j = i + 1; j < names.length; j += 1) {
+      const left = names[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const right = names[j].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const direct = context.match(new RegExp(`${left}\\.([A-Za-z0-9_가-힣]+)\\s*=\\s*${right}\\.([A-Za-z0-9_가-힣]+)`, "i"));
+      const reverse = context.match(new RegExp(`${right}\\.([A-Za-z0-9_가-힣]+)\\s*=\\s*${left}\\.([A-Za-z0-9_가-힣]+)`, "i"));
+      if (direct) hints.push(`${names[i]}.${direct[1]} = ${names[j]}.${direct[2]}`);
+      if (reverse) hints.push(`${names[i]}.${reverse[2]} = ${names[j]}.${reverse[1]}`);
+    }
+  }
+
+  return Array.from(new Set(hints)).slice(0, 4);
+}
+
+function shouldShowDataFlow(tables: ExamTableData[], context: string) {
+  if (tables.length < 2) return false;
+  return /목표\s*결과|누적|우측|출력|결과\s*형태|구하는 SQL|작성하시오/.test(context) || tables.some((table) => /목표|결과|우측|출력/.test(table.title ?? ""));
+}
+
+function shouldShowRelationMap(tables: ExamTableData[], context: string) {
+  if (tables.length < 2) return false;
+  return /ERD|JOIN|조인|관계|외래|REFERENCES|참조|연결/.test(context);
+}
+
+function DataMaterialVisual({ tables, context }: { tables: ExamTableData[]; context: string }) {
+  if (tables.length < 2) return null;
+
+  const flow = shouldShowDataFlow(tables, context);
+  const relation = shouldShowRelationMap(tables, context);
+  if (!flow && !relation) return null;
+
+  const relationHints = extractRelationHints(tables, context);
+
+  return (
+    <div className={`data-visual-map ${flow ? "flow-map" : "relation-map"}`}>
+      <div className="data-visual-heading">
+        <strong>{flow ? "입력과 목표 결과" : "관계 도식"}</strong>
+        <span>{flow ? "PDF형 자료 흐름" : "조인/관계 조건"}</span>
+      </div>
+      <div className="data-visual-body">
+        {tables.map((table, index) => (
+          <div className="visual-table-node" key={`${tableDisplayName(table)}-${index}`}>
+            <strong>{tableDisplayName(table)}</strong>
+            <span>
+              {table.rows.length}행 · {table.headers.length}열
+            </span>
+            <em>{table.headers.join(", ")}</em>
+          </div>
+        ))}
+      </div>
+      <div className="data-visual-hints">
+        {flow ? (
+          <span>왼쪽 자료를 읽어 오른쪽 목표 형태와 같은 결과를 만드는지 확인합니다.</span>
+        ) : relationHints.length ? (
+          relationHints.map((hint) => <span key={hint}>{hint}</span>)
+        ) : (
+          <span>문제 본문과 SQL에 제시된 조인 조건, 보존 방향, 선택성을 함께 확인합니다.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function splitLabMaterial(seedSql: string): LabMaterialSection[] {
   const source = seedSql.trim();
   if (!source) return [];
@@ -1742,6 +1813,10 @@ export default function Home() {
               {(currentQuestion.passage || currentQuestion.code || getObjectiveTables(currentQuestion).length) && (
                 <div className="exam-material">
                   {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
+                  <DataMaterialVisual
+                    tables={getObjectiveTables(currentQuestion)}
+                    context={[currentQuestion.stem, currentQuestion.passage, currentQuestion.code].filter(Boolean).join("\n")}
+                  />
                   {getObjectiveTables(currentQuestion).length ? (
                     <div className={`exam-table-grid ${getObjectiveTables(currentQuestion).length > 1 ? "multi-table" : ""}`}>
                       {getObjectiveTables(currentQuestion).map((table, tableIndex) => (
@@ -1933,6 +2008,7 @@ export default function Home() {
 
               {activeLab.sampleData?.length ? (
                 <div className="exam-material lab-sample-material">
+                  <DataMaterialVisual tables={activeLab.sampleData} context={[activeLab.scenario, activeLab.prompt, activeLab.schemaSql, activeLab.seedSql].filter(Boolean).join("\n")} />
                   <div className={`exam-table-grid ${activeLab.sampleData.length > 1 ? "multi-table" : ""}`}>
                     {activeLab.sampleData.map((table, tableIndex) => (
                       <ExamDataTable table={table} tableKey={`${activeLab.id}-sample-${tableIndex}`} key={`${activeLab.id}-sample-${tableIndex}`} />
@@ -2201,6 +2277,10 @@ export default function Home() {
                       {(getObjectiveTables(question).length || question.code) && (
                         <section className="wrong-note-section">
                           <h4>문제 자료</h4>
+                          <DataMaterialVisual
+                            tables={getObjectiveTables(question)}
+                            context={[question.stem, question.passage, question.code].filter(Boolean).join("\n")}
+                          />
                           {getObjectiveTables(question).length ? (
                             <div className={`exam-table-grid ${getObjectiveTables(question).length > 1 ? "multi-table" : ""}`}>
                               {getObjectiveTables(question).map((table, tableIndex) => (

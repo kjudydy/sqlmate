@@ -2730,6 +2730,103 @@ body {
   margin-bottom: 10px;
 }
 
+.data-visual-map {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(8, 117, 104, 0.16);
+  border-radius: 8px;
+  background: rgba(240, 250, 247, 0.72);
+  padding: 12px;
+}
+
+.data-visual-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.data-visual-heading strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.data-visual-heading span {
+  border-radius: 999px;
+  background: white;
+  color: #075f56;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 850;
+}
+
+.data-visual-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 24px;
+  align-items: stretch;
+}
+
+.visual-table-node {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(31, 41, 55, 0.12);
+  border-radius: 8px;
+  background: white;
+  padding: 10px;
+  min-width: 0;
+}
+
+.visual-table-node:not(:last-child)::after {
+  content: "->";
+  position: absolute;
+  right: -19px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #087568;
+  font-weight: 900;
+}
+
+.relation-map .visual-table-node:not(:last-child)::after {
+  content: "<->";
+}
+
+.visual-table-node strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.visual-table-node span {
+  color: #075f56;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.visual-table-node em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.data-visual-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.data-visual-hints span {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(8, 117, 104, 0.12);
+  color: #344054;
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .exam-table-grid {
   display: grid;
   gap: 12px;
