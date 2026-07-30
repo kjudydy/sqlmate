@@ -114,23 +114,8 @@ function formatChoiceIds(choiceIds: ChoiceId[]) {
   return choiceIds.length ? choiceIds.join(", ") : "이전 선택 답 정보 없음";
 }
 
-function isSqlLikeChoiceText(text: string) {
-  return (
-    text.includes("\n") ||
-    /\b(SELECT|FROM|WHERE|JOIN|GROUP BY|HAVING|ORDER BY|UNION|WITH|INSERT|UPDATE|DELETE|MERGE|CREATE|CONNECT BY|START WITH)\b/i.test(text)
-  );
-}
-
 function ChoiceText({ text }: { text: string }) {
-  if (!isSqlLikeChoiceText(text)) {
-    return <span className="choice-text">{text}</span>;
-  }
-
-  return (
-    <span className="choice-text choice-code-text">
-      <pre>{text}</pre>
-    </span>
-  );
+  return <span className="choice-text">{text}</span>;
 }
 
 function getChoiceStatusText(choiceId: ChoiceId, selectedIds: ChoiceId[], correctId: ChoiceId) {
@@ -366,12 +351,13 @@ function buildInlineTraceSummary(body: string) {
 function MaterialCodeCard({ material }: { material: LabMaterialSection }) {
   const guides = material.kind === "plan" ? getOperationGuides(material.body) : [];
   const traceRows = material.kind === "trace" ? buildInlineTraceSummary(material.body) : [];
+  const showBadge = material.kind !== "trace" && material.badge !== material.title;
 
   return (
     <div className={`code-panel schema-panel lab-material-card objective-material-card ${material.kind === "sql" ? "sql-material" : ""} ${material.kind === "plan" ? "plan-material" : ""} ${material.kind === "trace" ? "trace-material" : ""}`}>
       <div className="code-panel-heading">
         <h3>{material.title}</h3>
-        {material.badge !== material.title && <span>{material.badge}</span>}
+        {showBadge && <span>{material.badge}</span>}
       </div>
       {guides.length ? (
         <ul className="operation-guide">
@@ -2013,7 +1999,7 @@ export default function Home() {
                   <div className={`code-panel schema-panel lab-material-card ${material.kind === "sql" ? "sql-material" : ""} ${material.kind === "plan" ? "plan-material" : ""} ${material.kind === "trace" ? "trace-material" : ""}`} key={`${activeLab.id}-${material.title}`}>
                     <div className="code-panel-heading">
                       <h3>{material.title}</h3>
-                      <span>{material.badge}</span>
+                      {material.kind !== "trace" && material.badge !== material.title && <span>{material.badge}</span>}
                     </div>
                     {material.kind === "trace" ? (
                       <details className="trace-raw lab-material-details" open>

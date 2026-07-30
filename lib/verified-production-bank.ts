@@ -5828,21 +5828,6 @@ function withKnownVisualAssets(question: ObjectiveQuestion): ObjectiveQuestion {
   }
 
   if (
-    question.subjectId === "tuning" &&
-    question.sourceQuestionNumber === 70 &&
-    question.generationMode === "original" &&
-    question.stem.includes("INSERT")
-  ) {
-    return addVisualAssetOnce(question, {
-      src: "/problem-visuals/sql-cert-q70-direct-path-lock.png",
-      title: "Direct Path Insert 실행 정보",
-      alt: "APPEND 힌트가 포함된 INSERT ALL 문장과 세션 100, 세션 200 실행 정보 및 락 상태 선택지",
-      caption: "병렬/Direct Path Insert의 대상 테이블 락 판단에 필요한 SQL과 실행 조건을 원문 형태로 확인합니다.",
-      kind: "sql"
-    });
-  }
-
-  if (
     question.id === "prod-ext-tuning-051" &&
     question.parentQuestionId === "pdf-o-3-trace-cpu-elapsed"
   ) {
@@ -5852,21 +5837,6 @@ function withKnownVisualAssets(question: ObjectiveQuestion): ObjectiveQuestion {
       alt: "Parse, Execute, Fetch 단계별 Trace 수치와 TABLE ACCESS BY INDEX ROWID 및 INDEX RANGE SCAN Row Source",
       caption: "Fetch 단계의 I/O 수치와 Row Source별 처리 행 수를 함께 보며 병목 위치를 판단합니다.",
       kind: "trace"
-    });
-  }
-
-  if (
-    question.subjectId === "tuning" &&
-    question.sourcePage === 99 &&
-    question.sourceQuestionNumber === 78 &&
-    question.generationMode === "original"
-  ) {
-    return addVisualAssetOnce(question, {
-      src: "/problem-visuals/sql-cert-q78-local-prefixed.png",
-      title: "파티션 인덱스 DDL 원문 자료",
-      alt: "거래 테이블 Range Partition DDL과 Local Prefixed 인덱스 선택지",
-      caption: "DDL과 선택지 구조가 길어 원문 페이지에서 대조한 자료 이미지를 함께 제공합니다.",
-      kind: "diagram"
     });
   }
 
