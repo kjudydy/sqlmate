@@ -1018,10 +1018,10 @@ ul {
 .choice-code-text pre,
 .wrong-choice .choice-code-text pre {
   margin: 0;
-  border: 1px solid rgba(31, 41, 55, 0.12);
+  border: 1px solid rgba(31, 41, 55, 0.14);
   border-radius: 8px;
-  background: #111827;
-  color: #f8fafc;
+  background: rgba(248, 250, 252, 0.96);
+  color: var(--ink);
   padding: 12px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12.5px;

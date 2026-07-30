@@ -218,18 +218,26 @@ describe("SQLMate verified production problem bank", () => {
   });
 
   it("keeps multi-table objective materials separated for join-count questions", () => {
-    const question = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 43);
+    const duplicateKeyQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 22);
+    const basicQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 43);
 
-    expect(question).toBeTruthy();
-    expect(question?.table).toBeUndefined();
-    expect(question?.tables?.map((table) => table.title)).toEqual(["EMP 테이블", "DEPT 테이블"]);
-    expect(question?.choices.map((choice) => choice.text)).toEqual([
+    expect(duplicateKeyQuestion).toBeTruthy();
+    expect(duplicateKeyQuestion?.table).toBeUndefined();
+    expect(duplicateKeyQuestion?.tables?.map((table) => table.title)).toEqual(["EMP 테이블", "DEPT 테이블"]);
+    expect(duplicateKeyQuestion?.tables?.[0]?.rows).toHaveLength(4);
+    expect(duplicateKeyQuestion?.tables?.[1]?.rows).toHaveLength(3);
+    expect(duplicateKeyQuestion?.answer).toBe("B");
+
+    expect(basicQuestion).toBeTruthy();
+    expect(basicQuestion?.table).toBeUndefined();
+    expect(basicQuestion?.tables?.map((table) => table.title)).toEqual(["EMP 테이블", "DEPT 테이블"]);
+    expect(basicQuestion?.choices.map((choice) => choice.text)).toEqual([
       "LEFT 3건, FULL 5건, RIGHT 4건",
       "LEFT 3건, FULL 4건, RIGHT 5건",
       "LEFT 4건, FULL 5건, RIGHT 4건",
       "LEFT 3건, FULL 5건, RIGHT 3건"
     ]);
-    expect(question?.answer).toBe("A");
+    expect(basicQuestion?.answer).toBe("A");
   });
 
   it("publishes the verified SQL Practice starter cases", () => {

@@ -5608,6 +5608,56 @@ EXEC :v_주식선물구분 := '선물';
     };
   }
 
+  if (question.id === "prod-ext-sql-basic-022") {
+    return {
+      ...question,
+      stem:
+        "EMP와 DEPT를 C 컬럼으로 조인한다. 아래 데이터에서 LEFT OUTER JOIN, FULL OUTER JOIN, RIGHT OUTER JOIN 결과 건수 조합으로 가장 적절한 것은?",
+      passage:
+        "조인 조건은 EMP.C = DEPT.C 이며, 결과 건수는 LEFT, FULL, RIGHT 순서로 판단한다. 같은 C 값이 양쪽에 여러 건 있으면 조인 결과가 곱으로 늘어날 수 있다.",
+      table: undefined,
+      tables: [
+        {
+          title: "EMP 테이블",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["1", "b", "w"],
+            ["3", "d", "w"],
+            ["5", "y", "y"],
+            ["7", "n", "NULL"]
+          ]
+        },
+        {
+          title: "DEPT 테이블",
+          headers: ["C", "D", "E"],
+          rows: [
+            ["w", "1", "10"],
+            ["w", "2", "20"],
+            ["z", "4", "11"]
+          ]
+        }
+      ],
+      choices: [
+        { id: "A", text: "LEFT 4건, FULL 5건, RIGHT 5건" },
+        { id: "B", text: "LEFT 6건, FULL 7건, RIGHT 5건" },
+        { id: "C", text: "LEFT 5건, FULL 6건, RIGHT 4건" },
+        { id: "D", text: "LEFT 6건, FULL 6건, RIGHT 6건" }
+      ],
+      answer: "B",
+      hint:
+        "1단계: EMP의 C=w 두 행과 DEPT의 C=w 두 행이 조인되면 2×2로 4건이 됩니다.\n2단계: EMP의 C=y와 C=NULL은 LEFT/FULL에서 보존되고, DEPT의 C=z는 RIGHT/FULL에서 보존됩니다.\n3단계: FULL OUTER JOIN은 LEFT 결과에 오른쪽 미매칭 행을 추가합니다.",
+      explanation:
+        "C=w는 EMP에 2건, DEPT에 2건이 있으므로 매칭 결과가 4건이다. LEFT OUTER JOIN은 여기에 EMP의 C=y 미매칭 1건과 C=NULL 미매칭 1건을 보존해 6건이다. FULL OUTER JOIN은 LEFT 결과 6건에 DEPT의 C=z 미매칭 1건을 더해 7건이다. RIGHT OUTER JOIN은 C=w 매칭 4건과 DEPT의 C=z 미매칭 1건을 보존해 5건이다.",
+      whyWrong: {
+        A: "오답이다. C=w의 중복 매칭이 4건으로 늘어나는 점과 EMP의 미매칭 두 행을 모두 반영하지 못했다.",
+        B: "정답이다. C=w 중복 매칭 4건, EMP 미매칭 2건, DEPT 미매칭 1건을 외부 조인 방향별로 정확히 반영했다.",
+        C: "오답이다. RIGHT OUTER JOIN에서도 C=w 중복 매칭 4건에 DEPT의 C=z 미매칭 1건이 더해져 5건이다.",
+        D: "오답이다. FULL OUTER JOIN은 양쪽 미매칭 행을 모두 포함하므로 RIGHT보다 1건 더 많아야 한다."
+      },
+      duplicationCheck: "outer join count variant with duplicate join key and null-preserved row; not a table-name or number-only duplicate"
+    };
+  }
+
   if (question.id === "prod-ext-modeling-106") {
     return {
       ...question,

@@ -453,9 +453,6 @@ function ExamDataTable({ table, tableKey }: { table: ExamTableData; tableKey: st
     <div className={`exam-table-wrap pdf-table-card ${large ? "large-table" : ""} ${wide ? "wide-table" : ""}`}>
       <div className="pdf-table-heading">
         <strong className="exam-table-title">{table.title ?? "자료 표"}</strong>
-        <span>
-          {table.rows.length}행 · {table.headers.length}열
-        </span>
       </div>
       <table className="exam-table">
         <thead>
@@ -506,45 +503,28 @@ function shouldShowDataFlow(tables: ExamTableData[], context: string) {
   return /목표\s*결과|누적|우측|출력|결과\s*형태|구하는 SQL|작성하시오/.test(context) || tables.some((table) => /목표|결과|우측|출력/.test(table.title ?? ""));
 }
 
-function shouldShowRelationMap(tables: ExamTableData[], context: string) {
-  if (tables.length < 2) return false;
-  return /ERD|JOIN|조인|관계|외래|REFERENCES|참조|연결/.test(context);
-}
-
 function DataMaterialVisual({ tables, context }: { tables: ExamTableData[]; context: string }) {
   if (tables.length < 2) return null;
 
   const flow = shouldShowDataFlow(tables, context);
-  const relation = shouldShowRelationMap(tables, context);
-  if (!flow && !relation) return null;
-
-  const relationHints = extractRelationHints(tables, context);
+  if (!flow) return null;
 
   return (
-    <div className={`data-visual-map ${flow ? "flow-map" : "relation-map"}`}>
+    <div className="data-visual-map flow-map">
       <div className="data-visual-heading">
-        <strong>{flow ? "입력과 목표 결과" : "관계 도식"}</strong>
-        <span>{flow ? "PDF형 자료 흐름" : "조인/관계 조건"}</span>
+        <strong>입력과 목표 결과</strong>
+        <span>PDF형 자료 흐름</span>
       </div>
       <div className="data-visual-body">
         {tables.map((table, index) => (
           <div className="visual-table-node" key={`${tableDisplayName(table)}-${index}`}>
             <strong>{tableDisplayName(table)}</strong>
-            <span>
-              {table.rows.length}행 · {table.headers.length}열
-            </span>
             <em>{table.headers.join(", ")}</em>
           </div>
         ))}
       </div>
       <div className="data-visual-hints">
-        {flow ? (
-          <span>왼쪽 자료를 읽어 오른쪽 목표 형태와 같은 결과를 만드는지 확인합니다.</span>
-        ) : relationHints.length ? (
-          relationHints.map((hint) => <span key={hint}>{hint}</span>)
-        ) : (
-          <span>문제 본문과 SQL에 제시된 조인 조건, 보존 방향, 선택성을 함께 확인합니다.</span>
-        )}
+        <span>왼쪽 자료를 읽어 오른쪽 목표 형태와 같은 결과를 만드는지 확인합니다.</span>
       </div>
     </div>
   );
@@ -1304,7 +1284,7 @@ export default function Home() {
     setActiveConceptSubject(concept.subjectId);
     setActiveConceptMajor(concept.majorTopic);
     setSelectedConceptId(concept.id);
-    setConceptNavCollapsed(true);
+    setConceptNavCollapsed(false);
   }
 
   function addPersonalNote() {
@@ -1318,7 +1298,7 @@ export default function Home() {
     };
     setPersonalNotes((prev) => [note, ...prev]);
     setSelectedPersonalNoteId(id);
-    setNoteListCollapsed(true);
+    setNoteListCollapsed(false);
   }
 
   function updatePersonalNote(noteId: string, patch: Partial<PersonalNote>) {
@@ -2486,7 +2466,7 @@ export default function Home() {
                         className={concept.id === selectedConcept.id ? "concept-detail active" : "concept-detail"}
                         onClick={() => {
                           setSelectedConceptId(concept.id);
-                          setConceptNavCollapsed(true);
+                          setConceptNavCollapsed(false);
                         }}
                       >
                         <strong>{concept.title}</strong>
@@ -2669,7 +2649,7 @@ export default function Home() {
                           key={note.id}
                           onClick={() => {
                             setSelectedPersonalNoteId(note.id);
-                            setNoteListCollapsed(true);
+                            setNoteListCollapsed(false);
                           }}
                         >
                           <strong>{note.title || "제목 없는 노트"}</strong>
