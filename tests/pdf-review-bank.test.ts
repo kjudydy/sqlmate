@@ -9,9 +9,9 @@ import {
 
 describe("PDF rebuild review gate", () => {
   it("builds the reviewed starter set with the requested distribution", () => {
-    expect(pdfReviewItems).toHaveLength(47);
+    expect(pdfReviewItems).toHaveLength(57);
     expect(pdfReviewQuestions).toHaveLength(30);
-    expect(pdfReviewLabs).toHaveLength(17);
+    expect(pdfReviewLabs).toHaveLength(27);
 
     for (const subjectName of ["1과목", "2과목", "3과목"]) {
       const subjectQuestions = pdfReviewQuestions.filter((question) => question.subjectName === subjectName);
@@ -40,9 +40,9 @@ describe("PDF rebuild review gate", () => {
   });
 
   it("keeps SQL Practice cases structurally different", () => {
-    expect(new Set(pdfReviewLabs.map((lab) => lab.topic)).size).toBe(17);
-    expect(new Set(pdfReviewLabs.map((lab) => lab.title)).size).toBe(17);
-    expect(new Set(pdfReviewLabs.map((lab) => lab.answerSql)).size).toBe(17);
+    expect(new Set(pdfReviewLabs.map((lab) => lab.topic)).size).toBe(27);
+    expect(new Set(pdfReviewLabs.map((lab) => lab.title)).size).toBe(27);
+    expect(new Set(pdfReviewLabs.map((lab) => lab.answerSql)).size).toBe(27);
     expect(pdfReviewLabs.slice(0, 5).every((lab) => lab.schemaSql.trim() === "")).toBe(true);
   });
 

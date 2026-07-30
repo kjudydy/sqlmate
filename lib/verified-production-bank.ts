@@ -5,6 +5,7 @@ import {
   type PdfReviewMode,
   type PdfReviewQuestion
 } from "@/lib/pdf-review-bank";
+import { pdfExtensionQuestionsBatch12 } from "@/lib/pdf-extension-bank-v13";
 import type {
   Choice,
   ChoiceId,
@@ -20,7 +21,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-30-v12";
+export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-30-v13";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -32,7 +33,8 @@ export const verifiedOfficialPdfSources = [
   { name: "50회_기출문제.pdf", pages: 16, textPages: 16, lowTextPages: [], questionCandidates: 65, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [1, 8, 16] },
   { name: "SQLP_Exam_Problem_Bank_60.pdf", pages: 17, textPages: 17, lowTextPages: [], questionCandidates: 60, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [1, 2, 5, 8, 9, 12, 17] },
   { name: "SQLD_기출복원문제집_58회_59회_60회.pdf", pages: 13, textPages: 13, lowTextPages: [], questionCandidates: 34, focus: ["modeling", "sql-basic"] as SubjectId[], visualChecks: [2, 5, 13] },
-  { name: "SQLP_실기_기출복기_예상문제집.pdf", pages: 9, textPages: 9, lowTextPages: [], questionCandidates: 6, focus: ["tuning"] as SubjectId[], visualChecks: [1, 2, 4, 5, 7, 8, 9] }
+  { name: "SQLP_실기_기출복기_예상문제집.pdf", pages: 9, textPages: 9, lowTextPages: [], questionCandidates: 6, focus: ["tuning"] as SubjectId[], visualChecks: [1, 2, 4, 5, 7, 8, 9] },
+  { name: "SQLP_3과목_및_실기_합격_기출모의고사.pdf", pages: 18, textPages: 18, lowTextPages: [], questionCandidates: 40, focus: ["tuning"] as SubjectId[], visualChecks: [1, 8, 9, 10, 11, 15, 18] }
 ];
 
 type GenerationBucket = "original" | "variant" | "similar";
@@ -3705,6 +3707,8 @@ const manualVerifiedObjectiveQuestionsBatch05: ObjectiveQuestion[] = ([
   }
 ] as CompactManualQuestion[]).map(makeCompactManualQuestion);
 
+const manualVerifiedObjectiveQuestionsBatch12: ObjectiveQuestion[] = pdfExtensionQuestionsBatch12.map(makeCompactManualQuestion);
+
 const manualVerifiedObjectiveQuestionsBatch06: ObjectiveQuestion[] = ([
   {
     subjectId: "modeling", number: 61, majorTopic: "데이터 모델링의 이해", middleTopic: "속성", topic: "기본·설계·파생 속성", difficulty: "중급", questionType: "속성 분류 판단형", mode: "variant", sourcePage: 15, parentQuestionId: "pdf-v-1-attribute-type",
@@ -5144,6 +5148,7 @@ const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...manualVerifiedObjectiveQuestionsBatch09,
   ...manualVerifiedObjectiveQuestionsBatch10,
   ...manualVerifiedObjectiveQuestionsBatch11,
+  ...manualVerifiedObjectiveQuestionsBatch12,
   ...manualVerifiedTuningPartitionAndTraceQuestions
 ]);
 

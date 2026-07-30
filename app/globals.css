@@ -2227,6 +2227,75 @@ body {
   resize: vertical;
 }
 
+.note-format-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.note-format-toolbar .ghost-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.note-preview {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(31, 41, 55, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
+  padding: 14px 16px;
+  color: #1f2937;
+}
+
+.note-preview-line {
+  min-height: 24px;
+  line-height: 1.72;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-preview-line.empty {
+  min-height: 12px;
+}
+
+.note-preview-heading {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.note-preview-bullet {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+}
+
+.note-preview-bullet p {
+  margin: 0;
+}
+
+.note-preview-indent-1 {
+  margin-left: 18px;
+}
+
+.note-preview-indent-2 {
+  margin-left: 36px;
+}
+
+.note-preview-indent-3 {
+  margin-left: 54px;
+}
+
+.note-mark {
+  border-radius: 4px;
+  background: rgba(255, 236, 139, 0.72);
+  padding: 0 3px;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 1fr;

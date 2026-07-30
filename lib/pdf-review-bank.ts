@@ -97,6 +97,7 @@ function choices(values: Array<[string, string]>): PdfReviewChoice[] {
 const sqlExam = "SQL-자격검정-실전문제.pdf";
 const subject3Full = "sqlp_subject3_full.pdf";
 const practiceExpected = "SQLP_실기_기출복기_예상문제집.pdf";
+const subject3PracticeMock = "SQLP_3과목_및_실기_합격_기출모의고사.pdf";
 
 const commonOriginalNote = "PDF 페이지 PNG 렌더와 정답 및 해설 페이지를 직접 대조했다. 사용자 화면에는 출처와 검수 메타데이터를 노출하지 않는다.";
 
@@ -3286,13 +3287,14 @@ WHERE ROWNUM <= 100;`,
     explanation: "최종 Rows가 작아도 인덱스에서 넓은 후보를 읽고 테이블 방문 후 필터링하면 CR이 커진다. 고객등급, 주문상태 등치 조건을 선두로 두고 주문일자 DESC를 뒤에 두면 Access Predicate 범위를 좁히고 최근 100건 부분범위 처리를 기대할 수 있다.",
     relatedConcepts: ["Access Predicate", "Filter Predicate", "Top-N"],
     hints: ["인덱스 행 수와 최종 Rows 차이를 봅니다.", "Filter Predicate로 밀린 조건이 무엇인지 확인합니다.", "등치 조건 뒤 정렬 컬럼 순서가 Top-N에 유리합니다."]
-  })
+  }),
+
 ];
 
 export const pdfReviewLabs: PdfReviewLab[] = [
   subject3Lab({
     id: "subject3-full-practice-01-contract-date",
-    title: "실기 01 | 인덱스 컬럼 좌변 변형 제거",
+    title: "인덱스 컬럼 좌변 변형 제거",
     topic: "인덱스 컬럼 변형 제거",
     difficulty: "상급",
     mode: "original",
@@ -3321,7 +3323,7 @@ WHERE 계약일자 >= TO_DATE('20260701', 'YYYYMMDD')
   }),
   subject3Lab({
     id: "subject3-full-practice-02-exists-semi-join",
-    title: "실기 02 | EXISTS 변환과 Semi-Join 튜닝",
+    title: "EXISTS 변환과 Semi-Join 튜닝",
     topic: "EXISTS Semi Join",
     difficulty: "상급",
     mode: "original",
@@ -3355,7 +3357,7 @@ WHERE C.고객등급 = 'VIP'
   }),
   subject3Lab({
     id: "subject3-full-practice-03-single-pass-pivot",
-    title: "실기 03 | 반복 스칼라 서브쿼리 제거",
+    title: "반복 스칼라 서브쿼리 제거",
     topic: "Single Pass 집계",
     difficulty: "상급",
     mode: "original",
@@ -3392,7 +3394,7 @@ WHERE 매출년월 BETWEEN '202501' AND '202506';`,
   }),
   subject3Lab({
     id: "subject3-full-practice-04-hash-join-build-input",
-    title: "실기 04 | NL Join 병목과 Hash Join 전환",
+    title: "NL Join 병목과 Hash Join 전환",
     topic: "Hash Join Build Input",
     difficulty: "최상급",
     mode: "original",
@@ -3423,7 +3425,7 @@ GROUP BY P.상품카테고리;`,
   }),
   subject3Lab({
     id: "subject3-full-practice-05-sort-omission",
-    title: "실기 05 | 실행계획 분석과 Sort 제거",
+    title: "실행계획 분석과 Sort 제거",
     topic: "Top-N Sort Omission",
     difficulty: "상급",
     mode: "original",
@@ -3459,7 +3461,7 @@ WHERE ROWNUM <= 10;`,
   }),
   subject3Lab({
     id: "sql-cert-practice-01-running-total",
-    title: "실기문제 1 | 지점별 누적매출 구하기",
+    title: "지점별 누적매출 구하기",
     topic: "Running Total",
     difficulty: "상급",
     mode: "original",
@@ -3504,7 +3506,7 @@ ORDER BY a.지점, a.판매월;`,
   }),
   subject3Lab({
     id: "sql-cert-practice-02-trace-rewrite",
-    title: "실기문제 2 | SQL Trace 분석과 조건절 개선",
+    title: "SQL Trace 분석과 조건절 개선",
     topic: "SQL Trace 튜닝",
     difficulty: "최상급",
     mode: "original",
@@ -3568,7 +3570,7 @@ ORDER BY o.주문일시, c.고객명;`,
   }),
   subject3Lab({
     id: "sql-cert-practice-03-single-read-rewrite",
-    title: "실기문제 3 | 같은 데이터 두 번 읽지 않기",
+    title: "같은 데이터 두 번 읽지 않기",
     topic: "Analytic Rewrite",
     difficulty: "상급",
     mode: "original",
@@ -3629,7 +3631,7 @@ WHERE 주문번호 = 마지막주문번호;`,
   }),
   subject3Lab({
     id: "sql-cert-practice-04-order-search-index",
-    title: "실기문제 4 | 주문 조회 화면 SQL과 인덱스",
+    title: "주문 조회 화면 SQL과 인덱스",
     topic: "검색 조건과 인덱스 설계",
     difficulty: "상급",
     mode: "original",
@@ -3675,7 +3677,7 @@ CREATE INDEX 주문_X02 ON 주문(고객번호, 주문일시 DESC);`,
   }),
   subject3Lab({
     id: "sql-cert-practice-05-customer-access-history",
-    title: "실기문제 5 | AC 상태 고객 조회와 최근접속일시",
+    title: "AC 상태 고객 조회와 최근접속일시",
     topic: "부분범위 처리와 전체 출력 SQL 분리",
     difficulty: "최상급",
     mode: "original",
@@ -3748,7 +3750,7 @@ CREATE INDEX 고객접속이력_X01 ON 고객접속이력(고객번호, 접속�
   }),
   subject3Lab({
     id: "sql-cert-practice-06-order-delivery-batch",
-    title: "실기문제 6 | 주문배송 야간 배치 튜닝",
+    title: "주문배송 야간 배치 튜닝",
     topic: "대량 배치 실행계획 분석",
     difficulty: "최상급",
     mode: "original",
@@ -3848,7 +3850,7 @@ WHERE o.주문일자 >= '20160601'
   }),
   subject3Lab({
     id: "practical-expected-01-or-subquery-unnesting",
-    title: "실기문제 12 | OR 조건 서브쿼리 변환 및 Unnesting",
+    title: "OR 조건 서브쿼리 변환 및 Unnesting",
     topic: "Subquery Unnesting과 OR Expansion",
     difficulty: "최상급",
     mode: "original",
@@ -3904,7 +3906,7 @@ COMMIT;`,
   }),
   subject3Lab({
     id: "practical-expected-02-multi-table-insert",
-    title: "실기문제 13 | Multi-Table Insert와 Direct Path Insert",
+    title: "Multi-Table Insert와 Direct Path Insert",
     topic: "대량 INSERT 튜닝",
     difficulty: "최상급",
     mode: "original",
@@ -3961,7 +3963,7 @@ ALTER SESSION DISABLE PARALLEL DML;`,
   }),
   subject3Lab({
     id: "practical-expected-03-count-stopkey",
-    title: "실기문제 14 | 부분범위처리와 Count Stopkey",
+    title: "부분범위처리와 Count Stopkey",
     topic: "Top-N 부분범위 처리",
     difficulty: "최상급",
     mode: "original",
@@ -4037,7 +4039,7 @@ WHERE ROWNUM <= 10;`,
   }),
   subject3Lab({
     id: "practical-expected-04-partition-exchange",
-    title: "실기문제 15 | Partition Exchange 대용량 배치",
+    title: "Partition Exchange 대용량 배치",
     topic: "Partition Exchange와 MERGE 대체",
     difficulty: "최상급",
     mode: "original",
@@ -4098,7 +4100,7 @@ DROP TABLE T1_P202501;`,
   }),
   subject3Lab({
     id: "practical-expected-05-order-by-removal",
-    title: "실기문제 16 | Order By 제거와 부분범위 처리",
+    title: "Order By 제거와 부분범위 처리",
     topic: "Index Desc Scan과 Top-N 튜닝",
     difficulty: "최상급",
     mode: "original",
@@ -4157,7 +4159,7 @@ WHERE B.주문번호 = A.주문번호
   }),
   subject3Lab({
     id: "practical-expected-06-partition-pruning-inline-aggregate",
-    title: "실기문제 17 | Partition Pruning과 Inline View 집계",
+    title: "Partition Pruning과 Inline View 집계",
     topic: "Partition Pruning과 조인 전 집계",
     difficulty: "최상급",
     mode: "original",
@@ -4220,6 +4222,346 @@ WHERE E.코드구분(+) = 'A01'
     explanation: "파티션 키 또는 인덱스 선두 컬럼을 함수로 감싸면 Partition Pruning과 Range Scan이 어려워진다. 먼저 가공 없는 주문번호 범위 조건으로 입력을 줄이고, 코드명 조인은 집계 후 수행하면 조인 대상 행 수가 크게 줄어든다.",
     relatedConcepts: ["Partition Pruning", "NO_MERGE", "Group By 튜닝", "Hash Join"],
     hints: ["SUBSTR 조건이 주문번호의 시작점을 만들 수 있는지 확인한다.", "코드상세 조인이 집계 전 대량 행에 붙어 있는지 본다.", "집계 결과를 보존하려면 Inline View 병합을 막아야 하는지 생각한다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-01-sargable-composite-index",
+    title: "인덱스 컬럼 가공 제거와 복합 인덱스 설계",
+    topic: "인덱스 컬럼 변형 제거와 결합 인덱스",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 8,
+    answerPage: 15,
+    questionNumber: "실기 1",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 8쪽 실기 1과 15쪽 모범답안을 대조했다.",
+    scenario: "주문일자 컬럼을 TO_CHAR로 가공해 2026년 8월 완료 주문을 조회한다. 주문일자 조건 때문에 Full Table Scan이 발생하고 있으며, 고객별 주문금액 합계를 구해야 한다.",
+    requirements: ["order_date 컬럼 가공을 제거하여 Index Range Scan이 가능하도록 SQL을 재작성하시오.", "Access Predicate, Filter 조건, GROUP BY를 고려해 최적의 복합 인덱스 컬럼 순서를 제시하시오."],
+    schemaSql: "",
+    currentSql: `SELECT customer_id, SUM(order_amount)
+FROM orders
+WHERE TO_CHAR(order_date, 'YYYYMMDD') BETWEEN '20260801' AND '20260831'
+  AND status = 'COMPLETED'
+GROUP BY customer_id;`,
+    executionPlan: "관찰 정보: TO_CHAR(order_date) 좌변 가공 때문에 order_date 인덱스 시작점/종료점을 만들지 못하고 Full Table Scan이 발생한다.",
+    answerSql: `SELECT customer_id, SUM(order_amount)
+FROM orders
+WHERE order_date >= TO_DATE('20260801', 'YYYYMMDD')
+  AND order_date <  TO_DATE('20260901', 'YYYYMMDD')
+  AND status = 'COMPLETED'
+GROUP BY customer_id;
+
+CREATE INDEX IDX_ORDERS_01 ON orders(status, order_date, customer_id, order_amount);`,
+    acceptedAlternatives: ["DATE 리터럴 또는 TO_DATE를 사용해 같은 범위를 표현하면 인정한다.", "Covering Index까지 요구하지 않는 답안이라도 status, order_date, customer_id 순서를 근거 있게 제시하면 부분 인정한다."],
+    rubric: ["TO_CHAR(order_date) 조건을 시작일 이상, 다음 달 시작일 미만 범위로 바꾼다.", "동등 조건 status를 선두 컬럼으로 배치한다.", "범위 조건 order_date를 동등 조건 뒤에 배치한다.", "GROUP BY 및 조회 컬럼을 고려해 customer_id, order_amount 포함 여부를 설명한다.", "Access Predicate와 테이블 랜덤 액세스 감소 원리를 설명한다."],
+    explanation: "컬럼 좌변을 함수로 감싸면 B-Tree 인덱스의 수직 탐색 시작점과 종료점을 정하기 어렵다. 완료 상태(status)는 동등 조건이므로 선두에 두고, 월 범위 조건인 order_date를 다음에 두면 스캔 범위를 줄일 수 있다. customer_id와 order_amount를 뒤에 포함하면 GROUP BY 및 SUM 계산에서 테이블 랜덤 액세스를 줄일 수 있다.",
+    relatedConcepts: ["SARGable Predicate", "Access Predicate", "결합 인덱스 컬럼 순서", "Index Only 처리"],
+    hints: ["좌변 함수가 인덱스 시작점과 종료점 생성을 막는지 본다.", "동등 조건과 범위 조건 중 어느 컬럼을 선두에 둘지 판단한다.", "집계에 필요한 컬럼까지 인덱스에 포함하면 테이블 액세스를 줄일 수 있다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-02-hash-build-input-hint",
+    title: "Hash Join Build Input 힌트 작성",
+    topic: "Hash Join Build Input 제어",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 8,
+    answerPage: 15,
+    questionNumber: "실기 2",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 8쪽 실기 2와 15쪽 모범답안을 대조했다.",
+    scenario: "대용량 ORDER_DETAIL 5,000만 건과 소용량 CODE_DETAIL 100건을 조인한다. 현재 NL Join 반복 탐색으로 Random I/O가 심하다.",
+    requirements: ["소용량 code_detail을 Build Input으로 사용하도록 Hash Join 힌트를 작성하시오.", "LEADING, USE_HASH, SWAP_JOIN_INPUTS 힌트의 의도를 설명하시오."],
+    schemaSql: "",
+    currentSql: `SELECT d.detail_id, d.product_id, c.code_name
+FROM order_detail d, code_detail c
+WHERE d.code_type = c.code_type
+  AND c.category = 'ELECTRONICS';`,
+    executionPlan: "문제점: code_detail 조건으로 소량화되는 집합을 반복 NL 탐색하지 말고, PGA에 작은 해시 테이블로 올린 뒤 order_detail을 Probe 하는 구조가 필요하다.",
+    answerSql: `SELECT /*+ LEADING(c d) USE_HASH(d) SWAP_JOIN_INPUTS(c) */
+       d.detail_id, d.product_id, c.code_name
+FROM order_detail d, code_detail c
+WHERE d.code_type = c.code_type
+  AND c.category = 'ELECTRONICS';`,
+    acceptedAlternatives: ["code_detail이 Build Input이 되고 order_detail이 Probe Input이 되는 Hash Join을 명확히 유도하는 힌트 조합이면 인정한다."],
+    rubric: ["LEADING(c d)로 소량 필터 테이블을 먼저 처리한다.", "USE_HASH(d)로 order_detail과의 Hash Join을 유도한다.", "SWAP_JOIN_INPUTS(c) 또는 동등한 방식으로 code_detail을 Build Input으로 둔다.", "NL Join 반복 Random I/O 병목을 해시 탐색으로 줄이는 원리를 설명한다."],
+    explanation: "Hash Join은 작은 집합을 Build Input으로 선택해야 메모리 사용량과 해시 탐색 비용이 안정적이다. category 조건으로 줄어드는 code_detail을 먼저 읽어 해시 테이블을 만들고, 대용량 order_detail을 스캔하면서 Probe 하면 NL 반복 액세스보다 유리하다.",
+    relatedConcepts: ["Hash Join", "Build Input", "SWAP_JOIN_INPUTS", "Random I/O"],
+    hints: ["두 테이블 중 필터 후 더 작은 집합을 찾는다.", "작은 집합을 Build Input으로 고정하는 힌트가 필요하다.", "USE_HASH 대상과 LEADING 순서가 서로 모순되지 않는지 확인한다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-03-unnesting-nl-semi",
+    title: "EXISTS Unnesting과 NL Semi Join",
+    topic: "Subquery Unnesting과 Semi Join",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 9,
+    answerPage: 15,
+    questionNumber: "실기 3",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 9쪽 실기 3과 15쪽 모범답안을 대조했다.",
+    scenario: "고객 100만 건 중 최근 1개월 내 주문 내역이 존재하는 고객만 조회한다. 현재 EXISTS 서브쿼리가 FILTER로 처리되어 고객 행마다 주문을 반복 확인한다.",
+    requirements: ["서브쿼리가 Unnesting 되도록 힌트를 부여하시오.", "orders(cust_id, ord_date) 인덱스를 활용한 NL Semi Join 형태로 수행되도록 SQL을 작성하고 원리를 설명하시오."],
+    schemaSql: "인덱스 전제: orders(cust_id, ord_date)",
+    currentSql: `SELECT c.cust_id, c.cust_name
+FROM customer c
+WHERE EXISTS (
+  SELECT 1
+  FROM orders o
+  WHERE o.cust_id = c.cust_id
+    AND o.ord_date >= ADD_MONTHS(SYSDATE, -1)
+);`,
+    executionPlan: "관찰 정보: FILTER 연산은 customer 각 행마다 orders 서브쿼리를 반복 수행한다. 최근 주문 존재 여부만 확인하면 Semi Join으로 첫 매칭 후 멈출 수 있다.",
+    answerSql: `SELECT /*+ LEADING(c o) UNNEST NL_SJ */
+       c.cust_id, c.cust_name
+FROM customer c
+WHERE EXISTS (
+  SELECT /*+ QB_NAME(subq) */ 1
+  FROM orders o
+  WHERE o.cust_id = c.cust_id
+    AND o.ord_date >= ADD_MONTHS(SYSDATE, -1)
+);`,
+    acceptedAlternatives: ["UNNEST와 NL Semi Join을 유도하고 orders(cust_id, ord_date) 인덱스 탐색 원리를 설명하면 인정한다."],
+    rubric: ["FILTER 반복 수행이 병목임을 설명한다.", "UNNEST 힌트로 서브쿼리를 조인 레벨로 끌어올린다.", "NL_SJ 또는 동등한 Semi Join 힌트를 사용한다.", "orders(cust_id, ord_date) 인덱스로 첫 매칭 후 중단되는 효율을 설명한다."],
+    explanation: "EXISTS는 존재 여부만 판단하므로 모든 주문을 읽을 필요가 없다. Unnesting 후 NL Semi Join이 되면 고객별로 orders 인덱스를 탐색하고 조건을 만족하는 첫 행을 찾는 즉시 멈출 수 있어 FILTER 반복보다 효율적이다.",
+    relatedConcepts: ["Subquery Unnesting", "NL Semi Join", "FILTER Operation", "Stopkey"],
+    hints: ["FILTER는 메인쿼리 각 행마다 서브쿼리를 수행한다.", "EXISTS는 존재 여부만 필요하다.", "cust_id, ord_date 순서의 인덱스를 Semi Join과 연결해 생각한다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-04-paging-stopkey",
+    title: "페이징 Stopkey와 정렬 제거",
+    topic: "Top-N Stopkey와 인덱스 정렬",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 9,
+    answerPage: 16,
+    questionNumber: "실기 4",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 9쪽 실기 4와 16쪽 모범답안을 대조했다.",
+    scenario: "게시판 페이징 SQL이 전체 1,000만 건을 모두 정렬한 뒤 11~20번째 행만 반환한다. 응답 시간이 느리고 Sort Order By 부하가 크다.",
+    requirements: ["전체 Sort 없이 Top-N Stopkey가 동작하도록 SQL을 개선하시오.", "정렬을 인덱스 스캔으로 대체하기 위한 인덱스 구성을 제시하시오."],
+    schemaSql: "",
+    currentSql: `SELECT *
+FROM (
+  SELECT b.board_id, b.title, b.writer, b.reg_date, ROWNUM AS rnum
+  FROM (
+    SELECT board_id, title, writer, reg_date
+    FROM board
+    WHERE category = 'NOTICE'
+    ORDER BY reg_date DESC
+  ) b
+)
+WHERE rnum BETWEEN 11 AND 20;`,
+    executionPlan: "관찰 정보: ROWNUM 상한이 정렬 직후 단계에 걸리지 않아 전체 정렬 후 범위를 자르는 형태다.",
+    answerSql: `SELECT *
+FROM (
+  SELECT /*+ FIRST_ROWS(20) */
+         b.board_id, b.title, b.writer, b.reg_date, ROWNUM AS rnum
+  FROM (
+    SELECT board_id, title, writer, reg_date
+    FROM board
+    WHERE category = 'NOTICE'
+    ORDER BY reg_date DESC
+  ) b
+  WHERE ROWNUM <= 20
+)
+WHERE rnum >= 11;
+
+CREATE INDEX IDX_BOARD_01 ON board(category, reg_date DESC);`,
+    acceptedAlternatives: ["ROWNUM 상한을 내부 단계에서 먼저 적용하고 category, reg_date DESC 인덱스를 활용하는 구조면 인정한다."],
+    rubric: ["ROWNUM <= 20 조건을 중간 단계에 적용한다.", "최종적으로 rnum >= 11 조건으로 11~20행을 걸러낸다.", "category 동등 조건과 reg_date DESC 정렬을 함께 만족하는 인덱스를 제시한다.", "Sort Order By 생략과 Count Stopkey 원리를 설명한다."],
+    explanation: "페이징은 필요한 마지막 행 번호까지만 먼저 읽고 나중에 시작 행을 버려야 한다. category, reg_date DESC 인덱스를 사용하면 이미 정렬된 순서로 20건만 읽고 멈출 수 있어 전체 정렬을 피한다.",
+    relatedConcepts: ["Top-N", "COUNT STOPKEY", "Index Desc Scan", "Sort 제거"],
+    hints: ["ROWNUM은 어느 단계에서 붙는지 확인한다.", "11~20행을 얻으려면 먼저 20행까지만 읽으면 된다.", "ORDER BY 컬럼 순서를 인덱스로 대체할 수 있는지 본다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-05-dynamic-union-all",
+    title: "동적 검색 조건 UNION ALL 분기",
+    topic: "OR Expansion과 선택 조건 분기",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 9,
+    answerPage: 16,
+    questionNumber: "실기 5",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 9쪽 실기 5와 16쪽 모범답안을 대조했다.",
+    scenario: "사용자 검색 조건 deptno, ename이 입력될 수도 있고 NULL일 수도 있다. NVL/OR 패턴 때문에 옵티마이저가 인덱스를 안정적으로 선택하지 못한다.",
+    requirements: ["바인드 변수 입력 유무에 따라 상호 배타적인 UNION ALL 분기 SQL을 작성하시오.", "각 분기가 개별 인덱스를 사용할 수 있는 이유를 설명하시오."],
+    schemaSql: "활용 가능 인덱스 예: emp(deptno), emp(ename)",
+    currentSql: `SELECT empno, ename, deptno, job
+FROM emp
+WHERE deptno = NVL(:v_deptno, deptno)
+  AND (ename LIKE :v_ename || '%' OR :v_ename IS NULL);`,
+    answerSql: `SELECT empno, ename, deptno, job
+FROM emp
+WHERE :v_deptno IS NOT NULL
+  AND deptno = :v_deptno
+  AND :v_ename IS NOT NULL
+  AND ename LIKE :v_ename || '%'
+UNION ALL
+SELECT empno, ename, deptno, job
+FROM emp
+WHERE :v_deptno IS NOT NULL
+  AND deptno = :v_deptno
+  AND :v_ename IS NULL
+UNION ALL
+SELECT empno, ename, deptno, job
+FROM emp
+WHERE :v_deptno IS NULL
+  AND :v_ename IS NOT NULL
+  AND ename LIKE :v_ename || '%'
+UNION ALL
+SELECT empno, ename, deptno, job
+FROM emp
+WHERE :v_deptno IS NULL
+  AND :v_ename IS NULL;`,
+    acceptedAlternatives: ["동적 SQL로 입력된 조건만 조립하는 방식도 인덱스 활용 원리를 명확히 설명하면 인정한다."],
+    rubric: ["NVL 또는 OR로 컬럼 좌변/선택 조건을 흐리지 않는다.", "바인드 NULL 여부별 분기가 상호 배타적임을 보장한다.", "deptno와 ename 조건이 있는 분기에서 각각 인덱스를 사용할 수 있음을 설명한다.", "UNION ALL로 중복 제거 Sort가 발생하지 않게 한다."],
+    explanation: "NVL/OR 조건은 하나의 SQL에서 여러 경우를 동시에 표현하므로 인덱스 선택이 불안정하다. 입력 조합별로 상호 배타적인 UNION ALL 분기를 만들면 각 분기의 WHERE 절이 단순해지고, 조건이 있는 컬럼의 인덱스를 명확히 사용할 수 있다.",
+    relatedConcepts: ["OR Expansion", "SARGable Predicate", "UNION ALL", "동적 검색 조건"],
+    hints: ["NVL(:bind, column)은 컬럼 조건을 불명확하게 만든다.", "입력값이 NULL인 경우와 아닌 경우를 서로 겹치지 않게 나눈다.", "UNION이 아니라 UNION ALL이어야 불필요한 중복 제거가 없다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-06-rollup-single-pass",
+    title: "ROLLUP으로 중복 스캔 제거",
+    topic: "ROLLUP과 Single Pass 집계",
+    difficulty: "중급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 10,
+    answerPage: 17,
+    questionNumber: "실기 6",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 10쪽 실기 6과 17쪽 모범답안을 대조했다.",
+    scenario: "동일한 sales 테이블을 세 번 스캔해 월별·부서별·전체 합계를 UNION ALL로 합산하고 있다.",
+    requirements: ["sales 테이블을 1회만 Scan하여 동일한 집계 결과를 출력하도록 ROLLUP을 사용해 SQL을 재작성하시오."],
+    schemaSql: "",
+    currentSql: `SELECT deptno, month, SUM(sales_amt) FROM sales GROUP BY deptno, month
+UNION ALL
+SELECT deptno, NULL, SUM(sales_amt) FROM sales GROUP BY deptno
+UNION ALL
+SELECT NULL, NULL, SUM(sales_amt) FROM sales;`,
+    answerSql: `SELECT deptno, month, SUM(sales_amt) AS total_sales
+FROM sales
+GROUP BY ROLLUP(deptno, month);`,
+    acceptedAlternatives: ["GROUPING SETS((deptno, month), (deptno), ())로 동일 집계를 표현해도 인정한다."],
+    rubric: ["세 번의 Full Scan을 하나의 집계 연산으로 줄인다.", "ROLLUP(deptno, month)이 상세, 부서 소계, 전체 총계를 모두 생성함을 설명한다.", "UNION ALL 반복 스캔 제거로 I/O가 감소한다는 근거를 제시한다."],
+    explanation: "ROLLUP은 지정한 컬럼 계층의 상세 집계와 소계를 한 번의 GROUP BY 연산에서 만든다. 같은 테이블을 여러 번 읽는 UNION ALL 방식보다 I/O와 CPU가 줄고 SQL 구조도 단순해진다.",
+    relatedConcepts: ["ROLLUP", "GROUPING SETS", "Group By 튜닝", "Single Pass 집계"],
+    hints: ["세 SELECT가 모두 같은 sales 테이블을 읽는지 확인한다.", "필요한 집계 조합이 계층형 소계인지 본다.", "ROLLUP(deptno, month)이 어떤 행들을 만드는지 떠올린다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-07-scalar-subquery-left-join",
+    title: "스칼라 서브쿼리 반복 호출 제거",
+    topic: "Scalar Subquery와 Outer Join 변환",
+    difficulty: "중급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 10,
+    answerPage: 17,
+    questionNumber: "실기 7",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 10쪽 실기 7과 17쪽 모범답안을 대조했다.",
+    scenario: "메인쿼리 100만 건에 대해 SELECT 절 스칼라 서브쿼리 2개가 dept 테이블을 반복 조회한다.",
+    requirements: ["dept 테이블을 1회 조인하도록 Inline View 또는 Left Outer Join 형태의 튜닝 SQL을 작성하시오.", "반복 스칼라 서브쿼리가 왜 병목이 되는지 설명하시오."],
+    schemaSql: "",
+    currentSql: `SELECT e.empno, e.ename, e.deptno,
+       (SELECT d.dname FROM dept d WHERE d.deptno = e.deptno) AS dname,
+       (SELECT d.loc FROM dept d WHERE d.deptno = e.deptno) AS loc
+FROM emp e
+WHERE e.hiredate >= TO_DATE('2025-01-01', 'YYYY-MM-DD');`,
+    answerSql: `SELECT e.empno, e.ename, e.deptno, d.dname, d.loc
+FROM emp e
+LEFT OUTER JOIN dept d
+  ON e.deptno = d.deptno
+WHERE e.hiredate >= TO_DATE('2025-01-01', 'YYYY-MM-DD');`,
+    acceptedAlternatives: ["Oracle 외부 조인 기호 `(+)`를 사용하되 동일 의미와 반복 제거가 보장되면 인정한다."],
+    rubric: ["동일 dept 테이블을 참조하는 스칼라 서브쿼리 2개를 식별한다.", "LEFT OUTER JOIN으로 원래 NULL 보존 의미를 유지한다.", "dept를 1회 조인해 dname과 loc를 함께 가져온다.", "스칼라 서브쿼리 캐시 적중률이 낮을 때 반복 탐색이 커질 수 있음을 설명한다."],
+    explanation: "SELECT 절의 스칼라 서브쿼리는 입력 행마다 수행될 수 있고, 서로 같은 테이블을 반복 참조하면 CPU와 Random I/O가 커진다. LEFT OUTER JOIN으로 한 번만 조인하면 의미를 유지하면서 반복 호출을 제거할 수 있다.",
+    relatedConcepts: ["Scalar Subquery", "Outer Join", "Query Transformation", "Random I/O"],
+    hints: ["SELECT 절에서 dept를 몇 번 조회하는지 센다.", "서브쿼리 결과가 없을 때 원래 SQL의 NULL 반환 의미를 유지해야 한다.", "반복 조회를 한 번의 조인으로 바꾸는 것이 핵심이다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-08-direct-path-parallel-insert",
+    title: "Direct Path Parallel Insert",
+    topic: "Direct Path Insert와 병렬 DML",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 10,
+    answerPage: 17,
+    questionNumber: "실기 8",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 10쪽 실기 8과 17쪽 모범답안을 대조했다.",
+    scenario: "1억 건 DAILY_LOG 배치 데이터를 MONTHLY_SUMMARY로 이관한다. 일반 INSERT INTO SELECT는 Undo/Redo와 Buffer Cache 병목으로 5시간 이상 소요된다.",
+    requirements: ["Buffer Cache를 우회하고 HWM 위쪽에 직접 적재하는 Direct Path Insert 및 Parallel 힌트를 작성하시오.", "Redo Log 발생을 최소화하기 위한 테이블 설정과 주의사항을 설명하시오."],
+    schemaSql: "",
+    currentSql: `INSERT INTO monthly_summary
+SELECT *
+FROM daily_log;`,
+    executionPlan: "제약: 배치 작업이며 대량 적재가 목적이다. 운영 복구 정책을 고려해 NOLOGGING 적용 후 백업 또는 LOGGING 원복이 필요하다.",
+    answerSql: `ALTER SESSION ENABLE PARALLEL DML;
+
+ALTER TABLE monthly_summary NOLOGGING;
+
+INSERT /*+ APPEND PARALLEL(m 8) */ INTO monthly_summary m
+SELECT /*+ PARALLEL(d 8) */ *
+FROM daily_log d;`,
+    acceptedAlternatives: ["Parallel Degree 값은 시스템 정책에 맞게 조정 가능하다.", "작업 후 LOGGING 원복과 백업 필요성을 함께 설명하면 인정한다."],
+    rubric: ["ALTER SESSION ENABLE PARALLEL DML을 포함한다.", "APPEND 힌트로 Direct Path Insert를 유도한다.", "대상/원본 테이블에 병렬 힌트를 적용한다.", "NOLOGGING으로 Redo 최소화 조건을 제시한다.", "Direct Path Insert의 HWM 위 직접 쓰기와 Lock 특성을 설명한다."],
+    explanation: "Direct Path Insert는 Buffer Cache를 거치지 않고 HWM 위에 직접 블록을 쓰므로 대량 적재에 유리하다. APPEND와 PARALLEL DML, NOLOGGING을 함께 사용하면 Undo/Redo 및 캐시 경합을 줄일 수 있지만, 장애 복구를 위해 작업 후 백업과 LOGGING 원복을 고려해야 한다.",
+    relatedConcepts: ["Direct Path Insert", "Parallel DML", "NOLOGGING", "HWM"],
+    hints: ["일반 INSERT의 병목이 Buffer Cache와 Redo임을 확인한다.", "APPEND 힌트와 Parallel DML 설정은 별개다.", "NOLOGGING은 성능만이 아니라 복구 정책과 함께 판단한다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-09-composite-index-order",
+    title: "복합 인덱스 컬럼 순서 재설계",
+    topic: "결합 인덱스와 Access Predicate",
+    difficulty: "상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 11,
+    answerPage: 18,
+    questionNumber: "실기 9",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 11쪽 실기 9와 18쪽 모범답안을 대조했다.",
+    scenario: "CONTRACT 테이블에는 IDX_CTR_01(status, ctr_date, cust_id) 인덱스가 있다. 자주 수행되는 SQL은 status와 cust_id가 동등 조건이고 ctr_date가 BETWEEN 범위 조건이다.",
+    requirements: ["기존 인덱스에서 ctr_date가 cust_id보다 앞에 있어 발생하는 스캔 비효율을 설명하시오.", "Index Range Scan 범위를 최소화할 수 있는 최적 인덱스 컬럼 순서를 제시하시오."],
+    schemaSql: "현재 인덱스: IDX_CTR_01(status, ctr_date, cust_id)",
+    currentSql: `SELECT *
+FROM contract
+WHERE status = 'ACTIVE'
+  AND cust_id = :v_cust_id
+  AND ctr_date BETWEEN :v_sdate AND :v_edate;`,
+    executionPlan: "관찰 정보: 결합 인덱스에서 범위 조건 뒤에 위치한 cust_id는 스캔 시작/종료점을 줄이지 못하고 Filter 성격으로 밀릴 수 있다.",
+    answerSql: `CREATE INDEX IDX_CTR_NEW ON contract(status, cust_id, ctr_date);`,
+    acceptedAlternatives: ["상황에 따라 select list를 고려한 포함 컬럼 추가는 가능하지만, 핵심 순서는 status, cust_id, ctr_date여야 한다."],
+    rubric: ["기존 인덱스에서 ctr_date 범위 조건이 두 번째에 있어 이후 cust_id 활용이 제한됨을 설명한다.", "동등 조건인 status와 cust_id를 선두에 배치한다.", "범위 조건 ctr_date를 마지막에 배치한다.", "세 컬럼이 스캔 범위 축소에 기여하는 Access Predicate 구성을 설명한다."],
+    explanation: "결합 인덱스에서는 선두부터 동등 조건을 최대한 배치하고 범위 조건은 그 뒤에 두는 것이 일반적으로 스캔 범위를 줄인다. 기존 `(status, ctr_date, cust_id)`에서는 ctr_date 범위가 먼저 열리면서 cust_id가 효율적인 탐색 조건으로 쓰이기 어렵다.",
+    relatedConcepts: ["결합 인덱스", "Access Predicate", "Filter Predicate", "인덱스 스캔 효율"],
+    hints: ["동등 조건과 범위 조건의 위치를 먼저 구분한다.", "범위 조건 뒤 컬럼이 수직 탐색 범위를 줄일 수 있는지 생각한다.", "status와 cust_id를 먼저 고정한 뒤 날짜 범위를 읽는 구조가 가장 좁다."]
+  }),
+  subject3Lab({
+    id: "subject3-mock-practice-10-local-non-prefixed-index",
+    title: "Partition Pruning과 Local Non-Prefixed Index",
+    topic: "파티션 프루닝과 로컬 인덱스",
+    difficulty: "최상급",
+    mode: "original",
+    document: subject3PracticeMock,
+    page: 11,
+    answerPage: 18,
+    questionNumber: "실기 10",
+    verificationNote: "SQLP_3과목_및_실기_합격_기출모의고사 11쪽 실기 10과 18쪽 모범답안을 대조했다.",
+    scenario: "SALES_FACT 테이블은 sale_date 기준 월별 Range Partitioning 되어 있다. 2026년 1월~3월 매출을 product와 조인해 상품별 합계로 조회한다.",
+    requirements: ["제시 SQL에서 발생하는 Partition Pruning 유형을 Static 또는 Dynamic으로 기술하시오.", "Local Prefixed, Local Non-Prefixed, Global 중 적절한 인덱스 형식을 선택하고 근거를 제시하시오."],
+    schemaSql: "전제: sales_fact는 sale_date 컬럼 기준 월별 Range Partition 테이블이다.",
+    currentSql: `SELECT p.prod_name, SUM(s.amount)
+FROM sales_fact s, product p
+WHERE s.prod_id = p.prod_id
+  AND s.sale_date BETWEEN '20260101' AND '20260331'
+GROUP BY p.prod_name;`,
+    executionPlan: "관찰 정보: sale_date 조건이 리터럴 범위로 주어져 파싱 시점에 2026년 1~3월 파티션 접근이 결정될 수 있다.",
+    answerSql: `-- 권장 인덱스
+CREATE INDEX SALES_FACT_LN1 ON sales_fact(prod_id, sale_date) LOCAL;`,
+    acceptedAlternatives: ["날짜 타입 컬럼이면 DATE 리터럴을 사용한 범위 조건으로 작성해야 한다. 핵심은 Static Pruning과 Local Non-Prefixed 선택 근거다."],
+    rubric: ["리터럴 범위 조건이므로 Static Partition Pruning임을 설명한다.", "파티션 관리성을 위해 Local Index를 선택한다.", "조인 컬럼 prod_id를 선두로 둔 Local Non-Prefixed Index를 제시한다.", "sale_date는 파티션 프루닝으로 접근 파티션을 줄이고, prod_id 선두 인덱스로 파티션 내부 탐색 효율을 높인다는 근거를 설명한다."],
+    explanation: "리터럴 날짜 범위는 컴파일 시점에 접근할 파티션을 결정할 수 있으므로 Static Partition Pruning이 가능하다. 월별 파티션 관리성을 유지하려면 Local Index가 유리하고, 조회/조인 조건에서는 prod_id가 핵심 탐색 컬럼이므로 `(prod_id, sale_date)` Local Non-Prefixed Index가 적절하다.",
+    relatedConcepts: ["Static Partition Pruning", "Local Non-Prefixed Index", "Global Index", "Partition-wise 관리"],
+    hints: ["파티션 키 조건이 리터럴인지 바인드인지 먼저 본다.", "파티션 Drop/Truncate 같은 관리 작업의 영향을 고려한다.", "파티션 내부에서는 prod_id 조인 탐색 효율을 높여야 한다."]
   })
 ];
 
