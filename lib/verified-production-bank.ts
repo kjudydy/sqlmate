@@ -5256,6 +5256,7 @@ function visibleQuestionText(question: ObjectiveQuestion) {
     question.stem,
     question.passage,
     question.code,
+    ...(question.visualAssets ?? []).map((asset) => [asset.title, asset.alt, asset.caption].filter(Boolean).join(" ")),
     question.explanation,
     question.hint,
     question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
@@ -5307,6 +5308,7 @@ function visibleLabText(lab: LabQuestion) {
     lab.scenario,
     lab.schemaSql,
     lab.seedSql,
+    ...(lab.visualAssets ?? []).map((asset) => [asset.title, asset.alt, asset.caption].filter(Boolean).join(" ")),
     ...(lab.sampleData ?? []).flatMap((table) => [table.title ?? "", ...table.headers, ...table.rows.flat()]),
     lab.traceStats,
     lab.predicateInfo,
@@ -5391,6 +5393,58 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     : question;
 
   question = withPatchedWhyWrong;
+
+  if (
+    question.subjectId === "tuning" &&
+    question.sourcePage === 99 &&
+    question.sourceQuestionNumber === 78 &&
+    question.generationMode === "original"
+  ) {
+    return {
+      ...question,
+      majorTopic: "SQL 고급활용 및 튜닝",
+      middleTopic: "파티션 튜닝",
+      topic: "Local Prefixed 파티션 인덱스",
+      difficulty: "상급",
+      questionType: "DDL 기반 인덱스 유형 판단형",
+      stem: "거래 테이블이 아래와 같을 때, 다음 중 Local Prefixed 파티션 인덱스로 가장 적절한 것은?",
+      passage: undefined,
+      code: `CREATE TABLE 거래 (
+  고객번호 VARCHAR2(10),
+  종목코드 VARCHAR2(20),
+  거래일시 DATE,
+  ...
+)
+PARTITION BY RANGE (거래일시) (
+  PARTITION p2010 VALUES LESS THAN (TO_DATE('20110101','YYYYMMDD')),
+  PARTITION p2011 VALUES LESS THAN (TO_DATE('20120101','YYYYMMDD')),
+  PARTITION p2012 VALUES LESS THAN (TO_DATE('20130101','YYYYMMDD')),
+  PARTITION p2013 VALUES LESS THAN (TO_DATE('20140101','YYYYMMDD')),
+  PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);`,
+      table: undefined,
+      tables: undefined,
+      choices: [
+        { id: "A", text: "CREATE INDEX 거래_N1 ON 거래(거래일시) LOCAL" },
+        { id: "B", text: "CREATE INDEX 거래_N2 ON 거래(고객번호) LOCAL" },
+        { id: "C", text: "CREATE INDEX 거래_N3 ON 거래(종목코드) LOCAL" },
+        { id: "D", text: "CREATE INDEX 거래_N4 ON 거래(종목코드, 거래일시) LOCAL" }
+      ],
+      answer: "A",
+      relatedConceptId: "tuning-partition-pruning",
+      hint:
+        "1단계: 테이블 파티션 키가 무엇인지 먼저 확인합니다.\n2단계: LOCAL 여부와 Prefixed 여부는 서로 다른 기준입니다.\n3단계: 파티션 키가 인덱스 선두 컬럼이면 Local Prefixed입니다.",
+      explanation:
+        "Local Prefixed 파티션 인덱스는 로컬 인덱스이면서 인덱스의 선두 컬럼이 테이블 파티션 키로 시작하는 경우다. 이 테이블은 거래일시 기준 Range Partition이므로 거래일시가 선두 컬럼인 거래_N1 LOCAL 인덱스가 Local Prefixed에 해당한다.",
+      whyWrong: {
+        A: "정답이다. LOCAL 인덱스이고 테이블 파티션 키인 거래일시가 인덱스 선두 컬럼이므로 Local Prefixed 파티션 인덱스다.",
+        B: "오답이다. LOCAL 인덱스이지만 선두 컬럼이 고객번호라서 테이블 파티션 키인 거래일시로 시작하지 않는다. Local Nonprefixed에 가깝다.",
+        C: "오답이다. LOCAL 인덱스이지만 종목코드가 선두 컬럼이므로 파티션 키 선두 조건을 만족하지 않는다.",
+        D: "오답이다. 거래일시가 포함되어 있더라도 선두 컬럼이 종목코드이므로 Prefixed 조건을 만족하지 않는다."
+      },
+      duplicationCheck: "manual PDF recheck: SQL-자격검정 실전문제 78번 원문 DDL의 p2013 파티션과 선택지를 복원"
+    };
+  }
 
   if (question.id === "prod-modeling-001") {
     return {
@@ -5587,8 +5641,36 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
   };
 }
 
+function addVisualAssetOnce(question: ObjectiveQuestion, asset: NonNullable<ObjectiveQuestion["visualAssets"]>[number]): ObjectiveQuestion {
+  const currentAssets = question.visualAssets ?? [];
+  if (currentAssets.some((item) => item.src === asset.src)) return question;
+  return {
+    ...question,
+    visualAssets: [...currentAssets, asset]
+  };
+}
+
+function withKnownVisualAssets(question: ObjectiveQuestion): ObjectiveQuestion {
+  if (
+    question.subjectId === "tuning" &&
+    question.sourcePage === 99 &&
+    question.sourceQuestionNumber === 78 &&
+    question.generationMode === "original"
+  ) {
+    return addVisualAssetOnce(question, {
+      src: "/problem-visuals/sql-cert-q78-local-prefixed.png",
+      title: "파티션 인덱스 DDL 원문 자료",
+      alt: "거래 테이블 Range Partition DDL과 Local Prefixed 인덱스 선택지",
+      caption: "DDL과 선택지 구조가 길어 원문 페이지에서 대조한 자료 이미지를 함께 제공합니다.",
+      kind: "diagram"
+    });
+  }
+
+  return question;
+}
+
 export const verifiedObjectiveQuestions: ObjectiveQuestion[] = renumberObjectiveQuestions(
-  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion).map(patchKnownObjectiveQuestionIssues)
+  objectiveQuestionCandidates.filter(isPublishedObjectiveQuestion).map(patchKnownObjectiveQuestionIssues).map(withKnownVisualAssets)
 );
 
 export const verifiedLabQuestions: LabQuestion[] = renumberLabQuestions(

@@ -63,6 +63,7 @@ function visibleQuestionText(question) {
     question.stem,
     question.passage,
     question.code,
+    question.visualAssets,
     question.table,
     question.tables,
     question.choices,
@@ -83,6 +84,7 @@ function visibleLabText(lab) {
     lab.scenario,
     lab.schemaSql,
     lab.seedSql,
+    lab.visualAssets,
     lab.sampleData,
     lab.traceStats,
     lab.predicateInfo,
@@ -474,6 +476,9 @@ if (labQuestion6) {
   });
 }
 
+const objectiveVisualAssetCount = objectiveQuestions.reduce((sum, question) => sum + (question.visualAssets?.length ?? 0), 0);
+const labVisualAssetCount = labQuestions.reduce((sum, lab) => sum + (lab.visualAssets?.length ?? 0), 0);
+
 const report = [
   "# Problem Bank Full Audit - 2026-07-30",
   "",
@@ -489,6 +494,8 @@ const report = [
       ["실기 총수", String(labQuestions.length)],
       ["객관식 감사 이슈", JSON.stringify(countBySeverity(objectiveIssues))],
       ["실기 감사 이슈", JSON.stringify(countBySeverity(labIssues))],
+      ["객관식 이미지 자료 연결", String(objectiveVisualAssetCount)],
+      ["실기 이미지 자료 연결", String(labVisualAssetCount)],
       ["복잡 자료 이미지/구조화 후보", String(imageCandidates.length)],
       ["원문 1:1 대조 추적 보강 후보", String(sourceRecheck.length)],
       ["깨진 문자/관리자 메타데이터 차단 이슈", String(blockerIssues.length)]

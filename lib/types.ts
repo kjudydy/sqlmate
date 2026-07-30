@@ -33,6 +33,15 @@ export type Choice = {
   text: string;
 };
 
+export type ProblemVisualAsset = {
+  src: string;
+  title: string;
+  alt: string;
+  caption?: string;
+  kind?: "diagram" | "table" | "plan" | "trace" | "sql" | "problem";
+  reveal?: "before-submit" | "after-submit";
+};
+
 export type ObjectiveQuestion = ContentSourceMetadata & {
   id: string;
   number: number;
@@ -56,6 +65,7 @@ export type ObjectiveQuestion = ContentSourceMetadata & {
     headers: string[];
     rows: string[][];
   }[];
+  visualAssets?: ProblemVisualAsset[];
   choices: Choice[];
   answer: ChoiceId;
   relatedConceptId?: string;
@@ -92,6 +102,7 @@ export type LabQuestion = ContentSourceMetadata & {
     headers: string[];
     rows: string[][];
   }[];
+  visualAssets?: ProblemVisualAsset[];
   traceStats?: string;
   predicateInfo?: string;
   prompt: string;

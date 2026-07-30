@@ -41,6 +41,7 @@ import type {
   LabQuestion,
   ObjectiveQuestion,
   PersonalNote,
+  ProblemVisualAsset,
   StudyStatePayload,
   SubjectId,
   TodoItem,
@@ -222,6 +223,7 @@ function objectiveUserVisibleText(question: ObjectiveQuestion) {
     question.stem,
     question.passage,
     question.code,
+    ...(question.visualAssets ?? []).map((asset) => [asset.title, asset.alt, asset.caption].filter(Boolean).join(" ")),
     question.table ? [question.table.headers.join(" "), question.table.rows.flat().join(" ")].join(" ") : "",
     ...(question.tables ?? []).map((table) => [table.title, table.headers.join(" "), table.rows.flat().join(" ")].filter(Boolean).join(" ")),
     ...question.choices.map((choice) => `${choice.id} ${choice.text}`),
@@ -241,6 +243,7 @@ function labUserVisibleText(lab: LabQuestion) {
     lab.scenario,
     lab.schemaSql,
     lab.seedSql,
+    ...(lab.visualAssets ?? []).map((asset) => [asset.title, asset.alt, asset.caption].filter(Boolean).join(" ")),
     lab.traceStats,
     lab.predicateInfo,
     lab.prompt,
@@ -411,6 +414,27 @@ function MaterialCodeCard({ material }: { material: LabMaterialSection }) {
       ) : (
         <pre>{material.body}</pre>
       )}
+    </div>
+  );
+}
+
+function VisualAssetGallery({ assets, submitted = false }: { assets?: ProblemVisualAsset[]; submitted?: boolean }) {
+  const visibleAssets = (assets ?? []).filter((asset) => asset.reveal !== "after-submit" || submitted);
+
+  if (!visibleAssets.length) return null;
+
+  return (
+    <div className="visual-asset-gallery">
+      {visibleAssets.map((asset) => (
+        <figure className={`visual-asset-card ${asset.kind ? `visual-${asset.kind}` : ""}`} key={asset.src}>
+          <div className="visual-asset-heading">
+            <strong>{asset.title}</strong>
+            {asset.kind && <span>{asset.kind.toUpperCase()}</span>}
+          </div>
+          <img src={asset.src} alt={asset.alt} loading="lazy" />
+          {asset.caption && <figcaption>{asset.caption}</figcaption>}
+        </figure>
+      ))}
     </div>
   );
 }
@@ -1810,9 +1834,10 @@ export default function Home() {
                 <h2>{currentQuestion.stem}</h2>
               </div>
 
-              {(currentQuestion.passage || currentQuestion.code || getObjectiveTables(currentQuestion).length) && (
+              {(currentQuestion.passage || currentQuestion.code || getObjectiveTables(currentQuestion).length || currentQuestion.visualAssets?.length) && (
                 <div className="exam-material">
                   {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
+                  <VisualAssetGallery assets={currentQuestion.visualAssets} submitted={Boolean(currentAnswer)} />
                   <DataMaterialVisual
                     tables={getObjectiveTables(currentQuestion)}
                     context={[currentQuestion.stem, currentQuestion.passage, currentQuestion.code].filter(Boolean).join("\n")}
@@ -2005,6 +2030,8 @@ export default function Home() {
               </div>
               <h2>{activeLab.title}</h2>
               <p className="lead">{activeLab.scenario}</p>
+
+              <VisualAssetGallery assets={activeLab.visualAssets} submitted={Boolean(labResult)} />
 
               {activeLab.sampleData?.length ? (
                 <div className="exam-material lab-sample-material">
@@ -2274,9 +2301,10 @@ export default function Home() {
                         {question.passage && <p className="wrong-note-passage">{question.passage}</p>}
                       </section>
 
-                      {(getObjectiveTables(question).length || question.code) && (
+                      {(getObjectiveTables(question).length || question.code || question.visualAssets?.length) && (
                         <section className="wrong-note-section">
                           <h4>문제 자료</h4>
+                          <VisualAssetGallery assets={question.visualAssets} submitted />
                           <DataMaterialVisual
                             tables={getObjectiveTables(question)}
                             context={[question.stem, question.passage, question.code].filter(Boolean).join("\n")}
