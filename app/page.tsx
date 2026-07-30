@@ -415,6 +415,46 @@ function MaterialCodeCard({ material }: { material: LabMaterialSection }) {
   );
 }
 
+type ExamTableData = NonNullable<ObjectiveQuestion["table"]>;
+
+function getObjectiveTables(question: ObjectiveQuestion): ExamTableData[] {
+  return [...(question.tables ?? []), ...(question.table ? [question.table] : [])];
+}
+
+function ExamDataTable({ table, tableKey }: { table: ExamTableData; tableKey: string }) {
+  const large = table.rows.length >= 10;
+  const wide = table.headers.length >= 5;
+
+  return (
+    <div className={`exam-table-wrap pdf-table-card ${large ? "large-table" : ""} ${wide ? "wide-table" : ""}`}>
+      <div className="pdf-table-heading">
+        <strong className="exam-table-title">{table.title ?? "자료 표"}</strong>
+        <span>
+          {table.rows.length}행 · {table.headers.length}열
+        </span>
+      </div>
+      <table className="exam-table">
+        <thead>
+          <tr>
+            {table.headers.map((header, headerIndex) => (
+              <th key={`${tableKey}-header-${headerIndex}`}>{header}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, rowIndex) => (
+            <tr key={`${tableKey}-row-${rowIndex}`}>
+              {row.map((cell, cellIndex) => (
+                <td key={`${tableKey}-${rowIndex}-${cellIndex}`}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function splitLabMaterial(seedSql: string): LabMaterialSection[] {
   const source = seedSql.trim();
   if (!source) return [];
@@ -1699,32 +1739,16 @@ export default function Home() {
                 <h2>{currentQuestion.stem}</h2>
               </div>
 
-              {(currentQuestion.passage || currentQuestion.code || currentQuestion.table || currentQuestion.tables?.length) && (
+              {(currentQuestion.passage || currentQuestion.code || getObjectiveTables(currentQuestion).length) && (
                 <div className="exam-material">
                   {currentQuestion.passage && <p>{currentQuestion.passage}</p>}
-                  {[...(currentQuestion.tables ?? []), ...(currentQuestion.table ? [currentQuestion.table] : [])].map((table, tableIndex) => (
-                    <div className="exam-table-wrap" key={`${currentQuestion.id}-table-${tableIndex}`}>
-                      {table.title && <strong className="exam-table-title">{table.title}</strong>}
-                      <table className="exam-table">
-                        <thead>
-                          <tr>
-                            {table.headers.map((header, headerIndex) => (
-                              <th key={`${currentQuestion.id}-${tableIndex}-header-${headerIndex}`}>{header}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {table.rows.map((row, rowIndex) => (
-                            <tr key={`${currentQuestion.id}-${tableIndex}-row-${rowIndex}`}>
-                              {row.map((cell, cellIndex) => (
-                                <td key={`${currentQuestion.id}-${tableIndex}-${rowIndex}-${cellIndex}`}>{cell}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {getObjectiveTables(currentQuestion).length ? (
+                    <div className={`exam-table-grid ${getObjectiveTables(currentQuestion).length > 1 ? "multi-table" : ""}`}>
+                      {getObjectiveTables(currentQuestion).map((table, tableIndex) => (
+                        <ExamDataTable table={table} tableKey={`${currentQuestion.id}-${tableIndex}`} key={`${currentQuestion.id}-table-${tableIndex}`} />
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
                   {currentQuestion.code &&
                     splitQuestionMaterial(currentQuestion.code).map((material, materialIndex) => (
                       <MaterialCodeCard material={material} key={`${currentQuestion.id}-material-${materialIndex}`} />
@@ -1909,29 +1933,11 @@ export default function Home() {
 
               {activeLab.sampleData?.length ? (
                 <div className="exam-material lab-sample-material">
-                  {activeLab.sampleData.map((table, tableIndex) => (
-                    <div className="exam-table-wrap" key={`${activeLab.id}-sample-${tableIndex}`}>
-                      {table.title && <strong className="material-title">{table.title}</strong>}
-                      <table className="exam-table">
-                        <thead>
-                          <tr>
-                            {table.headers.map((header, headerIndex) => (
-                              <th key={`${activeLab.id}-sample-head-${headerIndex}`}>{header}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {table.rows.map((row, rowIndex) => (
-                            <tr key={`${activeLab.id}-sample-row-${rowIndex}`}>
-                              {row.map((cell, cellIndex) => (
-                                <td key={`${activeLab.id}-sample-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
+                  <div className={`exam-table-grid ${activeLab.sampleData.length > 1 ? "multi-table" : ""}`}>
+                    {activeLab.sampleData.map((table, tableIndex) => (
+                      <ExamDataTable table={table} tableKey={`${activeLab.id}-sample-${tableIndex}`} key={`${activeLab.id}-sample-${tableIndex}`} />
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
@@ -2192,31 +2198,16 @@ export default function Home() {
                         {question.passage && <p className="wrong-note-passage">{question.passage}</p>}
                       </section>
 
-                      {(question.table || question.code) && (
+                      {(getObjectiveTables(question).length || question.code) && (
                         <section className="wrong-note-section">
                           <h4>문제 자료</h4>
-                          {question.table && (
-                            <div className="exam-table-wrap wrong-table-wrap">
-                              <table className="exam-table">
-                                <thead>
-                                  <tr>
-                                    {question.table.headers.map((header) => (
-                                      <th key={`${question.id}-wrong-header-${header}`}>{header}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {question.table.rows.map((row, rowIndex) => (
-                                    <tr key={`${question.id}-wrong-row-${rowIndex}`}>
-                                      {row.map((cell, cellIndex) => (
-                                        <td key={`${question.id}-wrong-${rowIndex}-${cellIndex}`}>{cell}</td>
-                                      ))}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                          {getObjectiveTables(question).length ? (
+                            <div className={`exam-table-grid ${getObjectiveTables(question).length > 1 ? "multi-table" : ""}`}>
+                              {getObjectiveTables(question).map((table, tableIndex) => (
+                                <ExamDataTable table={table} tableKey={`${question.id}-wrong-${tableIndex}`} key={`${question.id}-wrong-table-${tableIndex}`} />
+                              ))}
                             </div>
-                          )}
+                          ) : null}
                           {question.code && (
                             <div className="wrong-code-block">
                               {splitQuestionMaterial(question.code).map((material, materialIndex) => (

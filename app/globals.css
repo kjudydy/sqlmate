@@ -1252,6 +1252,12 @@ ul {
   overflow: auto;
 }
 
+.schema-panel pre,
+.code-panel pre {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  tab-size: 2;
+}
+
 .split-panels {
   grid-template-columns: minmax(320px, 1.2fr) minmax(260px, 0.8fr);
   align-items: stretch;
@@ -2724,28 +2730,60 @@ body {
   margin-bottom: 10px;
 }
 
+.exam-table-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.exam-table-grid.multi-table {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+
 .exam-table-wrap {
   overflow: auto;
 }
 
+.pdf-table-card {
+  border: 1px solid rgba(31, 41, 55, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 10px;
+  box-shadow: 0 8px 18px rgba(31, 41, 55, 0.05);
+}
+
+.pdf-table-card.large-table {
+  max-height: 420px;
+}
+
+.pdf-table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  min-width: max-content;
+}
+
 .exam-table-title {
   display: inline-block;
-  margin: 0 0 8px;
   color: #344054;
   font-size: 13px;
   font-weight: 900;
 }
 
-.material-title {
-  display: inline-block;
-  margin-bottom: 8px;
-  color: #344054;
-  font-size: 13px;
+.pdf-table-heading span {
+  border-radius: 999px;
+  background: rgba(8, 117, 104, 0.09);
+  color: #075f56;
+  padding: 4px 8px;
+  font-size: 11.5px;
   font-weight: 850;
+  white-space: nowrap;
 }
 
 .exam-table {
-  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
   overflow: hidden;
   border-radius: 8px;
@@ -2758,12 +2796,20 @@ body {
   border: 1px solid rgba(31, 41, 55, 0.12);
   padding: 9px 10px;
   text-align: left;
+  vertical-align: top;
 }
 
 .exam-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: #f2f4f7;
   color: #344054;
   font-weight: 850;
+}
+
+.wide-table .exam-table {
+  min-width: 720px;
 }
 
 @media (max-width: 1180px) {
