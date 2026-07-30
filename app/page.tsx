@@ -1573,13 +1573,11 @@ export default function Home() {
       </aside>
 
       <section className="workspace">
-        <header className={section === "dashboard" ? "topbar" : "topbar compact"}>
-          {section === "dashboard" && (
-            <div>
-              <p className="eyebrow">My study room</p>
-              <h1>{sectionTitle(section)}</h1>
-            </div>
-          )}
+        <header className="topbar">
+          <div>
+            {section === "dashboard" && <p className="eyebrow">My study room</p>}
+            <h1>{sectionTitle(section)}</h1>
+          </div>
           <div className="top-actions">
             <span className="pill">{scoreLabel(accuracy)} · 정답률 {accuracy}%</span>
             {cloudUser ? (
@@ -2186,7 +2184,7 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Review Queue</p>
-                <h2>오답노트</h2>
+                <p className="panel-subtitle">틀린 문제와 선택지별 해설을 다시 확인합니다.</p>
               </div>
               <span className="pill">{wrongQuestionIds.length}문제</span>
             </div>
@@ -2583,7 +2581,7 @@ export default function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Private Notes</p>
-                <h2>개인 노트</h2>
+                <p className="panel-subtitle">내 SQLP 메모와 형광펜을 관리합니다.</p>
               </div>
               <button className="primary-button" onClick={addPersonalNote}>
                 <Plus size={17} />새 노트
@@ -2726,7 +2724,7 @@ function sectionTitle(section: Section) {
     case "lab":
       return "문제풀이 · SQL 실습";
     case "wrong":
-      return "오답 복습";
+      return "오답노트";
     case "concepts":
       return "개념정리";
     case "notes":
