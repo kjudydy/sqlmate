@@ -1125,6 +1125,20 @@ const conceptSeeds: ConceptSeed[] = [
       },
       {
         type: "table",
+        title: "실기 복기 핵심 계산식",
+        headers: ["계산 항목", "공식", "해석"],
+        rows: [
+          ["Execute당 평균 Rows", "Rows / Execute Count", "루프 안에서 같은 SQL이 반복 수행될 때 1회 실행당 실제 처리 행 수를 본다."],
+          ["평균 Block", "(Query + Current) / Fetch Count", "Fetch 한 번마다 읽은 논리 블록 수를 계산해 배열 Fetch 크기와 I/O 효율을 함께 판단한다."],
+          ["Array Size", "Fetch Rows / Fetch Count", "반환 행 수 대비 Fetch Call이 지나치게 많으면 애플리케이션 Fetch 크기나 네트워크 왕복을 의심한다."],
+          ["논리적 I/O", "Query + Current", "consistent get과 current get을 합쳐 Buffer Cache 접근량으로 해석한다."],
+          ["물리적 I/O", "Disk", "디스크에서 실제 읽은 블록으로, 캐시 적중률과 Full Scan/Temp Spill 여부를 함께 본다."],
+          ["Application Cursor Caching", "Execute Count > Parse Count", "같은 커서가 애플리케이션에서 재사용되고 있는지 판단하는 단서가 된다."],
+          ["Soft Parse 100%", "Parse count misses in library cache = 0", "라이브러리 캐시 미스가 없으면 하드 파싱 없이 소프트 파싱으로 재사용된 것이다."]
+        ]
+      },
+      {
+        type: "table",
         title: "Trace 수치 해석 예",
         headers: ["패턴", "가능한 원인", "확인할 계획"],
         rows: [
@@ -1255,6 +1269,21 @@ const conceptSeeds: ConceptSeed[] = [
           ["order_dt >= :b1 only on (cust_id, order_dt)", "선두 컬럼이 없어 넓은 탐색 또는 Skip Scan 후보가 된다.", "SQL 패턴에 맞는 별도 인덱스 필요성을 검토한다."],
           ["to_char(order_dt,'YYYYMM') = :b1", "일반 인덱스 access가 어렵다.", "반개구간 날짜 조건 또는 함수 기반 인덱스를 검토한다."],
           ["status_cd <> 'CANCEL'", "부정 조건은 선택 범위가 넓을 수 있다.", "다른 선택 조건과 조합하거나 Full Scan 손익분기점을 본다."]
+        ]
+      },
+      {
+        type: "table",
+        title: "Index Range Scan 가능/불가능 패턴",
+        headers: ["구분", "조건 예", "판단 근거"],
+        rows: [
+          ["불가능", "SUBSTR(C1, 1, 3) = 'ABC'", "인덱스 컬럼을 함수로 가공하면 일반 B-tree 인덱스의 시작점을 직접 찾기 어렵다."],
+          ["불가능", "NVL(C1, 0) = 0", "컬럼 가공 조건이므로 함수 기반 인덱스가 없으면 access predicate가 되기 어렵다."],
+          ["불가능", "C1 != 'A' 또는 C1 NOT IN ('A','B')", "부정형 비교는 좁은 시작점과 종료점을 만들기 어렵고 대량 범위가 될 가능성이 크다."],
+          ["불가능", "C1 LIKE '%ABC'", "앞쪽 와일드카드는 리프 블록의 시작 위치를 정할 수 없다."],
+          ["불가능 주의", "문자형 컬럼 CHAR_COL = 123", "암시적 형변환이 컬럼 쪽에 발생하면 인덱스 컬럼 가공과 같은 효과가 날 수 있다."],
+          ["가능", "NUM_COL = '123'", "숫자형 컬럼에 문자 리터럴을 비교하면 리터럴이 숫자로 변환되어 컬럼 가공이 발생하지 않는 경우가 일반적이다."],
+          ["가능", "C1 LIKE 'ABC%'", "우측 와일드카드는 'ABC' 이상 다음 접두 범위 미만의 Range Scan으로 처리할 수 있다."],
+          ["가능", "ORD_DT >= DATE '2026-01-01' AND ORD_DT < DATE '2026-02-01'", "날짜 컬럼을 가공하지 않는 반개구간 조건은 인덱스 시작점과 종료점을 명확히 만든다."]
         ]
       },
       {
@@ -1478,6 +1507,19 @@ const conceptSeeds: ConceptSeed[] = [
           ["Predicate Pushing", "선택 조건을 조기 적용해 입력 집합을 줄일 때", "OUTER JOIN 보존 행이나 집계 전후 의미가 달라질 때"],
           ["Subquery Unnesting", "EXISTS/IN을 세미 조인으로 바꿔 반복 실행을 줄일 때", "NULL 처리, 상관 조건, 집계 서브쿼리 의미가 복잡할 때"],
           ["OR Expansion", "OR 조건을 UNION ALL 분기로 나눠 각 인덱스를 쓰게 할 때", "분기 중복 제거 조건을 빠뜨리면 결과가 중복될 때"]
+        ]
+      },
+      {
+        type: "table",
+        title: "실기 답안에 자주 쓰이는 변환 제어 힌트",
+        headers: ["힌트", "주요 의도", "주의할 점"],
+        rows: [
+          ["NO_UNNEST", "서브쿼리를 조인으로 풀지 않고 원래 서브쿼리 형태로 남긴다.", "Top-N 이후 소량 집합 조회처럼 반복 횟수가 이미 작아진 경우에 유리할 수 있다."],
+          ["PUSH_SUBQ", "필터 서브쿼리를 가능한 빨리 수행해 후속 조인의 입력을 줄인다.", "서브쿼리 결과 보존 조건과 선택도를 먼저 확인해야 한다."],
+          ["UNNEST HASH_SJ", "EXISTS/IN 서브쿼리를 해시 세미 조인으로 변환한다.", "NULL 의미, 중복, 상관 조건이 결과를 바꾸지 않는지 검증한다."],
+          ["NO_MERGE", "인라인 뷰를 바깥 쿼리와 병합하지 못하게 한다.", "집계 후 조인, Top-N 후 조인처럼 뷰 내부 처리 순서가 성능 의도인 경우 사용한다."],
+          ["PUSH_PRED", "바깥 조건을 뷰 내부 또는 조인 입력으로 밀어 넣는다.", "Outer Join 보존 행이 사라지지 않는지 확인해야 한다."],
+          ["SWAP_JOIN_INPUTS(table)", "Hash Join의 Build/Probe 입력을 바꾸도록 유도한다.", "작은 집합이 Build Input이 되는지, 메모리 사용량과 spill 가능성을 함께 본다."]
         ]
       },
       {

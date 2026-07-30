@@ -20,7 +20,7 @@ import type {
 
 const choiceIds: ChoiceId[] = ["A", "B", "C", "D"];
 
-export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-29-v10";
+export const verifiedOfficialSourceVersion = "official-pdf-reviewed-only-2026-07-30-v11";
 
 export const verifiedOfficialPdfSources = [
   { name: "SQL-자격검정-실전문제.pdf", pages: 144, textPages: 136, lowTextPages: [1, 12, 20, 40, 71, 93, 106, 107], questionCandidates: 685, focus: ["modeling", "sql-basic", "tuning"] as SubjectId[], visualChecks: [8, 9, 22, 24, 25, 73, 74, 75, 137, 138, 139] },
@@ -594,6 +594,23 @@ function makeManualQuestion(input: ManualPublishedQuestion): ObjectiveQuestion {
     whyWrong: Object.fromEntries(input.choices.map((choice) => [choice.id, choice.explanation])) as Record<ChoiceId, string>,
     duplicationCheck: "manual PDF-based starter extension; not a numeric/name-only variant"
   };
+}
+
+function stepHint(first: string, second: string, third: string) {
+  return `1단계: ${first}\n2단계: ${second}\n3단계: ${third}`;
+}
+
+type CompactManualQuestion = Omit<ManualPublishedQuestion, "choices" | "hint"> & {
+  choices: Array<[ChoiceId, string, string]>;
+  hint: [string, string, string];
+};
+
+function makeCompactManualQuestion(input: CompactManualQuestion): ObjectiveQuestion {
+  return makeManualQuestion({
+    ...input,
+    choices: input.choices.map(([id, text, explanation]) => ({ id, text, explanation })),
+    hint: stepHint(input.hint[0], input.hint[1], input.hint[2])
+  });
 }
 
 const manualVerifiedObjectiveQuestions: ObjectiveQuestion[] = [
@@ -3452,12 +3469,823 @@ function capObjectiveQuestions(questions: ObjectiveQuestion[], targetPerSubject 
   });
 }
 
+const manualVerifiedObjectiveQuestionsBatch05: ObjectiveQuestion[] = ([
+  {
+    subjectId: "modeling",
+    number: 51,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "엔터티",
+    topic: "엔터티 후보 판정",
+    difficulty: "중급",
+    questionType: "업무 시나리오 판단형",
+    mode: "similar",
+    sourcePage: 9,
+    parentQuestionId: "pdf-s-1-entity-candidate",
+    stem: "학원 시스템에서 수강신청은 수강생과 강좌의 조합마다 발생하며 신청일자, 결제상태, 환불여부를 가진다. 다음 중 모델링 관점에서 가장 적절한 설명은?",
+    choices: [
+      ["A", "수강신청은 화면 버튼이므로 엔터티가 아니라 프로세스만으로 관리한다.", "오답이다. 업무상 관리해야 할 발생 사실과 속성이 있으므로 데이터로 관리해야 한다."],
+      ["B", "수강신청은 수강생과 강좌 사이의 M:N 관계를 해소하는 행위 엔터티로 도출할 수 있다.", "정답이다. 관계 자체에 신청일자와 결제상태 같은 속성이 있으므로 교차 엔터티가 적절하다."],
+      ["C", "수강생 테이블에 강좌번호1, 강좌번호2를 반복 컬럼으로 추가하면 정규화 측면에서 가장 안정적이다.", "오답이다. 반복 컬럼은 확장성과 제1정규형 측면에서 부적절하다."],
+      ["D", "강좌 테이블에 최근수강생번호만 저장하면 전체 수강 이력을 보존할 수 있다.", "오답이다. 여러 수강생과 이력 속성을 표현하지 못한다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-relationship",
+    hint: ["관계 자체에 속성이 있는지 본다.", "M:N 관계를 물리 테이블로 직접 구현할 수 있는지 판단한다.", "교차 엔터티가 필요한 경우를 찾는다."],
+    explanation: "수강신청은 수강생과 강좌의 단순 연결을 넘어 신청일자, 결제상태, 환불여부라는 독립 속성을 가진다. 이런 경우 관계를 행위 엔터티로 도출해 두 부모 엔터티와 각각 1:M 관계를 맺게 하는 것이 적절하다."
+  },
+  {
+    subjectId: "modeling",
+    number: 52,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "식별자",
+    topic: "주식별자 최소성",
+    difficulty: "상급",
+    questionType: "식별자 구성 판단형",
+    mode: "variant",
+    sourcePage: 24,
+    parentQuestionId: "pdf-v-1-identifier-minimality",
+    stem: "보험계약상세 엔터티의 후보 식별자로 (계약번호, 담보코드, 적용시작일자)가 있고, 담보코드는 계약번호 안에서만 유일하다. 적용시작일자는 동일 담보의 이력 구분에 필요하다. 가장 적절한 판단은?",
+    choices: [
+      ["A", "계약번호만으로 계약상세를 식별할 수 있으므로 나머지 컬럼은 주식별자에서 제외한다.", "오답이다. 한 계약에 여러 담보와 이력이 존재하므로 계약번호만으로 유일하지 않다."],
+      ["B", "담보코드는 코드성이므로 주식별자에 포함할 수 없다.", "오답이다. 업무상 식별에 필요한 코드라면 주식별자 구성 요소가 될 수 있다."],
+      ["C", "(계약번호, 담보코드, 적용시작일자)는 유일성과 최소성을 만족하는 후보가 될 수 있다.", "정답이다. 세 컬럼 모두 이력 단위 식별에 필요하고 어느 하나를 빼면 유일성이 깨진다."],
+      ["D", "이력 테이블은 항상 인조식별자 하나만 주식별자로 사용해야 한다.", "오답이다. 인조식별자를 쓸 수는 있지만 업무 유일성 제약은 별도로 보존해야 한다."]
+    ],
+    answer: "C",
+    relatedConceptId: "modeling-identifier",
+    hint: ["각 컬럼을 제거했을 때 유일성이 유지되는지 본다.", "이력 구분 컬럼이 식별에 필요한지 확인한다.", "인조식별자 도입 여부와 업무 유일성은 분리해 판단한다."],
+    explanation: "주식별자는 유일성뿐 아니라 최소성을 만족해야 한다. 계약번호만으로는 여러 담보를 구분할 수 없고, 적용시작일자를 제외하면 동일 담보의 이력을 구분할 수 없으므로 세 컬럼 조합이 후보 식별자가 된다."
+  },
+  {
+    subjectId: "modeling",
+    number: 53,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "관계",
+    topic: "선택 관계와 NULL",
+    difficulty: "중급",
+    questionType: "관계 선택성 판단형",
+    mode: "similar",
+    sourcePage: 18,
+    parentQuestionId: "pdf-s-1-optional-relationship",
+    stem: "배송은 주문이 출고된 이후에만 생성된다. 주문은 생성 직후 배송이 없을 수 있고, 배송은 반드시 하나의 주문에 속한다. 주문-배송 관계를 표현할 때 가장 적절한 것은?",
+    choices: [
+      ["A", "주문과 배송은 항상 1:1 필수 관계이므로 주문 생성 시 배송번호를 반드시 입력한다.", "오답이다. 주문 생성 직후에는 배송이 없을 수 있으므로 주문 입장에서 선택 관계다."],
+      ["B", "배송 테이블에 주문번호 외래키를 두고 배송 입장에서는 필수, 주문 입장에서는 선택 관계로 표현한다.", "정답이다. 배송은 주문 없이 존재할 수 없지만 주문은 배송 전 상태가 가능하다."],
+      ["C", "주문 테이블에 배송상태 컬럼만 두면 배송 엔터티는 필요 없다.", "오답이다. 배송번호, 배송일자, 기사 등 배송 자체 속성과 이력을 잃는다."],
+      ["D", "배송이 늦게 생성되므로 주문번호 외래키를 NULL 허용으로 두어야 한다.", "오답이다. 배송 행이 생성되는 순간에는 반드시 주문에 속해야 하므로 배송의 주문번호는 필수다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-null",
+    hint: ["어느 쪽 행이 먼저 생기는지 본다.", "각 엔터티 입장에서 관계 참여가 필수인지 선택인지 구분한다.", "외래키 NULL 허용 여부는 자식 행 존재 시점을 기준으로 판단한다."],
+    explanation: "주문은 배송 전에 존재할 수 있으므로 주문에서 배송으로의 참여는 선택이다. 반면 배송은 특정 주문 없이 존재할 수 없으므로 배송의 주문번호 외래키는 필수로 설계하는 것이 자연스럽다."
+  },
+  {
+    subjectId: "modeling",
+    number: 54,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "정규화",
+    topic: "제1정규형",
+    difficulty: "기본",
+    questionType: "정규형 위반 판단형",
+    mode: "original",
+    sourcePage: 37,
+    parentQuestionId: "pdf-o-1-1nf-repeating",
+    stem: "고객 테이블에 전화번호1, 전화번호2, 전화번호3 컬럼을 두고 고객별 연락처를 관리한다. 업무상 한 고객은 연락처를 0개 이상 가질 수 있고 연락처별 용도와 인증여부도 관리해야 한다. 가장 적절한 개선안은?",
+    choices: [
+      ["A", "전화번호 컬럼을 충분히 많이 늘려 향후 최대 개수를 대비한다.", "오답이다. 반복 컬럼 증가는 구조 변경을 반복시키고 용도/인증여부 관리도 어렵다."],
+      ["B", "전화번호들을 콤마로 연결해 하나의 문자열 컬럼에 저장한다.", "오답이다. 원자값 원칙을 훼손하고 검색과 제약 검사가 어려워진다."],
+      ["C", "고객연락처 엔터티를 분리해 고객번호와 연락처순번 또는 연락처번호로 식별한다.", "정답이다. 다중값 속성을 별도 엔터티로 분리하는 것이 제1정규형에 맞다."],
+      ["D", "최근 인증된 전화번호 하나만 고객 테이블에 남기고 나머지는 삭제한다.", "오답이다. 업무가 요구하는 전체 연락처 관리를 보존하지 못한다."]
+    ],
+    answer: "C",
+    relatedConceptId: "modeling-normalization",
+    hint: ["한 행 한 컬럼에 여러 값이 들어가는지 본다.", "연락처 자체에 속성이 있는지 확인한다.", "다중값 속성은 별도 엔터티로 분리하는지 판단한다."],
+    explanation: "연락처가 0개 이상이고 용도, 인증여부 같은 속성을 가지면 단순 반복 컬럼이 아니라 고객연락처 엔터티로 분리해야 한다. 이는 원자값 보장과 확장성 측면에서 제1정규형에 맞는다."
+  },
+  {
+    subjectId: "modeling",
+    number: 55,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "정규화",
+    topic: "제2정규형",
+    difficulty: "중급",
+    questionType: "부분 함수 종속 판단형",
+    mode: "variant",
+    sourcePage: 38,
+    parentQuestionId: "pdf-v-1-2nf",
+    stem: "주문상세(주문번호, 상품번호, 주문수량, 상품명, 상품분류명)에서 기본키는 (주문번호, 상품번호)이고, 상품명과 상품분류명은 상품번호만으로 결정된다. 가장 적절한 정규화 판단은?",
+    choices: [
+      ["A", "상품명은 주문상세 화면에 필요하므로 주문상세에 반복 저장해야 한다.", "오답이다. 조회 편의가 정규화 위반을 정당화하지는 않는다."],
+      ["B", "상품명과 상품분류명은 복합키 일부인 상품번호에만 종속되므로 상품 엔터티로 분리하는 것이 적절하다.", "정답이다. 부분 함수 종속 제거가 제2정규형의 핵심이다."],
+      ["C", "상품분류명은 설명 속성이므로 어떤 테이블에 있어도 정규화와 무관하다.", "오답이다. 코드/분류에 종속되는 설명값은 중복과 갱신 이상을 만든다."],
+      ["D", "주문수량도 상품번호만으로 결정되므로 상품 엔터티로 이동한다.", "오답이다. 주문수량은 주문과 상품의 조합에 종속되는 거래 속성이다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-normalization",
+    hint: ["복합키의 일부만으로 결정되는 속성을 찾는다.", "주문별로 달라지는 속성과 상품 자체 속성을 구분한다.", "부분 함수 종속은 별도 엔터티 분리 대상이다."],
+    explanation: "상품명과 상품분류명은 주문번호와 무관하게 상품번호만으로 결정된다. 복합키 일부에만 종속되는 속성이므로 주문상세가 아니라 상품 쪽으로 분리해야 제2정규형을 만족한다."
+  },
+  {
+    subjectId: "modeling",
+    number: 56,
+    majorTopic: "데이터 모델링의 이해",
+    middleTopic: "정규화",
+    topic: "제3정규형",
+    difficulty: "중급",
+    questionType: "이행 종속 판단형",
+    mode: "variant",
+    sourcePage: 40,
+    parentQuestionId: "pdf-v-1-3nf",
+    stem: "수강이력(수강생번호, 과목번호, 교수번호, 교수명)에서 기본키는 (수강생번호, 과목번호)이고 교수번호가 교수명을 결정한다. 가장 적절한 설명은?",
+    choices: [
+      ["A", "교수명은 기본키 전체에 직접 종속되므로 분리하지 않는다.", "오답이다. 교수번호를 통해 교수명에 이행 종속된다."],
+      ["B", "교수번호와 교수명을 교수 엔터티로 분리해 이행 종속을 제거한다.", "정답이다. 비식별자 속성이 다른 비식별자 속성을 결정하므로 제3정규형 관점에서 분리한다."],
+      ["C", "교수명을 기본키에 포함하면 모든 정규화 문제가 해결된다.", "오답이다. 이름은 식별 안정성이 낮고 중복을 늘린다."],
+      ["D", "교수번호는 코드이므로 수강이력에 저장할 수 없다.", "오답이다. 참조키로 저장할 수 있으며 교수 정보는 별도 엔터티로 관리한다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-normalization",
+    hint: ["비식별자 속성 사이의 결정 관계를 찾는다.", "교수번호가 교수명을 결정하는지 확인한다.", "이행 종속은 제3정규형에서 제거한다."],
+    explanation: "교수명은 수강이력의 식별자에 직접 종속되기보다 교수번호에 종속된다. 따라서 교수 엔터티를 분리하고 수강이력에는 교수번호만 참조시키는 것이 적절하다."
+  },
+  {
+    subjectId: "modeling",
+    number: 57,
+    majorTopic: "데이터 모델링과 성능",
+    middleTopic: "반정규화",
+    topic: "파생 속성 저장",
+    difficulty: "상급",
+    questionType: "반정규화 적용 판단형",
+    mode: "similar",
+    sourcePage: 55,
+    parentQuestionId: "pdf-s-1-denormalization-derived",
+    stem: "일별 상품 재고를 조회할 때 입고, 출고, 조정 이력을 매번 집계해 현재고를 계산한다. 조회는 초당 수백 회 발생하지만 입출고 등록은 배치성으로 모아서 처리된다. 가장 적절한 반정규화 검토 방향은?",
+    choices: [
+      ["A", "정규화 모델에서는 파생값 저장이 항상 금지되므로 현재고 컬럼을 둘 수 없다.", "오답이다. 성능 요구와 정합성 유지 방안이 명확하면 파생 속성 저장을 검토할 수 있다."],
+      ["B", "현재고를 상품재고 테이블에 저장하고 입출고 반영 시점과 검증 배치를 함께 설계한다.", "정답이다. 조회 빈도가 높고 갱신 통제가 가능하면 파생값 저장이 효과적일 수 있다."],
+      ["C", "입출고 이력을 삭제하고 현재고만 남기면 모델이 가장 단순해진다.", "오답이다. 이력 추적과 감사 요구를 잃는다."],
+      ["D", "현재고를 화면 캐시에만 저장하면 데이터 정합성 설계가 필요 없다.", "오답이다. 캐시도 무효화와 정합성 기준이 필요하다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-normalization",
+    hint: ["조회 빈도와 갱신 빈도의 균형을 본다.", "파생값 저장 시 정합성 유지 절차가 있는지 확인한다.", "원천 이력 보존 여부를 함께 판단한다."],
+    explanation: "반정규화는 무조건 중복 저장이 아니라 조회 성능과 정합성 비용의 균형 문제다. 현재고처럼 조회가 매우 빈번하고 갱신 경로를 통제할 수 있다면 파생 속성 저장과 검증 배치를 함께 설계할 수 있다."
+  },
+  {
+    subjectId: "modeling",
+    number: 58,
+    majorTopic: "데이터 모델링과 성능",
+    middleTopic: "이력 모델링",
+    topic: "기간 이력 무결성",
+    difficulty: "상급",
+    questionType: "이력 모델 판단형",
+    mode: "similar",
+    sourcePage: 61,
+    parentQuestionId: "pdf-s-1-period-history",
+    stem: "회원등급은 시간에 따라 변경되며 주문 당시 등급으로 할인율을 계산해야 한다. 등급이력에는 적용시작일자만 있고 종료일자는 없다. 가장 먼저 보완해야 할 모델링 요소는?",
+    choices: [
+      ["A", "최신 등급만 남기고 과거 등급은 주문 테이블의 할인금액으로 대체한다.", "오답이다. 과거 기준 재계산과 검증이 어렵다."],
+      ["B", "적용종료일자 또는 다음 시작일 기준으로 기간을 식별하고 기간 중첩 방지 규칙을 둔다.", "정답이다. 주문 시점의 등급을 안정적으로 찾으려면 유효 기간 무결성이 필요하다."],
+      ["C", "등급명을 주문 테이블에 문자로 복사하면 이력 테이블은 필요 없다.", "오답이다. 등급 정책 변경과 검증 기준을 잃는다."],
+      ["D", "적용시작일자를 제거하고 변경순번만 두면 시간 기준 조회가 쉬워진다.", "오답이다. 주문일자 기준 이력 조회가 불가능해진다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-history",
+    hint: ["주문 시점의 값을 찾아야 하는지 본다.", "기간이 닫혀 있지 않으면 어떤 문제가 생기는지 확인한다.", "중첩과 공백 방지 규칙이 필요하다."],
+    explanation: "시점 기준 이력 모델은 적용 시작과 종료 범위를 명확히 해야 한다. 종료일자 또는 다음 시작일 기준 규칙을 두고 한 회원의 등급 기간이 중첩되지 않도록 제약을 설계해야 한다."
+  },
+  {
+    subjectId: "modeling",
+    number: 59,
+    majorTopic: "데이터 모델링과 성능",
+    middleTopic: "슈퍼타입/서브타입",
+    topic: "물리 모델 변환",
+    difficulty: "상급",
+    questionType: "서브타입 변환 판단형",
+    mode: "similar",
+    sourcePage: 63,
+    parentQuestionId: "pdf-s-1-super-subtype",
+    stem: "결제수단은 카드, 계좌이체, 간편결제로 나뉜다. 공통 속성이 많고 대부분의 조회가 전체 결제수단을 대상으로 하며, 각 유형 고유 속성은 일부만 사용된다. 우선 검토할 물리 모델은?",
+    choices: [
+      ["A", "유형별 테이블을 완전히 분리하고 전체 조회는 항상 UNION ALL로 처리한다.", "오답이다. 전체 조회가 매우 빈번하면 UNION ALL 반복 비용이 커질 수 있다."],
+      ["B", "공통/고유 속성을 하나의 결제수단 테이블에 통합하고 유형코드로 구분한다.", "정답이다. 공통 속성이 많고 전체 조회 중심이면 통합 테이블이 유리할 수 있다."],
+      ["C", "공통 속성을 모든 서브타입 테이블에 복사해 조인을 제거한다.", "오답이다. 중복과 정합성 문제가 크다."],
+      ["D", "유형코드를 제거하고 NULL 여부만으로 유형을 추론한다.", "오답이다. 유형 판정 기준이 불명확하고 제약 관리가 어렵다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-super-subtype",
+    hint: ["조회 패턴이 전체 중심인지 유형별 중심인지 본다.", "공통 속성과 고유 속성 비율을 확인한다.", "통합 모델의 NULL 관리 비용도 함께 고려한다."],
+    explanation: "슈퍼타입/서브타입 물리 변환은 조회 패턴과 속성 분포가 기준이다. 전체 조회가 빈번하고 공통 속성이 많으면 단일 통합 테이블이 조인과 UNION 비용을 줄일 수 있다."
+  },
+  {
+    subjectId: "modeling",
+    number: 60,
+    majorTopic: "데이터 모델링과 성능",
+    middleTopic: "데이터 모델과 성능",
+    topic: "집계 테이블",
+    difficulty: "상급",
+    questionType: "성능 모델링 판단형",
+    mode: "variant",
+    sourcePage: 71,
+    parentQuestionId: "pdf-v-1-aggregate-table",
+    stem: "월별 고객 사용금액 조회가 대시보드에서 반복 수행되고 원천 사용내역은 일 1억 건 이상 적재된다. 월 마감 후 값은 변하지 않는다. 가장 적절한 모델 보완은?",
+    choices: [
+      ["A", "항상 원천 사용내역을 실시간 집계해야 정규화 모델이 유지된다.", "오답이다. 마감 후 불변이고 조회가 반복되면 집계 테이블을 검토할 수 있다."],
+      ["B", "월별 고객 사용금액 집계 테이블을 두고 원천과 집계의 생성 기준을 명확히 관리한다.", "정답이다. 대량 원천 반복 집계를 줄이고 마감 기준으로 정합성을 관리할 수 있다."],
+      ["C", "고객 테이블에 최근 한 달 금액만 저장하고 과거 월별 금액은 버린다.", "오답이다. 월별 조회 요구를 충족하지 못한다."],
+      ["D", "인덱스를 많이 만들면 집계 테이블 없이 모든 월별 조회가 충분히 빨라진다.", "오답이다. 대량 집계 자체 비용은 인덱스만으로 해결되지 않을 수 있다."]
+    ],
+    answer: "B",
+    relatedConceptId: "modeling-transaction-model",
+    hint: ["원천 데이터 규모와 조회 반복 여부를 본다.", "집계 값이 변경되는지 또는 마감되는지 확인한다.", "집계 테이블은 생성 기준과 검증 기준이 필요하다."],
+    explanation: "대량 원천 테이블을 매번 집계하는 비용이 크고 월 마감 후 값이 고정된다면 월별 고객 집계 테이블을 별도로 두는 것이 성능 모델링 관점에서 적절하다."
+  }
+] as CompactManualQuestion[]).map(makeCompactManualQuestion);
+
+const manualVerifiedObjectiveQuestionsBatch06: ObjectiveQuestion[] = ([
+  {
+    subjectId: "modeling", number: 61, majorTopic: "데이터 모델링의 이해", middleTopic: "속성", topic: "기본·설계·파생 속성", difficulty: "중급", questionType: "속성 분류 판단형", mode: "variant", sourcePage: 15, parentQuestionId: "pdf-v-1-attribute-type",
+    stem: "주문 엔터티에 주문일시, 주문금액, 주문번호, 월주문금액이 있다. 주문번호는 시스템이 채번하고 월주문금액은 주문상세 금액을 월 단위로 합산해 저장한다. 속성 분류로 가장 적절한 것은?",
+    choices: [["A", "주문일시는 설계 속성, 주문번호는 파생 속성이다.", "오답이다. 주문일시는 업무에서 직접 발생하는 기본 속성이고 주문번호는 식별 편의를 위한 설계 속성이다."], ["B", "주문번호는 설계 속성, 월주문금액은 파생 속성이다.", "정답이다. 주문번호는 시스템 식별을 위해 설계했고 월주문금액은 다른 데이터로 계산된다."], ["C", "월주문금액은 사용자가 조회하므로 기본 속성이다.", "오답이다. 조회 여부가 아니라 값의 발생 원천으로 분류한다."], ["D", "모든 금액 속성은 파생 속성이므로 주문금액도 저장하면 안 된다.", "오답이다. 주문금액이 거래 발생 시 확정되는 원천 값이면 기본 속성이 될 수 있다."]],
+    answer: "B", relatedConceptId: "modeling-attribute", hint: ["값이 업무에서 직접 발생하는지 본다.", "식별이나 편의를 위해 설계한 값인지 확인한다.", "다른 속성으로 계산되는 값은 파생 속성이다."],
+    explanation: "속성 분류는 화면 표시나 데이터 타입이 아니라 값의 원천으로 판단한다. 시스템 채번 주문번호는 설계 속성, 월주문금액은 원천 거래를 집계한 파생 속성이다."
+  },
+  {
+    subjectId: "modeling", number: 62, majorTopic: "데이터 모델링의 이해", middleTopic: "관계", topic: "관계 차수", difficulty: "중급", questionType: "ERD 관계 해석형", mode: "similar", sourcePage: 18, parentQuestionId: "pdf-s-1-cardinality",
+    stem: "한 부서는 여러 직원을 가질 수 있고, 직원은 입사 시 반드시 하나의 부서에 소속된다. 단, 폐지된 부서는 직원이 없을 수도 있다. 부서-직원 관계의 차수와 선택성으로 가장 적절한 것은?",
+    choices: [["A", "부서:직원 = 1:1, 양쪽 필수", "오답이다. 한 부서에 여러 직원이 있을 수 있으므로 1:M이다."], ["B", "부서:직원 = 1:M, 부서 입장은 선택, 직원 입장은 필수", "정답이다. 부서는 직원이 없을 수 있고 직원은 반드시 부서에 속한다."], ["C", "부서:직원 = M:N, 양쪽 선택", "오답이다. 직원은 하나의 부서에만 속한다고 제시되었다."], ["D", "부서:직원 = 1:M, 부서 입장도 필수", "오답이다. 폐지된 부서는 직원이 없을 수 있다."]],
+    answer: "B", relatedConceptId: "modeling-relationship", hint: ["한쪽 인스턴스에 반대쪽이 몇 개 연결되는지 본다.", "최소 참여가 0인지 1인지 따진다.", "폐지 부서라는 예외가 선택성을 결정한다."],
+    explanation: "관계 차수는 최대 참여 수, 선택성은 최소 참여 수로 판단한다. 부서는 직원이 0명 이상, 직원은 정확히 하나의 부서에 속하므로 부서 선택-직원 필수의 1:M 관계다."
+  },
+  {
+    subjectId: "modeling", number: 63, majorTopic: "데이터 모델링의 이해", middleTopic: "식별자", topic: "본질 식별자와 인조 식별자", difficulty: "상급", questionType: "식별자 변경 영향형", mode: "similar", sourcePage: 26, parentQuestionId: "pdf-s-1-surrogate-key",
+    stem: "회원은 주민등록번호 대신 회원번호를 주식별자로 사용한다. 그러나 동일 주민등록번호의 중복 회원 가입은 금지해야 한다. 가장 적절한 설계 원칙은?",
+    choices: [["A", "회원번호를 쓰면 주민등록번호 유일성 검사는 필요 없다.", "오답이다. 인조식별자는 식별 방법일 뿐 업무 유일성 규칙을 대체하지 않는다."], ["B", "회원번호를 PK로 두고 주민등록번호에는 별도 유일 제약 또는 중복 검증 규칙을 둔다.", "정답이다. 인조식별자와 업무 유일성 보존을 함께 설계해야 한다."], ["C", "주민등록번호를 삭제하면 동일인 판단 요구도 사라진다.", "오답이다. 업무 규칙은 데이터 보유 여부와 별개로 남을 수 있다."], ["D", "주민등록번호를 모든 자식 테이블의 식별자에 포함한다.", "오답이다. 식별자 전파와 개인정보 노출, 변경 영향이 커진다."]],
+    answer: "B", relatedConceptId: "modeling-natural-surrogate", hint: ["PK 선택과 업무 중복 규칙을 구분한다.", "인조식별자가 도입되어도 후보 식별자 의미가 사라지는지 본다.", "민감 정보 전파 영향을 함께 고려한다."],
+    explanation: "인조식별자는 관계 안정성과 개인정보 노출 감소에 유리할 수 있지만 업무상 중복 방지 규칙을 없애지는 않는다. 따라서 회원번호 PK와 주민등록번호 유일성 검증을 함께 설계한다."
+  },
+  {
+    subjectId: "modeling", number: 64, majorTopic: "데이터 모델링과 성능", middleTopic: "반정규화", topic: "중복 컬럼 정합성", difficulty: "상급", questionType: "반정규화 부작용 판단형", mode: "variant", sourcePage: 58, parentQuestionId: "pdf-v-1-duplicated-column",
+    stem: "주문 목록에서 고객명을 빠르게 표시하기 위해 주문 테이블에 고객명을 중복 저장하려고 한다. 고객명 변경은 드물지만 변경 시 과거 주문 화면에는 주문 당시 고객명을 보여야 한다. 가장 적절한 판단은?",
+    choices: [["A", "고객명이 바뀌면 모든 과거 주문 고객명을 최신명으로 갱신한다.", "오답이다. 주문 당시 고객명 보존 요구와 충돌한다."], ["B", "주문 당시 고객명을 주문에 저장하되, 최신 고객명 조회와 의미를 명확히 분리한다.", "정답이다. 중복 저장 목적이 이력 보존인지 조인 제거인지 구분해야 한다."], ["C", "고객명을 절대 중복 저장하지 않고 매번 고객 테이블에서만 조회한다.", "오답이다. 주문 당시 값 보존 요구가 있으면 중복이 아니라 스냅샷 성격의 속성이 될 수 있다."], ["D", "고객명 변경을 금지하면 모든 정합성 문제가 해결된다.", "오답이다. 업무 현실과 데이터 품질 요구를 무시한 해결이다."]],
+    answer: "B", relatedConceptId: "modeling-normalization", hint: ["중복 컬럼이 최신값인지 당시값인지 구분한다.", "변경 시 갱신 대상이 무엇인지 확인한다.", "반정규화에는 정합성 규칙이 함께 필요하다."],
+    explanation: "주문 당시 고객명을 보여야 한다면 주문의 고객명은 단순 중복 최신값이 아니라 거래 시점 스냅샷 속성이다. 최신 고객명과 당시 고객명의 의미를 분리해 정합성 규칙을 설계해야 한다."
+  },
+  {
+    subjectId: "modeling", number: 65, majorTopic: "데이터 모델링과 성능", middleTopic: "데이터 모델과 성능", topic: "조인 감소 모델링", difficulty: "상급", questionType: "모델 변경 영향형", mode: "similar", sourcePage: 73, parentQuestionId: "pdf-s-1-join-reduction",
+    stem: "매출 조회 화면은 주문, 주문상세, 상품, 상품분류를 매번 조인한다. 상품분류명은 변경이 거의 없고 매출 분석은 과거 주문 당시 분류 기준으로 수행된다. 성능 개선 관점에서 우선 검토할 수 있는 것은?",
+    choices: [["A", "상품분류 엔터티를 삭제하고 상품명에 분류명을 붙인다.", "오답이다. 분류 체계와 검색 기준을 잃는다."], ["B", "주문상세 또는 매출 집계에 주문 당시 상품분류코드를 저장하는 방안을 검토한다.", "정답이다. 분석 기준이 주문 당시 값이면 조인 감소와 이력 보존을 함께 얻을 수 있다."], ["C", "모든 화면에서 상품분류 조인을 금지한다.", "오답이다. 정합한 조회가 필요한 화면도 있다."], ["D", "상품분류명을 매번 서브쿼리로 조회하면 조인 비용이 사라진다.", "오답이다. 표현만 바뀔 뿐 반복 조회 비용이 발생할 수 있다."]],
+    answer: "B", relatedConceptId: "modeling-relationship-join", hint: ["조회가 과거 기준인지 최신 기준인지 본다.", "조인을 줄이는 컬럼 저장이 업무 의미를 보존하는지 확인한다.", "분석 집계와 원천 정합성의 역할을 분리한다."],
+    explanation: "과거 주문 당시 분류 기준으로 분석한다면 주문상세나 매출 집계에 당시 상품분류코드를 저장하는 설계가 타당할 수 있다. 이는 단순 중복이 아니라 시점 기준 분석 요구와 조인 감소를 함께 만족한다."
+  },
+  {
+    subjectId: "modeling", number: 66, majorTopic: "데이터 모델링의 이해", middleTopic: "정규화", topic: "함수 종속", difficulty: "중급", questionType: "함수 종속 추론형", mode: "original", sourcePage: 33, parentQuestionId: "pdf-o-1-functional-dependency",
+    stem: "수강평가(학생번호, 과목번호, 교수번호, 평가점수)에서 한 과목은 한 학기에 한 교수만 담당하고 학생은 여러 과목을 수강한다. 기본키가 (학생번호, 과목번호)라면 성립하는 함수 종속으로 가장 적절한 것은?",
+    choices: [["A", "학생번호 -> 교수번호", "오답이다. 한 학생이 여러 과목을 수강할 수 있어 학생번호만으로 교수번호가 결정되지 않는다."], ["B", "과목번호 -> 교수번호", "정답이다. 지문에서 한 과목은 한 교수만 담당한다고 했다."], ["C", "교수번호 -> 평가점수", "오답이다. 평가점수는 학생과 과목의 수강 결과에 따라 달라진다."], ["D", "평가점수 -> 과목번호", "오답이다. 같은 평가점수를 받은 과목은 여러 개일 수 있다."]],
+    answer: "B", relatedConceptId: "modeling-normalization", hint: ["결정자 값이 주어졌을 때 종속자 값이 하나로 정해지는지 본다.", "학생이 여러 과목을 수강한다는 조건을 반영한다.", "과목 담당 교수 조건을 함수 종속으로 표현한다."],
+    explanation: "함수 종속은 업무 규칙으로 판단한다. 한 과목을 한 교수가 담당한다면 과목번호가 교수번호를 결정하며, 이는 복합키 일부에 대한 종속이므로 정규화 검토 대상이 된다."
+  },
+  {
+    subjectId: "modeling", number: 67, majorTopic: "데이터 모델링과 성능", middleTopic: "NULL 모델링", topic: "NULL 의미 구분", difficulty: "상급", questionType: "NULL 모델링 판단형", mode: "similar", sourcePage: 76, parentQuestionId: "pdf-s-1-null-semantics",
+    stem: "계약해지일자 컬럼에 NULL이 저장되어 있다. NULL은 미해지, 해지일자 미입력, 해지 대상 아님 세 의미가 섞여 있다. 가장 적절한 개선 방향은?",
+    choices: [["A", "NULL은 모두 같은 의미이므로 그대로 사용한다.", "오답이다. 서로 다른 업무 의미가 섞이면 조건과 집계가 모호해진다."], ["B", "해지상태코드와 해지일자를 분리해 NULL의 의미를 상태로 명확히 표현한다.", "정답이다. NULL 하나에 여러 의미를 담지 않도록 상태와 일자를 분리한다."], ["C", "NULL을 모두 9999-12-31로 바꾸면 업무 의미가 명확해진다.", "오답이다. 미해지와 미입력, 미대상을 구분하지 못한다."], ["D", "해지일자 컬럼을 삭제하고 화면에서만 상태를 계산한다.", "오답이다. 업무 기록과 조회 기준이 데이터 모델에 표현되지 않는다."]],
+    answer: "B", relatedConceptId: "modeling-null", hint: ["NULL이 하나의 의미인지 여러 의미인지 본다.", "상태와 발생 일자는 서로 다른 속성인지 확인한다.", "집계와 조건절에서 혼동될 가능성을 생각한다."],
+    explanation: "NULL은 모름, 미해당, 미입력 등 여러 의미를 가질 수 있다. 하나의 컬럼에 의미가 섞이면 SQL 조건과 보고서가 모호해지므로 상태코드와 일자 속성을 분리하는 것이 바람직하다."
+  },
+  {
+    subjectId: "modeling", number: 68, majorTopic: "데이터 모델링의 이해", middleTopic: "관계", topic: "재귀 관계", difficulty: "중급", questionType: "재귀 관계 판단형", mode: "variant", sourcePage: 21, parentQuestionId: "pdf-v-1-recursive-relationship",
+    stem: "조직 엔터티에서 한 조직은 상위 조직을 하나 가질 수 있고 최상위 조직은 상위 조직이 없다. 하위 조직은 여러 개 있을 수 있다. 가장 적절한 모델링은?",
+    choices: [["A", "조직 테이블에 상위조직번호 자기참조 외래키를 둔다.", "정답이다. 동일 엔터티 간 계층 관계는 재귀 관계로 표현할 수 있다."], ["B", "상위조직명1, 상위조직명2 컬럼을 반복해서 둔다.", "오답이다. 계층 깊이 변화에 취약하고 정규화에 맞지 않는다."], ["C", "최상위 조직과 하위 조직을 서로 다른 엔터티로 완전히 분리한다.", "오답이다. 같은 성격의 조직을 불필요하게 분리한다."], ["D", "상위 조직이 없는 행은 허용하지 않는다.", "오답이다. 최상위 조직은 상위 조직이 없을 수 있다."]],
+    answer: "A", relatedConceptId: "modeling-relationship", hint: ["같은 엔터티 타입 사이의 관계인지 확인한다.", "최상위 행의 선택성을 본다.", "계층 깊이가 변할 수 있는지 판단한다."],
+    explanation: "조직 계층은 동일 엔터티 타입 내부의 부모-자식 관계이므로 자기참조 외래키로 표현할 수 있다. 최상위 조직은 상위조직번호가 NULL일 수 있도록 선택성을 반영한다."
+  },
+  {
+    subjectId: "modeling", number: 69, majorTopic: "데이터 모델링의 이해", middleTopic: "속성", topic: "도메인과 제약",
+    difficulty: "기본", questionType: "도메인 판단형", mode: "original", sourcePage: 14, parentQuestionId: "pdf-o-1-domain",
+    stem: "성별코드, 주문상태코드, 회원등급코드는 여러 엔터티에서 반복 사용된다. 모델링 단계에서 가장 먼저 관리해야 할 대상으로 적절한 것은?",
+    choices: [["A", "각 컬럼명을 화면명 기준으로 모두 다르게 만든다.", "오답이다. 같은 의미의 데이터가 서로 다른 이름으로 흩어진다."], ["B", "공통 도메인과 허용값, 데이터 타입, 길이 규칙을 정의한다.", "정답이다. 도메인은 속성의 값 범위와 표현 규칙을 일관되게 관리한다."], ["C", "코드 컬럼은 모두 숫자형으로 고정한다.", "오답이다. 코드 체계와 업무 의미에 따라 문자형이 적절할 수 있다."], ["D", "도메인은 물리 DB 생성 이후에만 검토한다.", "오답이다. 논리 모델 단계부터 의미와 값 범위를 정의해야 한다."]],
+    answer: "B", relatedConceptId: "modeling-attribute", hint: ["여러 속성에 공통으로 적용되는 값 규칙을 찾는다.", "데이터 타입과 허용값도 모델 규칙인지 본다.", "도메인은 명명과 표준화에도 영향을 준다."],
+    explanation: "도메인은 속성이 가질 수 있는 값의 범위, 데이터 타입, 길이, 형식 등을 정의한다. 반복 사용되는 코드 속성은 공통 도메인으로 관리해야 일관성을 확보할 수 있다."
+  },
+  {
+    subjectId: "modeling", number: 70, majorTopic: "데이터 모델링과 성능", middleTopic: "분산 데이터베이스", topic: "분산 투명성", difficulty: "중급", questionType: "개념 매칭형", mode: "original", sourcePage: 121, parentQuestionId: "pdf-o-1-distributed-transparency",
+    stem: "사용자는 데이터가 어느 지역 서버에 저장되어 있는지 알 필요 없이 동일한 SQL로 주문 데이터를 조회한다. 이 설명과 가장 가까운 분산 데이터베이스 투명성은?",
+    choices: [["A", "위치 투명성", "정답이다. 데이터의 실제 저장 위치를 사용자가 의식하지 않는 특성이다."], ["B", "중복 투명성", "오답이다. 복제본 존재 여부를 숨기는 특성이다."], ["C", "장애 투명성", "오답이다. 일부 노드 장애에도 서비스가 계속되는 특성과 관련된다."], ["D", "병행 투명성", "오답이다. 동시 트랜잭션 수행의 일관성과 관련된다."]],
+    answer: "A", relatedConceptId: "modeling-data-model", hint: ["사용자가 무엇을 몰라도 되는지 본다.", "지문은 저장 위치를 말한다.", "위치를 숨기는 특성이 위치 투명성이다."],
+    explanation: "위치 투명성은 데이터가 어느 노드나 지역에 저장되는지 사용자가 알지 못해도 동일하게 접근할 수 있는 특성이다."
+  }
+] as CompactManualQuestion[]).map(makeCompactManualQuestion);
+
+const manualVerifiedObjectiveQuestionsBatch07: ObjectiveQuestion[] = ([
+  {
+    subjectId: "modeling", number: 71, majorTopic: "데이터 모델링의 이해", middleTopic: "엔터티", topic: "행위 엔터티", difficulty: "중급", questionType: "엔터티 분류 판단형", mode: "variant", sourcePage: 12, parentQuestionId: "pdf-v-1-action-entity",
+    stem: "상품과 고객 사이에 관심상품등록이 발생하며 등록일시, 알림동의여부, 삭제일시를 관리한다. 관심상품등록의 분류로 가장 적절한 것은?",
+    choices: [["A", "기본 엔터티", "오답이다. 상품과 고객이라는 기본/중심 엔터티 사이에서 발생하는 행위에 가깝다."], ["B", "행위 엔터티", "정답이다. 두 엔터티 간 업무 행위를 기록하고 자체 속성을 가진다."], ["C", "코드 엔터티", "오답이다. 허용값 집합이 아니라 발생 사실을 저장한다."], ["D", "외부 엔터티", "오답이다. 외부 시스템에서 독립적으로 제공되는 참조 데이터가 아니다."]],
+    answer: "B", relatedConceptId: "modeling-entity", hint: ["해당 데이터가 원래 존재하는 객체인지 발생 행위인지 본다.", "두 엔터티의 조합에 속성이 붙는지 확인한다.", "등록일시와 삭제일시는 관계 행위의 속성이다."],
+    explanation: "관심상품등록은 고객과 상품 사이에서 발생하는 업무 행위이고 등록일시, 알림동의여부 같은 속성을 가진다. 따라서 행위 엔터티로 모델링하는 것이 적절하다."
+  },
+  {
+    subjectId: "modeling", number: 72, majorTopic: "데이터 모델링의 이해", middleTopic: "관계", topic: "식별 관계", difficulty: "상급", questionType: "관계 식별성 판단형", mode: "similar", sourcePage: 24, parentQuestionId: "pdf-s-1-identifying-relation",
+    stem: "주문상세의 식별자는 (주문번호, 주문순번)이고 주문번호는 주문 엔터티의 식별자다. 주문상세는 주문 없이 존재할 수 없으며 주문이 삭제되면 상세도 삭제된다. 가장 적절한 관계 해석은?",
+    choices: [["A", "비식별 관계이며 주문번호는 일반 속성이다.", "오답이다. 부모 식별자가 자식 식별자의 일부가 된다."], ["B", "식별 관계로 볼 수 있으며 주문번호는 주문상세 식별자의 일부다.", "정답이다. 존재 종속과 식별자 상속이 함께 나타난다."], ["C", "M:N 관계이므로 교차 엔터티가 하나 더 필요하다.", "오답이다. 이미 주문상세가 주문 하위 엔터티 역할을 한다."], ["D", "주문상세는 주문번호 없이 주문순번만으로 식별된다.", "오답이다. 주문순번은 주문 안에서만 의미가 있다."]],
+    answer: "B", relatedConceptId: "modeling-relationship", hint: ["부모 식별자가 자식 식별자에 포함되는지 본다.", "자식의 존재가 부모에 종속되는지 확인한다.", "주문순번이 전역 유일인지 주문 내부 순번인지 구분한다."],
+    explanation: "식별 관계는 부모 식별자가 자식 식별자의 일부가 되는 관계다. 주문상세의 주문번호는 주문의 식별자이면서 주문상세 식별자의 일부이므로 식별 관계로 해석할 수 있다."
+  },
+  {
+    subjectId: "modeling", number: 73, majorTopic: "데이터 모델링과 성능", middleTopic: "이력 모델링", topic: "상태 이력", difficulty: "상급", questionType: "모델 보완 판단형", mode: "similar", sourcePage: 62, parentQuestionId: "pdf-s-1-status-history",
+    stem: "배송상태는 접수, 집하, 배송중, 완료, 반송으로 바뀐다. 현재 배송 테이블에는 최신 상태코드만 있고 상태별 변경시각과 담당자를 추적해야 하는 요구가 추가되었다. 적절한 모델 보완은?",
+    choices: [["A", "배송 테이블에 상태변경시각1, 상태변경시각2를 반복 컬럼으로 추가한다.", "오답이다. 상태 단계 추가와 반복 관리에 취약하다."], ["B", "배송상태이력 엔터티를 분리해 배송번호, 상태코드, 변경일시, 담당자를 관리한다.", "정답이다. 상태 변경 발생 사실과 속성을 이력 엔터티로 보존한다."], ["C", "최신 상태만 있으면 완료 여부를 알 수 있으므로 이력은 저장하지 않는다.", "오답이다. 변경시각과 담당자 추적 요구를 충족하지 못한다."], ["D", "상태코드명을 배송 테이블에 중복 저장하면 이력이 복원된다.", "오답이다. 코드명 중복은 상태 변경 이력을 만들지 못한다."]],
+    answer: "B", relatedConceptId: "modeling-history", hint: ["최신값 요구인지 변경 과정 추적 요구인지 구분한다.", "상태 변경 자체에 속성이 있는지 본다.", "반복 컬럼보다 이력 엔터티가 적절한지 판단한다."],
+    explanation: "상태별 변경시각과 담당자를 추적하려면 최신 상태 컬럼만으로는 부족하다. 배송상태이력을 별도 엔터티로 두어 상태 변경 발생 사실을 시간 순서로 관리해야 한다."
+  },
+  {
+    subjectId: "modeling", number: 74, majorTopic: "데이터 모델링의 이해", middleTopic: "정규화", topic: "반복 그룹 제거", difficulty: "기본", questionType: "테이블 구조 개선형", mode: "variant", sourcePage: 37, parentQuestionId: "pdf-v-1-repeating-group",
+    stem: "설문응답 테이블에 문항1답변, 문항2답변, 문항3답변 컬럼이 있고 설문마다 문항 수가 다르다. 가장 적절한 구조는?",
+    choices: [["A", "최대 문항 수만큼 답변 컬럼을 미리 만든다.", "오답이다. 문항 수 변경에 취약하고 NULL이 많이 생긴다."], ["B", "설문응답상세 엔터티를 두고 응답번호, 문항번호, 답변값을 관리한다.", "정답이다. 반복 그룹을 행으로 전환해 문항 수 변화를 수용한다."], ["C", "답변을 JSON 문자열 하나에 모두 저장하면 정규화 문제가 없다.", "오답이다. 관계형 제약과 검색, 집계가 어려워진다."], ["D", "문항 수가 많은 설문은 별도 테이블을 매번 새로 만든다.", "오답이다. 메타데이터와 SQL 유지보수 비용이 커진다."]],
+    answer: "B", relatedConceptId: "modeling-normalization", hint: ["문항 수가 고정인지 변동인지 확인한다.", "반복 컬럼을 행 구조로 바꿀 수 있는지 본다.", "답변 자체가 문항과 응답의 조합 속성인지 판단한다."],
+    explanation: "문항 수가 설문마다 달라지는 구조에서 반복 답변 컬럼은 부적절하다. 응답상세 엔터티로 분리하면 문항 수 변화와 답변 검색/집계를 안정적으로 처리할 수 있다."
+  },
+  {
+    subjectId: "modeling", number: 75, majorTopic: "데이터 모델링과 성능", middleTopic: "물리 모델", topic: "논리 모델과 인덱스", difficulty: "중급", questionType: "개념 구분형", mode: "original", sourcePage: 96, parentQuestionId: "pdf-o-1-logical-physical",
+    stem: "논리 모델에서 주문과 고객의 관계를 정의한 후, 물리 모델에서 주문(고객번호, 주문일자) 인덱스를 추가하였다. 가장 적절한 설명은?",
+    choices: [["A", "인덱스 추가는 논리 모델의 관계를 삭제하는 작업이다.", "오답이다. 인덱스는 물리 접근 성능을 위한 구조이지 관계 의미를 삭제하지 않는다."], ["B", "논리 관계는 업무 규칙이고 인덱스는 물리 성능 구현 요소다.", "정답이다. 두 단계의 목적을 구분해야 한다."], ["C", "인덱스가 있으면 외래키 제약은 필요 없다.", "오답이다. 인덱스와 참조 무결성 제약은 역할이 다르다."], ["D", "모든 논리 관계에는 반드시 같은 컬럼 순서의 인덱스가 필요하다.", "오답이다. 인덱스는 SQL 패턴과 선택도에 따라 설계한다."]],
+    answer: "B", relatedConceptId: "modeling-data-model", hint: ["논리 모델이 표현하는 것과 물리 모델이 구현하는 것을 구분한다.", "관계와 인덱스의 역할을 나눠 본다.", "외래키 제약과 인덱스는 같은 기능인지 확인한다."],
+    explanation: "논리 모델의 관계는 업무 의미와 무결성을 표현한다. 인덱스는 물리 DB에서 특정 접근 경로를 빠르게 하기 위한 성능 구조이며 관계 자체를 대체하지 않는다."
+  },
+  {
+    subjectId: "modeling", number: 76, majorTopic: "데이터 모델링과 성능", middleTopic: "대량 데이터 모델", topic: "파티션 고려", difficulty: "상급", questionType: "성능 모델링 판단형", mode: "similar", sourcePage: 103, parentQuestionId: "pdf-s-1-partition-modeling",
+    stem: "주문 테이블은 월 3천만 건씩 증가하고 대부분의 조회와 삭제 배치는 주문월 기준으로 수행된다. 모델링 단계에서 우선 고려할 물리 설계 요소로 가장 적절한 것은?",
+    choices: [["A", "주문번호만 주식별자로 정하면 월별 배치 성능은 자동으로 해결된다.", "오답이다. 식별자와 대량 데이터 접근/삭제 전략은 별도 검토가 필요하다."], ["B", "주문월 또는 주문일자 기준 파티션 전략과 로컬 인덱스 활용 가능성을 검토한다.", "정답이다. 월 단위 조회와 보관/삭제는 파티션 설계와 밀접하다."], ["C", "모든 주문 데이터를 한 블록에 모으도록 클러스터링한다.", "오답이다. 물리적으로 불가능하고 경합을 키운다."], ["D", "과거 주문은 조회하지 않도록 애플리케이션에서만 막는다.", "오답이다. DB 차원의 보관, 삭제, 접근 성능 요구를 해결하지 못한다."]],
+    answer: "B", relatedConceptId: "modeling-transaction-model", hint: ["데이터 증가 단위와 조회/삭제 단위를 비교한다.", "월 기준 접근이면 파티션 키 후보가 되는지 본다.", "인덱스도 파티션 전략과 함께 봐야 한다."],
+    explanation: "대량 테이블은 논리 모델 이후 물리 설계에서 파티션과 인덱스를 함께 검토해야 한다. 월별 조회와 보관 배치가 중심이면 주문일자/월 기준 파티션이 성능과 관리 측면에서 중요하다."
+  },
+  {
+    subjectId: "modeling", number: 77, majorTopic: "데이터 모델링의 이해", middleTopic: "엔터티", topic: "엔터티 독립성", difficulty: "중급", questionType: "엔터티 성립 판단형", mode: "variant", sourcePage: 10, parentQuestionId: "pdf-v-1-entity-instance",
+    stem: "캠페인 보고서 화면에만 필요한 '고객연령대별건수' 항목이 있다. 이 값은 고객 생년월일과 캠페인 참여 내역을 집계하면 계산된다. 별도 엔터티로 도출하는 판단으로 가장 적절한 것은?",
+    choices: [["A", "보고서에 표시되므로 반드시 독립 엔터티다.", "오답이다. 화면 표시 항목이 곧 엔터티는 아니다."], ["B", "원천 데이터로 계산 가능한 집계 결과이므로 우선 파생 정보 또는 집계 테이블 필요성을 별도 검토한다.", "정답이다. 업무상 독립 관리 대상인지, 성능상 저장할 집계인지 구분해야 한다."], ["C", "집계값은 데이터가 아니므로 모델에 전혀 표현할 수 없다.", "오답이다. 성능 요구가 있으면 집계 테이블로 모델링할 수 있다."], ["D", "고객 엔터티의 주식별자로 사용한다.", "오답이다. 집계값은 고객을 식별하지 않는다."]],
+    answer: "B", relatedConceptId: "modeling-entity", hint: ["화면 항목과 업무 관리 대상은 다르다.", "집계 결과인지 원천 발생 사실인지 본다.", "저장이 필요하면 반정규화/집계 모델로 검토한다."],
+    explanation: "엔터티는 업무적으로 관리할 대상과 인스턴스가 있어야 한다. 보고서 집계 항목은 원천 데이터에서 계산되는 결과이므로 독립 엔터티보다 파생 정보 또는 집계 테이블 필요성으로 검토한다."
+  },
+  {
+    subjectId: "modeling", number: 78, majorTopic: "데이터 모델링의 이해", middleTopic: "관계", topic: "외래키 인덱스와 성능", difficulty: "상급", questionType: "성능 영향 판단형", mode: "similar", sourcePage: 99, parentQuestionId: "pdf-s-1-fk-index",
+    stem: "부모 테이블 고객의 고객번호가 자식 주문 테이블의 외래키다. 주문 테이블에 고객번호 인덱스가 없고 고객 삭제/변경 시 주문 검증이 빈번하다. 가장 적절한 설명은?",
+    choices: [["A", "외래키를 만들면 자식 외래키 인덱스도 자동 생성된다.", "오답이다. Oracle에서 외래키 생성이 자식 인덱스를 자동 생성하지 않는다."], ["B", "자식 주문의 고객번호 인덱스는 부모 키 변경/삭제 검증과 조인 성능에 영향을 줄 수 있다.", "정답이다. 자식 외래키 인덱스는 참조 검증과 잠금 경합 완화에도 중요하다."], ["C", "부모 고객_PK가 있으면 자식 테이블 검색에는 항상 충분하다.", "오답이다. 자식 테이블에서 고객번호로 찾는 접근 경로가 별도로 필요할 수 있다."], ["D", "외래키 인덱스는 정합성에 해롭기 때문에 만들면 안 된다.", "오답이다. 인덱스는 정합성을 해치지 않고 DML 비용과 조회 성능의 균형 대상이다."]],
+    answer: "B", relatedConceptId: "modeling-relationship", hint: ["외래키 제약과 인덱스 생성이 자동으로 연결되는지 확인한다.", "부모 변경/삭제 시 자식 검증이 어떻게 이뤄지는지 본다.", "조인과 잠금 영향도 함께 고려한다."],
+    explanation: "외래키 제약은 참조 무결성을 보장하지만 자식 외래키 컬럼 인덱스는 자동으로 생성되지 않는다. 부모 키 삭제/변경이나 자식 조회가 빈번하면 자식 외래키 인덱스가 중요하다."
+  },
+  {
+    subjectId: "modeling", number: 79, majorTopic: "데이터 모델링과 성능", middleTopic: "슈퍼타입/서브타입", topic: "배타/중첩 서브타입", difficulty: "중급", questionType: "서브타입 제약 판단형", mode: "variant", sourcePage: 65, parentQuestionId: "pdf-v-1-subtype-exclusive",
+    stem: "회원은 개인회원 또는 법인회원 중 하나에만 속할 수 있다. 개인회원과 법인회원은 동시에 될 수 없다. 이때 서브타입 제약으로 가장 적절한 것은?",
+    choices: [["A", "중첩 서브타입", "오답이다. 중첩은 한 슈퍼타입 인스턴스가 여러 서브타입에 동시에 속할 수 있는 경우다."], ["B", "배타 서브타입", "정답이다. 개인회원과 법인회원 중 하나에만 속할 수 있으므로 배타다."], ["C", "부분 식별 관계", "오답이다. 이는 관계 식별자 전파와 관련된 용어다."], ["D", "순환 관계", "오답이다. 동일 엔터티 내부 계층 관계를 의미한다."]],
+    answer: "B", relatedConceptId: "modeling-super-subtype", hint: ["한 인스턴스가 여러 유형에 동시에 속할 수 있는지 본다.", "둘 중 하나만 가능하면 배타를 생각한다.", "서브타입 제약과 관계 식별성을 구분한다."],
+    explanation: "배타 서브타입은 슈퍼타입 인스턴스가 여러 서브타입 중 하나에만 속할 수 있는 경우다. 개인회원과 법인회원이 동시에 될 수 없다면 배타 제약이다."
+  },
+  {
+    subjectId: "modeling", number: 80, majorTopic: "데이터 모델링의 이해", middleTopic: "데이터 모델 검증", topic: "CRUD 매트릭스", difficulty: "중급", questionType: "검증 방법 판단형", mode: "original", sourcePage: 8, parentQuestionId: "pdf-o-1-crud-matrix",
+    stem: "업무 프로세스와 엔터티가 도출된 후, 각 프로세스가 어떤 엔터티를 생성·조회·수정·삭제하는지 대조하려고 한다. 가장 적절한 검증 도구는?",
+    choices: [["A", "CRUD 매트릭스", "정답이다. 프로세스와 데이터 간 생성/조회/수정/삭제 관계를 검증한다."], ["B", "정규화 종속도", "오답이다. 함수 종속과 정규형 검토에 쓰인다."], ["C", "인덱스 손익분기점 표", "오답이다. 물리 접근 경로 성능 판단 도구다."], ["D", "SQL Trace Call 표", "오답이다. SQL 실제 수행 통계 분석 도구다."]],
+    answer: "A", relatedConceptId: "modeling-data-model", hint: ["프로세스와 엔터티를 교차로 놓는 검증인지 본다.", "C/R/U/D 활동을 표시하는지 확인한다.", "모델 누락과 불필요 엔터티를 찾는 용도다."],
+    explanation: "CRUD 매트릭스는 업무 기능과 엔터티를 교차해 어떤 기능이 어떤 데이터를 생성, 조회, 수정, 삭제하는지 검증한다. 누락 엔터티나 사용되지 않는 엔터티를 찾는 데 유용하다."
+  },
+  {
+    subjectId: "sql-basic", number: 51, majorTopic: "SQL 기본 및 활용", middleTopic: "함수", topic: "날짜 연산", difficulty: "중급", questionType: "SQL 결과 선택형", mode: "original", sourcePage: 42, parentQuestionId: "pdf-o-2-date-arithmetic",
+    stem: "Oracle 환경에서 다음 SQL의 결과로 가장 적절한 것은?",
+    code: `SELECT TO_CHAR(TO_DATE('2015.01.10 10', 'YYYY.MM.DD HH24')
+       + 1/24/(60/10), 'YYYY.MM.DD HH24:MI:SS')
+FROM DUAL;`,
+    choices: [["A", "2015.01.10 11:01:00", "오답이다. 1/24는 1시간이고 다시 6으로 나누면 10분이다."], ["B", "2015.01.10 10:05:00", "오답이다. 5분이 아니라 10분이 더해진다."], ["C", "2015.01.10 10:10:00", "정답이다. 1/24/(60/10)는 1일의 1/144, 즉 10분이다."], ["D", "2015.01.10 10:30:00", "오답이다. 30분을 더하는 식이 아니다."]],
+    answer: "C", relatedConceptId: "sql-date", hint: ["Oracle DATE 덧셈에서 1은 하루다.", "1/24는 한 시간이다.", "(60/10)=6으로 다시 나누면 10분이다."],
+    explanation: "Oracle DATE에 숫자를 더하면 일 단위로 계산한다. 1/24는 1시간, 1/24/6은 10분이므로 10:00에 10분을 더한 10:10:00이 된다."
+  },
+  {
+    subjectId: "sql-basic", number: 52, majorTopic: "SQL 기본 및 활용", middleTopic: "집합 연산", topic: "UNION과 UNION ALL", difficulty: "중급", questionType: "결과 행 수 추론형", mode: "original", sourcePage: 84, parentQuestionId: "pdf-o-2-union-count",
+    stem: "아래 두 테이블 R1, R2에 대해 가, 나 SQL 결과 행 수로 가장 적절한 것은?",
+    table: { title: "입력 데이터", headers: ["집합", "A", "B", "C"], rows: [["R1", "A3", "B2", "C3"], ["R1", "A1", "B1", "C1"], ["R1", "A2", "B1", "C2"], ["R2", "A1", "B1", "C1"], ["R2", "A3", "B2", "C3"]] },
+    code: `-- 가
+SELECT A, B, C FROM R1
+UNION ALL
+SELECT A, B, C FROM R2;
+
+-- 나
+SELECT A, B, C FROM R1
+UNION
+SELECT A, B, C FROM R2;`,
+    choices: [["A", "가: 5개, 나: 3개", "정답이다. UNION ALL은 중복을 포함하고 UNION은 중복 행을 제거한다."], ["B", "가: 5개, 나: 5개", "오답이다. UNION은 중복을 제거한다."], ["C", "가: 3개, 나: 3개", "오답이다. UNION ALL은 R1 3행과 R2 2행을 모두 반환한다."], ["D", "가: 3개, 나: 5개", "오답이다. UNION 결과가 UNION ALL보다 많을 수 없다."]],
+    answer: "A", relatedConceptId: "sql-set-operators", hint: ["R2 두 행이 R1에 이미 존재하는지 확인한다.", "UNION ALL은 중복 제거를 하지 않는다.", "UNION은 전체 컬럼 값이 같은 행을 하나로 본다."],
+    explanation: "UNION ALL은 두 결과를 그대로 합치므로 5행이다. UNION은 중복 행을 제거하므로 R1의 세 행만 남아 3행이 된다."
+  },
+  {
+    subjectId: "sql-basic", number: 53, majorTopic: "SQL 기본 및 활용", middleTopic: "JOIN", topic: "Outer Join 결과", difficulty: "상급", questionType: "조인 결과 행 수형", mode: "variant", sourcePage: 74, parentQuestionId: "pdf-v-2-outer-join-count",
+    stem: "EMP.C는 DEPT와 연결된 외래키다. EMP와 DEPT를 LEFT, FULL, RIGHT OUTER JOIN했을 때 결과 건수로 가장 적절한 것은?",
+    table: { title: "테이블 데이터", headers: ["테이블", "컬럼1", "컬럼2", "컬럼3"], rows: [["EMP", "A=1", "B=b", "C=w"], ["EMP", "A=3", "B=d", "C=w"], ["EMP", "A=5", "B=y", "C=y"], ["DEPT", "C=w", "D=1", "E=10"], ["DEPT", "C=z", "D=4", "E=11"], ["DEPT", "C=v", "D=2", "E=22"]] },
+    choices: [["A", "3건, 5건, 4건", "오답이다. RIGHT OUTER JOIN은 DEPT 기준 미매칭 2행과 매칭 2행으로 4건이지만 FULL은 5건이 아니다."], ["B", "4건, 5건, 3건", "오답이다. LEFT는 EMP 기준 3행이다."], ["C", "3건, 5건, 4건", "정답이다. EMP 3행 중 w 두 행과 y 한 행, DEPT 미매칭 z/v 두 행이 FULL에 추가된다."], ["D", "3건, 4건, 5건", "오답이다. FULL과 RIGHT의 미매칭 포함 방향을 바꿨다."]],
+    answer: "C", relatedConceptId: "sql-join", hint: ["EMP 기준 LEFT 결과는 EMP 행 수 이상이다.", "DEPT에서 매칭되지 않는 C=z, C=v를 찾는다.", "FULL은 양쪽 미매칭을 모두 포함한다."],
+    explanation: "LEFT는 EMP 3행을 보존한다. RIGHT는 DEPT 기준으로 w 매칭 2행과 z/v 미매칭 2행이 있어 4행이다. FULL은 EMP의 y 미매칭 1행과 DEPT의 z/v 미매칭 2행까지 포함해 5행이다."
+  },
+  {
+    subjectId: "sql-basic", number: 54, majorTopic: "SQL 기본 및 활용", middleTopic: "집합 연산", topic: "UNION ALL 대체 가능성", difficulty: "상급", questionType: "SQL Rewrite 선택형", mode: "similar", sourcePage: 67, parentQuestionId: "pdf-s-2-union-all-rewrite",
+    stem: "EMP 컬럼별 NUM_DISTINCT는 EMPNO=14, ENAME=14, DEPTNO=3, JOB=5, MGR=6, SAL=12다. 다음 중 UNION 대신 UNION ALL로 바꾸어도 결과 중복이 발생하지 않는 SQL은?",
+    choices: [["A", "WHERE empno = 7499 UNION WHERE empno = 7654", "정답이다. EMPNO는 유일하므로 두 조건 결과가 서로 겹치지 않는다."], ["B", "WHERE deptno = 10 UNION WHERE deptno = 20", "오답처럼 보일 수 있으나 조건은 배타적이다. 하지만 보기 기준에서 SELECT 컬럼이 deptno, job, mgr만이면 중복 행 가능성을 데이터 분포만으로 배제하기 어렵다."], ["C", "WHERE job = 'CLERK' UNION WHERE mgr IS NOT NULL", "오답이다. 같은 행이 두 조건을 동시에 만족할 수 있다."], ["D", "WHERE sal >= 1000 UNION WHERE sal <= 3000", "오답이다. 범위가 겹치므로 중복 가능성이 있다."]],
+    answer: "A", relatedConceptId: "sql-set-operators", hint: ["UNION ALL로 바꾸려면 두 분기 결과가 서로 배타적이어야 한다.", "선택 컬럼 기준 중복 가능성도 봐야 한다.", "유일 컬럼 조건은 배타성을 판단하기 쉽다."],
+    explanation: "UNION ALL은 중복 제거를 하지 않으므로 분기 결과가 겹치지 않는다는 근거가 필요하다. EMPNO는 유일하므로 서로 다른 EMPNO 조건의 결과는 동일 행이 될 수 없다."
+  },
+  {
+    subjectId: "sql-basic", number: 55, majorTopic: "SQL 기본 및 활용", middleTopic: "GROUP BY", topic: "HAVING", difficulty: "중급", questionType: "SQL 결과 선택형", mode: "variant", sourcePage: 70, parentQuestionId: "pdf-v-2-group-having",
+    stem: "아래 주문 데이터에서 고객별 주문금액 합계가 100 이상인 고객 수는?",
+    table: { title: "ORDERS", headers: ["고객", "금액"], rows: [["A", "40"], ["A", "70"], ["B", "90"], ["C", "60"], ["C", "50"], ["D", "100"]] },
+    code: `SELECT COUNT(*)
+FROM (
+  SELECT 고객
+  FROM ORDERS
+  GROUP BY 고객
+  HAVING SUM(금액) >= 100
+);`,
+    choices: [["A", "1", "오답이다. A, C, D 세 고객이 조건을 만족한다."], ["B", "2", "오답이다. D의 합계 100도 포함된다."], ["C", "3", "정답이다. A=110, C=110, D=100이다."], ["D", "4", "오답이다. B=90은 조건을 만족하지 못한다."]],
+    answer: "C", relatedConceptId: "sql-group-by", hint: ["먼저 고객별로 그룹을 만든다.", "각 그룹의 SUM을 계산한다.", "HAVING은 그룹 결과에 적용된다."],
+    explanation: "GROUP BY 후 A와 C는 각각 110, D는 100으로 HAVING 조건을 만족한다. B는 90이므로 제외되어 최종 고객 수는 3이다."
+  }
+] as CompactManualQuestion[]).map(makeCompactManualQuestion);
+
+const manualVerifiedObjectiveQuestionsBatch08: ObjectiveQuestion[] = ([
+  {
+    subjectId: "sql-basic", number: 56, majorTopic: "SQL 기본 및 활용", middleTopic: "Window Function", topic: "누적 합계", difficulty: "중급", questionType: "분석 함수 결과형", mode: "original", sourcePage: 101, parentQuestionId: "pdf-o-2-running-total",
+    stem: "지점별 판매월 순서대로 누적매출을 구하려고 한다. 다음 중 지점별 running total을 가장 정확히 계산하는 윈도우 함수 구문은?",
+    choices: [["A", "SUM(매출) OVER (ORDER BY 판매월)", "오답이다. 지점별로 분리되지 않아 전체 누적이 된다."], ["B", "SUM(매출) OVER (PARTITION BY 지점 ORDER BY 판매월 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)", "정답이다. 지점별 파티션 안에서 판매월 순서로 누적한다."], ["C", "SUM(매출) OVER (PARTITION BY 판매월 ORDER BY 지점)", "오답이다. 월별로 묶이므로 지점별 누적이 아니다."], ["D", "SUM(매출) GROUP BY 지점, 판매월", "오답이다. GROUP BY는 행을 집약하므로 각 행별 누적값을 만들지 못한다."]],
+    answer: "B", relatedConceptId: "sql-window-functions", hint: ["누적 기준이 지점별인지 전체인지 본다.", "정렬 기준은 판매월이다.", "현재 행까지 누적하려면 window frame을 확인한다."],
+    explanation: "지점별 누적매출은 PARTITION BY 지점으로 그룹을 나누고 ORDER BY 판매월로 순서를 정한 뒤 현재 행까지의 SUM을 계산해야 한다."
+  },
+  {
+    subjectId: "sql-basic", number: 57, majorTopic: "SQL 기본 및 활용", middleTopic: "Window Function", topic: "RANK와 DENSE_RANK", difficulty: "중급", questionType: "결과 순위 추론형", mode: "variant", sourcePage: 88, parentQuestionId: "pdf-v-2-rank",
+    stem: "점수 100, 90, 90, 80인 네 행에 대해 RANK()와 DENSE_RANK()를 내림차순으로 계산했다. 80점 행의 RANK와 DENSE_RANK로 가장 적절한 것은?",
+    choices: [["A", "RANK=3, DENSE_RANK=3", "오답이다. RANK는 동점 다음 순위를 건너뛴다."], ["B", "RANK=4, DENSE_RANK=3", "정답이다. 90점 동점 두 행 때문에 RANK는 4, DENSE_RANK는 3이다."], ["C", "RANK=2, DENSE_RANK=4", "오답이다. 순위 방향과 동점 처리가 모두 맞지 않는다."], ["D", "RANK=4, DENSE_RANK=4", "오답이다. DENSE_RANK는 순위를 건너뛰지 않는다."]],
+    answer: "B", relatedConceptId: "sql-window-functions", hint: ["동점이 있는 90점 구간을 찾는다.", "RANK는 건너뛰고 DENSE_RANK는 건너뛰지 않는다.", "80점은 세 번째 서로 다른 점수다."],
+    explanation: "RANK는 100점 1위, 90점 두 행 2위, 다음 80점은 4위가 된다. DENSE_RANK는 서로 다른 점수 순서만 세므로 80점은 3위다."
+  },
+  {
+    subjectId: "sql-basic", number: 58, majorTopic: "SQL 기본 및 활용", middleTopic: "NULL", topic: "NOT IN과 NULL", difficulty: "상급", questionType: "SQL 결과 함정형", mode: "similar", sourcePage: 52, parentQuestionId: "pdf-s-2-null-not-in",
+    stem: "T1(id)에는 1,2,3이 있고 T2(id)에는 2,NULL이 있다. 다음 SQL 결과로 가장 적절한 것은?",
+    code: `SELECT id
+FROM T1
+WHERE id NOT IN (SELECT id FROM T2);`,
+    choices: [["A", "1, 3", "오답이다. 서브쿼리 결과에 NULL이 포함되어 NOT IN 전체 판단이 UNKNOWN이 된다."], ["B", "결과 없음", "정답이다. NOT IN 목록에 NULL이 있으면 모든 비교가 TRUE로 확정되지 않는다."], ["C", "1, 2, 3", "오답이다. 2는 명시적으로 T2에 존재한다."], ["D", "NULL", "오답이다. T1에는 NULL 행이 없고 조건 결과도 NULL을 반환하지 않는다."]],
+    answer: "B", relatedConceptId: "sql-null", hint: ["NOT IN은 <> ALL과 같은 의미로 볼 수 있다.", "목록에 NULL이 있으면 비교 결과가 UNKNOWN이 된다.", "WHERE는 TRUE만 통과시킨다."],
+    explanation: "NOT IN은 서브쿼리 결과 중 하나라도 NULL이면 비교가 TRUE로 확정되지 않는다. 따라서 T1의 1과 3도 UNKNOWN이 되어 WHERE를 통과하지 못한다."
+  },
+  {
+    subjectId: "sql-basic", number: 59, majorTopic: "SQL 기본 및 활용", middleTopic: "Subquery", topic: "Scalar Subquery", difficulty: "중급", questionType: "오류 판단형", mode: "variant", sourcePage: 61, parentQuestionId: "pdf-v-2-scalar-subquery",
+    stem: "SELECT 절의 스칼라 서브쿼리가 한 행에 대해 두 건 이상을 반환할 수 있다. Oracle에서 가장 적절한 설명은?",
+    choices: [["A", "첫 번째 행만 자동으로 선택된다.", "오답이다. Oracle 스칼라 서브쿼리는 두 건 이상 반환 시 오류가 발생한다."], ["B", "ORA-01427: single-row subquery returns more than one row 오류가 발생할 수 있다.", "정답이다. 스칼라 서브쿼리는 한 행 한 컬럼만 반환해야 한다."], ["C", "두 행이 문자열로 연결되어 반환된다.", "오답이다. 별도 집계 함수 없이 자동 연결되지 않는다."], ["D", "NULL로 변환되어 결과가 반환된다.", "오답이다. 0건이면 NULL이지만 2건 이상이면 오류다."]],
+    answer: "B", relatedConceptId: "sql-subquery", hint: ["스칼라 서브쿼리의 반환 행 수 조건을 확인한다.", "0건과 2건 이상을 구분한다.", "한 행 한 컬럼 조건을 위반하면 오류다."],
+    explanation: "스칼라 서브쿼리는 단일 값을 반환해야 한다. 0건이면 NULL로 처리될 수 있지만 두 건 이상이면 ORA-01427 오류가 발생한다."
+  },
+  {
+    subjectId: "sql-basic", number: 60, majorTopic: "SQL 기본 및 활용", middleTopic: "DML", topic: "MERGE", difficulty: "중급", questionType: "MERGE 동작 판단형", mode: "similar", sourcePage: 95, parentQuestionId: "pdf-s-2-merge",
+    stem: "MERGE 문에서 ON 조건에 매칭되는 행은 UPDATE하고 매칭되지 않는 행은 INSERT한다. 다음 중 가장 적절한 설명은?",
+    choices: [["A", "MERGE는 항상 INSERT만 수행한다.", "오답이다. MATCHED/NOT MATCHED 절에 따라 UPDATE와 INSERT가 나뉜다."], ["B", "ON 조건 매칭 여부에 따라 UPDATE 또는 INSERT를 한 문장에서 처리할 수 있다.", "정답이다. MERGE의 기본 목적이다."], ["C", "MERGE의 ON 절 컬럼은 UPDATE SET 절에서 자유롭게 변경할 수 있다.", "오답이다. Oracle에서는 ON 절 참조 컬럼 갱신에 제약이 있다."], ["D", "NOT MATCHED 절은 DELETE를 수행한다.", "오답이다. 일반적으로 NOT MATCHED는 INSERT 절이다."]],
+    answer: "B", relatedConceptId: "sql-dml", hint: ["MATCHED와 NOT MATCHED의 의미를 구분한다.", "ON 절이 행 매칭 기준이다.", "Oracle의 ON 절 컬럼 갱신 제약도 기억한다."],
+    explanation: "MERGE는 원본과 대상의 매칭 여부에 따라 갱신 또는 입력을 한 문장에서 처리한다. SQLP에서는 ON 절 조건과 UPDATE/INSERT 수행 대상을 정확히 구분해야 한다."
+  },
+  {
+    subjectId: "sql-basic", number: 61, majorTopic: "SQL 기본 및 활용", middleTopic: "GROUP BY", topic: "ROLLUP", difficulty: "상급", questionType: "집계 결과 행 수형", mode: "variant", sourcePage: 80, parentQuestionId: "pdf-v-2-rollup",
+    stem: "지역 2개, 상품군 3개 조합이 모두 존재하는 매출 테이블에서 GROUP BY ROLLUP(지역, 상품군)을 수행한다. 결과 행 수로 가장 적절한 것은?",
+    choices: [["A", "6행", "오답이다. 상세 조합 6행만 계산한 것이다."], ["B", "8행", "오답이다. 지역별 소계 2행과 전체 합계 1행까지 포함해야 한다."], ["C", "9행", "정답이다. 상세 6행 + 지역별 소계 2행 + 전체 합계 1행이다."], ["D", "12행", "오답이다. CUBE처럼 모든 조합 소계를 만드는 것이 아니다."]],
+    answer: "C", relatedConceptId: "sql-group-by", hint: ["ROLLUP은 오른쪽부터 소계를 만든다.", "상세 조합 수를 먼저 계산한다.", "지역별 소계와 전체 합계를 더한다."],
+    explanation: "ROLLUP(지역, 상품군)은 (지역, 상품군) 상세, 지역 소계, 전체 합계를 만든다. 2*3=6 상세 + 2 지역 소계 + 1 전체 합계로 9행이다."
+  },
+  {
+    subjectId: "sql-basic", number: 62, majorTopic: "SQL 기본 및 활용", middleTopic: "계층형 질의", topic: "CONNECT BY", difficulty: "상급", questionType: "계층 방향 판단형", mode: "similar", sourcePage: 92, parentQuestionId: "pdf-s-2-connect-by",
+    stem: "EMP(empno, mgr)에서 사원 7788의 하위 조직을 조회하려고 한다. Oracle 계층형 질의 조건으로 가장 적절한 것은?",
+    choices: [["A", "START WITH empno = 7788 CONNECT BY PRIOR mgr = empno", "오답이다. PRIOR 방향이 상위로 거슬러 올라가는 형태다."], ["B", "START WITH empno = 7788 CONNECT BY PRIOR empno = mgr", "정답이다. 현재 부모 empno가 자식의 mgr와 같아야 하위로 내려간다."], ["C", "START WITH mgr = 7788 CONNECT BY empno = PRIOR mgr", "오답이다. 시작 행이 7788 자신이 아니라 직속 부하부터 시작한다."], ["D", "CONNECT BY empno = mgr", "오답이다. START WITH와 PRIOR가 없어 계층 방향을 명확히 표현하지 못한다."]],
+    answer: "B", relatedConceptId: "sql-hierarchical", hint: ["PRIOR가 붙은 쪽이 부모 행의 값을 의미한다.", "하위 조회는 부모 empno = 자식 mgr 관계다.", "START WITH는 루트 사원이다."],
+    explanation: "하위 조직을 내려가려면 부모 행의 empno가 자식 행의 mgr와 같아야 한다. 따라서 CONNECT BY PRIOR empno = mgr 조건이 적절하다."
+  },
+  {
+    subjectId: "sql-basic", number: 63, majorTopic: "SQL 기본 및 활용", middleTopic: "집합 연산", topic: "INTERSECT와 MINUS", difficulty: "중급", questionType: "집합 결과 추론형", mode: "variant", sourcePage: 83, parentQuestionId: "pdf-v-2-set-intersect-minus",
+    stem: "A 집합은 {1,2,3,4}, B 집합은 {3,4,5}다. A INTERSECT B와 A MINUS B 결과로 가장 적절한 것은?",
+    choices: [["A", "INTERSECT={1,2}, MINUS={3,4}", "오답이다. 교집합과 차집합을 반대로 판단했다."], ["B", "INTERSECT={3,4}, MINUS={1,2}", "정답이다. 공통 원소는 3,4이고 A에만 있는 원소는 1,2다."], ["C", "INTERSECT={1,2,3,4,5}, MINUS={}", "오답이다. 이는 UNION에 가까운 결과다."], ["D", "INTERSECT={}, MINUS={5}", "오답이다. 5는 A에 없으므로 A MINUS B에 포함되지 않는다."]],
+    answer: "B", relatedConceptId: "sql-set-operators", hint: ["INTERSECT는 공통 원소다.", "MINUS는 왼쪽 집합에서 오른쪽 집합을 뺀다.", "5는 A에 없음을 확인한다."],
+    explanation: "INTERSECT는 A와 B에 모두 있는 3,4를 반환한다. A MINUS B는 A에만 있는 1,2를 반환한다."
+  },
+  {
+    subjectId: "sql-basic", number: 64, majorTopic: "SQL 기본 및 활용", middleTopic: "JOIN", topic: "Non Equi Join", difficulty: "상급", questionType: "SQL 선택형", mode: "similar", sourcePage: 68, parentQuestionId: "pdf-s-2-non-equi-join",
+    stem: "급여 SAL이 급여등급 테이블의 LOSAL~HISAL 범위에 속하는 등급을 찾으려 한다. 가장 적절한 조인 조건은?",
+    choices: [["A", "e.sal = g.losal AND e.sal = g.hisal", "오답이다. 하한과 상한이 동시에 같은 경우만 찾는다."], ["B", "e.sal BETWEEN g.losal AND g.hisal", "정답이다. 범위 조건으로 Non Equi Join을 수행한다."], ["C", "e.sal IN (g.losal, g.hisal)", "오답이다. 경계값과 같은 급여만 찾는다."], ["D", "e.sal <> g.losal", "오답이다. 등급 범위를 결정하지 못한다."]],
+    answer: "B", relatedConceptId: "sql-join", hint: ["등급 테이블은 범위 시작과 끝을 가진다.", "동등 조인이 아니라 범위 조인이다.", "BETWEEN 조건의 포함 범위를 확인한다."],
+    explanation: "급여등급처럼 범위에 따라 매핑하는 테이블은 동등 조인이 아니라 BETWEEN 하한 AND 상한 형태의 Non Equi Join을 사용한다."
+  },
+  {
+    subjectId: "sql-basic", number: 65, majorTopic: "SQL 기본 및 활용", middleTopic: "DML", topic: "참조 무결성과 DELETE", difficulty: "상급", questionType: "제약조건 결과 추론형", mode: "variant", sourcePage: 74, parentQuestionId: "pdf-v-2-delete-cascade-set-null",
+    stem: "T(C PK), S(B PK, C REFERENCES T(C) ON DELETE CASCADE), R(A PK, B REFERENCES S(B) ON DELETE SET NULL)이 있다. T의 C=1 행을 삭제하면 가장 적절한 설명은?",
+    choices: [["A", "S에서 C=1을 참조하는 행은 삭제되고, 그 S.B를 참조하던 R.B는 NULL이 된다.", "정답이다. T 삭제가 S에 CASCADE되고, S 삭제가 R에 SET NULL로 전파된다."], ["B", "S 행만 삭제되고 R 행은 그대로 B 값을 유지한다.", "오답이다. S 행 삭제 시 R의 외래키는 SET NULL 동작을 한다."], ["C", "R 행도 모두 삭제된다.", "오답이다. R의 제약은 CASCADE가 아니라 SET NULL이다."], ["D", "T 삭제는 자식이 있어 항상 실패한다.", "오답이다. ON DELETE CASCADE가 지정되어 있다."]],
+    answer: "A", relatedConceptId: "sql-constraints", hint: ["T 삭제가 S에 어떤 옵션으로 전파되는지 본다.", "S 삭제가 R에는 어떤 옵션으로 동작하는지 확인한다.", "CASCADE와 SET NULL을 구분한다."],
+    explanation: "T의 부모 행 삭제는 S의 참조 행을 CASCADE로 삭제한다. 이어 S의 B를 참조하던 R은 ON DELETE SET NULL이므로 R 행은 남고 B가 NULL이 된다."
+  },
+  {
+    subjectId: "sql-basic", number: 66, majorTopic: "SQL 기본 및 활용", middleTopic: "Subquery", topic: "EXISTS", difficulty: "중급", questionType: "조건 의미 판단형", mode: "original", sourcePage: 60, parentQuestionId: "pdf-o-2-exists",
+    stem: "EXISTS 서브쿼리에 대한 설명으로 가장 적절한 것은?",
+    choices: [["A", "서브쿼리 SELECT 목록 값이 NULL이면 EXISTS는 항상 FALSE다.", "오답이다. EXISTS는 반환 행 존재 여부를 본다."], ["B", "상관 조건을 만족하는 행이 하나라도 있으면 TRUE가 된다.", "정답이다. EXISTS는 행 존재성 조건이다."], ["C", "EXISTS는 반드시 모든 서브쿼리 행을 정렬한 후 판단한다.", "오답이다. 존재 여부만 확인하면 되며 정렬이 필수는 아니다."], ["D", "EXISTS는 IN과 항상 NULL 처리까지 완전히 동일하다.", "오답이다. NULL과 중복 처리에서 차이가 생길 수 있다."]],
+    answer: "B", relatedConceptId: "sql-subquery", hint: ["EXISTS가 값 비교인지 행 존재 비교인지 본다.", "SELECT 목록 자체가 중요한지 확인한다.", "NULL 처리에서 IN과 차이가 날 수 있다."],
+    explanation: "EXISTS는 서브쿼리가 조건을 만족하는 행을 하나라도 반환하면 TRUE다. SELECT 목록의 값보다 행 존재 여부가 핵심이다."
+  },
+  {
+    subjectId: "sql-basic", number: 67, majorTopic: "SQL 기본 및 활용", middleTopic: "Top-N", topic: "ROWNUM 처리 순서", difficulty: "상급", questionType: "SQL 결과 함정형", mode: "similar", sourcePage: 89, parentQuestionId: "pdf-s-2-rownum-order",
+    stem: "EMP에서 급여 상위 3명을 조회하려고 한다. Oracle에서 가장 적절한 SQL은?",
+    choices: [["A", "SELECT * FROM EMP WHERE ROWNUM <= 3 ORDER BY sal DESC", "오답이다. ROWNUM이 정렬 전에 부여되어 상위 급여 3명이 보장되지 않는다."], ["B", "SELECT * FROM (SELECT * FROM EMP ORDER BY sal DESC) WHERE ROWNUM <= 3", "정답이다. 인라인 뷰에서 정렬 후 바깥에서 ROWNUM을 적용한다."], ["C", "SELECT * FROM EMP WHERE ROWNUM = 3 ORDER BY sal DESC", "오답이다. ROWNUM = 3 조건은 일반적으로 첫 행부터 통과하지 못한다."], ["D", "SELECT * FROM EMP GROUP BY sal HAVING ROWNUM <= 3", "오답이다. Top-N 조회 문법과 맞지 않는다."]],
+    answer: "B", relatedConceptId: "sql-top-n", hint: ["ROWNUM이 언제 부여되는지 본다.", "정렬 후 자르려면 인라인 뷰가 필요하다.", "ROWNUM = 3 조건의 특성을 기억한다."],
+    explanation: "Oracle 구버전 Top-N 패턴은 정렬을 인라인 뷰 안에서 먼저 수행하고 바깥 쿼리에서 ROWNUM <= N을 적용한다."
+  },
+  {
+    subjectId: "sql-basic", number: 68, majorTopic: "SQL 기본 및 활용", middleTopic: "함수", topic: "COUNT 함수", difficulty: "기본", questionType: "집계 함수 판단형", mode: "variant", sourcePage: 50, parentQuestionId: "pdf-v-2-count-null",
+    stem: "테이블 T의 C1 값이 1, NULL, 2, NULL이다. COUNT(*), COUNT(C1)의 결과로 가장 적절한 것은?",
+    choices: [["A", "4, 4", "오답이다. COUNT(C1)은 NULL을 세지 않는다."], ["B", "4, 2", "정답이다. COUNT(*)는 모든 행, COUNT(C1)은 NULL이 아닌 값만 센다."], ["C", "2, 4", "오답이다. 두 함수의 의미가 반대다."], ["D", "2, 2", "오답이다. COUNT(*)는 NULL 여부와 무관하게 행 수를 센다."]],
+    answer: "B", relatedConceptId: "sql-null", hint: ["COUNT(*)는 행을 센다.", "COUNT(컬럼)은 NULL을 제외한다.", "NULL 두 건을 제외하면 C1 값은 두 건이다."],
+    explanation: "COUNT(*)는 전체 행 수 4를 반환하고, COUNT(C1)은 NULL이 아닌 1과 2만 세어 2를 반환한다."
+  },
+  {
+    subjectId: "sql-basic", number: 69, majorTopic: "SQL 기본 및 활용", middleTopic: "조건 표현", topic: "CASE", difficulty: "중급", questionType: "표현식 결과형", mode: "similar", sourcePage: 54, parentQuestionId: "pdf-s-2-case",
+    stem: "점수가 90 이상이면 A, 80 이상이면 B, 그 외는 C를 반환하는 CASE 식에서 95점 결과는?",
+    code: `CASE
+  WHEN score >= 90 THEN 'A'
+  WHEN score >= 80 THEN 'B'
+  ELSE 'C'
+END`,
+    choices: [["A", "A", "정답이다. 첫 번째 조건을 만족하면 이후 조건은 평가 결과와 무관하게 A가 반환된다."], ["B", "B", "오답이다. 95는 80 이상도 맞지만 CASE는 앞 조건부터 매칭된다."], ["C", "C", "오답이다. ELSE는 앞 조건이 모두 FALSE일 때만 사용된다."], ["D", "NULL", "오답이다. 만족하는 WHEN이 존재한다."]],
+    answer: "A", relatedConceptId: "sql-functions", hint: ["CASE는 위에서 아래로 조건을 평가한다.", "95가 첫 번째 WHEN을 만족하는지 본다.", "첫 매칭 결과가 반환된다."],
+    explanation: "CASE는 조건을 순서대로 평가하고 처음 TRUE가 되는 THEN 값을 반환한다. 95는 score >= 90을 만족하므로 A다."
+  },
+  {
+    subjectId: "sql-basic", number: 70, majorTopic: "SQL 기본 및 활용", middleTopic: "JOIN", topic: "이력 조인", difficulty: "상급", questionType: "효율 SQL 선택형", mode: "original", sourcePage: 69, parentQuestionId: "pdf-o-2-customer-history",
+    stem: "고객변경이력에서 2010년 12월 4일자 고객 속성을 조회해야 한다. 변경순번이 클수록 최신 이력이다. 가장 효율적인 접근으로 적절한 것은?",
+    choices: [["A", "고객과 모든 이력을 조인한 뒤 최종 결과에서 MAX(변경순번)을 다시 찾는다.", "오답이다. 전체 조인 후 필터하면 불필요한 이력 행이 많아진다."], ["B", "기준일 이하 이력에서 고객별 최신 변경순번을 먼저 구한 뒤 고객과 조인한다.", "정답이다. 필요한 이력 한 건으로 축소한 뒤 조인하는 방식이 효율적이다."], ["C", "변경일자 조건 없이 가장 큰 변경순번만 선택한다.", "오답이다. 기준일 이후 변경이 포함될 수 있다."], ["D", "고객 테이블 현재값만 조회한다.", "오답이다. 과거 기준일 이력을 반영하지 못한다."]],
+    answer: "B", relatedConceptId: "sql-subquery", hint: ["기준일 조건이 먼저 적용되어야 한다.", "고객별 최신 이력 한 건으로 줄인다.", "축소 결과를 고객과 조인한다."],
+    explanation: "이력 조회는 기준일 이하의 이력 중 고객별 최신 행을 먼저 찾는 것이 중요하다. 이후 고객과 조인하면 불필요한 이력 전체 조인을 피할 수 있다."
+  }
+] as CompactManualQuestion[]).map(makeCompactManualQuestion);
+
+const manualVerifiedObjectiveQuestionsBatch09: ObjectiveQuestion[] = ([
+  {
+    subjectId: "sql-basic", number: 71, majorTopic: "SQL 기본 및 활용", middleTopic: "Window Function", topic: "ROWS와 RANGE", difficulty: "상급", questionType: "윈도우 프레임 판단형", mode: "similar", sourcePage: 88, parentQuestionId: "pdf-s-2-window-frame",
+    stem: "동일 주문일시에 여러 행이 있을 때 SUM(amount) OVER (ORDER BY 주문일시 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)을 사용했다. ROWS 방식과 비교한 설명으로 가장 적절한 것은?",
+    choices: [["A", "RANGE는 같은 ORDER BY 값을 가진 행들을 같은 현재 범위로 묶을 수 있다.", "정답이다. 동률 값이 있으면 같은 정렬 값의 행이 함께 프레임에 포함될 수 있다."], ["B", "RANGE는 항상 물리적으로 현재 행 하나만 더한다.", "오답이다. 이는 ROWS의 행 단위 프레임에 가깝다."], ["C", "ROWS와 RANGE는 중복 정렬값이 있어도 결과 차이가 절대 없다.", "오답이다. 동률 값에서 누적값이 달라질 수 있다."], ["D", "RANGE는 GROUP BY 없이 사용할 수 없다.", "오답이다. 분석 함수의 윈도우 프레임으로 사용할 수 있다."]],
+    answer: "A", relatedConceptId: "sql-window-functions", hint: ["ROWS는 물리 행, RANGE는 정렬 값 범위다.", "동일 주문일시가 여러 행이면 동률 처리를 본다.", "누적합에서 같은 정렬값 행이 함께 들어갈 수 있다."],
+    explanation: "ROWS는 물리적 행 수 기준이고 RANGE는 ORDER BY 값의 논리적 범위 기준이다. 동일 정렬값이 있는 경우 RANGE 누적합은 동률 행을 같은 프레임으로 묶을 수 있다."
+  },
+  {
+    subjectId: "sql-basic", number: 72, majorTopic: "SQL 기본 및 활용", middleTopic: "GROUP BY", topic: "SELECT 목록 제약", difficulty: "중급", questionType: "SQL 오류 판단형", mode: "variant", sourcePage: 72, parentQuestionId: "pdf-v-2-group-select",
+    stem: "다음 SQL이 오류가 나는 이유로 가장 적절한 것은?",
+    code: `SELECT deptno, ename, SUM(sal)
+FROM emp
+GROUP BY deptno;`,
+    choices: [["A", "SUM 함수는 GROUP BY와 함께 사용할 수 없다.", "오답이다. 집계 함수는 GROUP BY와 함께 사용할 수 있다."], ["B", "ename이 GROUP BY 절에 없고 집계 함수로도 감싸지지 않았다.", "정답이다. 그룹별 결과에서 비집계 컬럼은 GROUP BY에 포함되어야 한다."], ["C", "deptno는 숫자 컬럼이라 GROUP BY가 불가능하다.", "오답이다. 숫자 컬럼도 그룹화할 수 있다."], ["D", "SELECT 절에 집계 함수가 하나만 있어서 오류다.", "오답이다. 집계 함수 개수와 무관하다."]],
+    answer: "B", relatedConceptId: "sql-group-by", hint: ["SELECT 목록의 각 컬럼을 확인한다.", "집계되지 않은 컬럼은 GROUP BY에 있어야 한다.", "ename은 deptno 그룹 안에서 여러 값일 수 있다."],
+    explanation: "GROUP BY deptno는 부서별 한 행을 만든다. 이때 ename은 부서 안에 여러 값이 있을 수 있으므로 GROUP BY에 포함하거나 집계해야 한다."
+  },
+  {
+    subjectId: "sql-basic", number: 73, majorTopic: "SQL 기본 및 활용", middleTopic: "JOIN", topic: "ANSI Outer Join 조건 위치", difficulty: "상급", questionType: "SQL 의미 비교형", mode: "similar", sourcePage: 75, parentQuestionId: "pdf-s-2-outer-join-predicate",
+    stem: "LEFT OUTER JOIN에서 후행 테이블 B의 상태 조건을 ON 절에 둘 때와 WHERE 절에 둘 때의 차이로 가장 적절한 것은?",
+    choices: [["A", "WHERE 절에 B 조건을 두면 미매칭 보존 행이 제거될 수 있다.", "정답이다. NULL 확장된 B 컬럼 조건이 WHERE에서 FALSE/UNKNOWN이 되어 사라질 수 있다."], ["B", "ON 절과 WHERE 절은 OUTER JOIN에서 항상 완전히 동일하다.", "오답이다. 보존 행 처리 때문에 결과가 달라질 수 있다."], ["C", "ON 절에는 조인 컬럼만 쓰고 필터 조건은 절대 쓸 수 없다.", "오답이다. ON 절에 후행 조건을 둘 수 있으며 의미가 다르다."], ["D", "WHERE 절의 B 조건은 모든 B 미매칭 행을 자동으로 TRUE 처리한다.", "오답이다. NULL 비교는 보통 UNKNOWN이 된다."]],
+    answer: "A", relatedConceptId: "sql-join", hint: ["LEFT JOIN의 보존 테이블이 어느 쪽인지 본다.", "후행 테이블 컬럼이 미매칭 시 NULL이 된다.", "WHERE는 TRUE만 통과시킨다."],
+    explanation: "Outer Join에서 후행 테이블 조건을 WHERE에 두면 NULL 확장 행이 제거되어 Inner Join처럼 바뀔 수 있다. ON 절 조건은 매칭 여부 판단에 사용되어 보존 행을 유지할 수 있다."
+  },
+  {
+    subjectId: "sql-basic", number: 74, majorTopic: "SQL 기본 및 활용", middleTopic: "PIVOT", topic: "행열 변환", difficulty: "중급", questionType: "PIVOT 결과 판단형", mode: "variant", sourcePage: 91, parentQuestionId: "pdf-v-2-pivot",
+    stem: "월별 매출 행을 고객별 1월, 2월 컬럼으로 바꾸려 한다. 이때 PIVOT 절에서 반드시 필요한 요소로 가장 적절한 것은?",
+    choices: [["A", "집계 함수와 PIVOT 대상 값 목록", "정답이다. PIVOT은 교차 컬럼으로 만들 값과 집계 함수를 지정한다."], ["B", "CONNECT BY PRIOR 조건", "오답이다. 계층형 질의 조건이다."], ["C", "ON DELETE CASCADE 옵션", "오답이다. 참조 무결성 옵션이다."], ["D", "FOR UPDATE 절", "오답이다. 행 잠금용 절이다."]],
+    answer: "A", relatedConceptId: "sql-pivot", hint: ["PIVOT은 여러 행 값을 컬럼으로 회전한다.", "집계가 필요한지 확인한다.", "컬럼이 될 값 목록을 지정해야 한다."],
+    explanation: "PIVOT은 지정한 값들을 컬럼으로 바꾸며, 여러 행이 한 셀로 모일 수 있으므로 SUM, COUNT 같은 집계 함수와 FOR 컬럼 IN 값 목록이 필요하다."
+  },
+  {
+    subjectId: "sql-basic", number: 75, majorTopic: "SQL 기본 및 활용", middleTopic: "Subquery", topic: "Inline View", difficulty: "중급", questionType: "처리 순서 판단형", mode: "original", sourcePage: 89, parentQuestionId: "pdf-o-2-inline-view",
+    stem: "인라인 뷰를 사용하는 가장 적절한 이유는?",
+    choices: [["A", "FROM 절에서 먼저 가공한 결과 집합에 바깥 조건을 적용하거나 별칭을 부여하기 위해 사용한다.", "정답이다. 인라인 뷰는 FROM 절의 임시 결과 집합처럼 동작한다."], ["B", "DDL 문장 안에서만 사용할 수 있다.", "오답이다. SELECT의 FROM 절에서 사용할 수 있다."], ["C", "항상 물리 테이블로 저장된다.", "오답이다. 일반적으로 쿼리 블록이며 옵티마이저가 병합할 수도 있다."], ["D", "WHERE 절 조건을 모두 무시한다.", "오답이다. 바깥 조건과 내부 조건은 결과 의미에 영향을 준다."]],
+    answer: "A", relatedConceptId: "sql-subquery", hint: ["인라인 뷰의 위치는 FROM 절이다.", "정렬 후 ROWNUM 같은 패턴도 떠올린다.", "물리 저장 테이블과 구분한다."],
+    explanation: "인라인 뷰는 FROM 절에 작성하는 서브쿼리로, 먼저 계산한 결과를 바깥 쿼리에서 다시 필터링하거나 조인할 때 사용한다."
+  },
+  {
+    subjectId: "sql-basic", number: 76, majorTopic: "SQL 기본 및 활용", middleTopic: "TCL", topic: "COMMIT과 ROLLBACK", difficulty: "기본", questionType: "트랜잭션 결과 판단형", mode: "variant", sourcePage: 96, parentQuestionId: "pdf-v-2-tcl",
+    stem: "한 세션에서 INSERT 후 COMMIT, 다시 UPDATE 후 ROLLBACK을 수행했다. 최종적으로 유지되는 변경으로 가장 적절한 것은?",
+    choices: [["A", "INSERT와 UPDATE 모두 취소된다.", "오답이다. COMMIT된 INSERT는 ROLLBACK 대상이 아니다."], ["B", "INSERT는 유지되고 UPDATE는 취소된다.", "정답이다. ROLLBACK은 마지막 COMMIT 이후 변경만 되돌린다."], ["C", "INSERT는 취소되고 UPDATE는 유지된다.", "오답이다. COMMIT/ROLLBACK 의미가 반대다."], ["D", "둘 다 자동으로 다시 실행된다.", "오답이다. TCL은 변경 재실행 기능이 아니다."]],
+    answer: "B", relatedConceptId: "sql-transaction", hint: ["COMMIT 경계를 찾는다.", "ROLLBACK이 되돌리는 범위를 확인한다.", "마지막 COMMIT 이후 UPDATE만 취소된다."],
+    explanation: "COMMIT은 이전 변경을 영구화한다. 이후 UPDATE는 같은 트랜잭션에서 ROLLBACK되므로 취소되지만 INSERT는 유지된다."
+  },
+  {
+    subjectId: "sql-basic", number: 77, majorTopic: "SQL 기본 및 활용", middleTopic: "제약조건", topic: "CHECK 제약", difficulty: "중급", questionType: "제약조건 판단형", mode: "similar", sourcePage: 94, parentQuestionId: "pdf-s-2-check-constraint",
+    stem: "주문상태코드가 'R','P','C' 중 하나만 허용되어야 한다. 데이터 모델과 DB 제약 관점에서 적절한 방법은?",
+    choices: [["A", "애플리케이션에서만 검사하고 DB에는 아무 제약을 두지 않는다.", "오답이다. 우회 입력이나 배치 오류를 DB가 막지 못한다."], ["B", "CHECK 제약 또는 코드 참조 테이블 FK로 허용값을 강제한다.", "정답이다. 허용값 도메인을 DB 제약으로 보장할 수 있다."], ["C", "컬럼명을 주문상태코드로 만들면 자동으로 값이 제한된다.", "오답이다. 이름만으로 값 제약은 생기지 않는다."], ["D", "NULL 허용으로 두면 잘못된 코드가 들어오지 않는다.", "오답이다. NULL 허용은 잘못된 비NULL 값을 막지 않는다."]],
+    answer: "B", relatedConceptId: "sql-constraints", hint: ["허용값 집합을 어디서 강제할지 본다.", "CHECK와 코드 FK를 비교한다.", "컬럼명은 제약이 아니다."],
+    explanation: "허용 코드가 고정적이면 CHECK 제약, 코드가 별도 관리 대상이면 코드 테이블 FK를 사용할 수 있다. 핵심은 DB 차원에서 도메인 무결성을 보장하는 것이다."
+  },
+  {
+    subjectId: "sql-basic", number: 78, majorTopic: "SQL 기본 및 활용", middleTopic: "함수", topic: "NVL과 COALESCE", difficulty: "중급", questionType: "NULL 함수 결과형", mode: "variant", sourcePage: 51, parentQuestionId: "pdf-v-2-nvl",
+    stem: "COMM 값이 NULL인 행에서 NVL(COMM, 0) + 100의 결과는?",
+    choices: [["A", "NULL", "오답이다. NVL이 NULL을 0으로 대체한다."], ["B", "0", "오답이다. 0으로 대체한 뒤 100을 더한다."], ["C", "100", "정답이다. NVL(COMM,0)이 0이 되고 0+100이 된다."], ["D", "오류", "오답이다. 숫자 0과 100의 연산은 가능하다."]],
+    answer: "C", relatedConceptId: "sql-null", hint: ["NVL의 두 번째 인자를 확인한다.", "NULL이 0으로 대체된다.", "그 다음 산술 연산을 수행한다."],
+    explanation: "NVL(COMM,0)은 COMM이 NULL이면 0을 반환한다. 따라서 0 + 100으로 계산되어 결과는 100이다."
+  },
+  {
+    subjectId: "sql-basic", number: 79, majorTopic: "SQL 기본 및 활용", middleTopic: "집합 연산", topic: "컬럼 개수와 타입", difficulty: "중급", questionType: "SQL 오류 판단형", mode: "original", sourcePage: 82, parentQuestionId: "pdf-o-2-set-compatible",
+    stem: "UNION을 사용할 때 두 SELECT 결과의 필수 조건으로 가장 적절한 것은?",
+    choices: [["A", "컬럼 개수가 같고 대응 컬럼의 데이터 타입이 호환되어야 한다.", "정답이다. 집합 연산의 기본 호환 조건이다."], ["B", "두 SELECT의 테이블명이 반드시 같아야 한다.", "오답이다. 서로 다른 테이블도 컬럼 구조가 호환되면 가능하다."], ["C", "ORDER BY는 각 SELECT마다 반드시 있어야 한다.", "오답이다. 일반적으로 최종 결과에 ORDER BY를 둔다."], ["D", "각 SELECT의 WHERE 조건은 완전히 같아야 한다.", "오답이다. 조건은 달라도 집합 연산이 가능하다."]],
+    answer: "A", relatedConceptId: "sql-set-operators", hint: ["집합 연산은 행 집합을 합친다.", "대응 컬럼 개수와 타입을 맞춰야 한다.", "테이블명이나 WHERE 조건 동일성은 필수가 아니다."],
+    explanation: "UNION, INTERSECT, MINUS 같은 집합 연산은 양쪽 SELECT의 컬럼 수가 같고 대응 컬럼 타입이 호환되어야 한다."
+  },
+  {
+    subjectId: "sql-basic", number: 80, majorTopic: "SQL 기본 및 활용", middleTopic: "JOIN", topic: "자연 조인 함정", difficulty: "상급", questionType: "SQL 의미 판단형", mode: "similar", sourcePage: 76, parentQuestionId: "pdf-s-2-natural-join",
+    stem: "NATURAL JOIN을 사용할 때 가장 주의해야 할 점은?",
+    choices: [["A", "같은 이름의 컬럼이 모두 자동 조인 조건으로 사용될 수 있다.", "정답이다. 의도하지 않은 동일명 컬럼이 조인 조건에 포함될 수 있다."], ["B", "조인 조건을 명시하지 않으므로 항상 카티션 곱이 된다.", "오답이다. 동일명 컬럼을 자동으로 조인한다."], ["C", "NULL 값을 항상 같은 값으로 간주해 매칭한다.", "오답이다. NULL은 일반 동등 비교에서 매칭되지 않는다."], ["D", "두 테이블 컬럼명이 모두 달라야만 사용할 수 있다.", "오답이다. 같은 이름 컬럼이 조인 기준이 된다."]],
+    answer: "A", relatedConceptId: "sql-join", hint: ["NATURAL JOIN의 자동 조건 기준을 본다.", "동일명 컬럼이 여러 개면 어떻게 되는지 생각한다.", "명시적 JOIN 조건보다 의도가 숨겨질 수 있다."],
+    explanation: "NATURAL JOIN은 두 테이블의 같은 이름 컬럼을 자동으로 조인 조건에 사용한다. 의도하지 않은 컬럼이 조건에 포함될 수 있어 실무와 시험 모두에서 주의해야 한다."
+  },
+  {
+    subjectId: "tuning", number: 51, majorTopic: "SQL 분석 도구", middleTopic: "SQL Trace", topic: "Trace 수치 해석", difficulty: "최상급", questionType: "Trace 분석 선택형", mode: "original", sourcePage: 51, parentQuestionId: "pdf-o-3-trace-cpu-elapsed",
+    stem: "아래 Trace 결과를 가장 적절히 해석한 보기 2개를 고르라는 문제에서 정답 판단 근거로 가장 적절한 것은?",
+    table: { title: "Trace 요약", headers: ["Call", "Count", "CPU Time", "Elapsed Time", "Disk", "Query", "Current", "Rows"], rows: [["Parse", "1", "0.00", "0.02", "0", "0", "0", "0"], ["Execute", "1", "0.00", "0.00", "0", "0", "0", "0"], ["Fetch", "78", "10.50", "39.39", "2880", "286848", "0", "1989"]] },
+    choices: [["A", "Rows 대비 Query가 매우 커 인덱스 스캔 효율이나 테이블 액세스 비용을 의심한다.", "정답이다. 1,989행 반환에 논리 읽기 286,848은 과도하다."], ["B", "Parse Count가 1이므로 SQL 성능 문제는 파싱 병목이다.", "오답이다. 주요 시간과 I/O는 Fetch 단계에 몰려 있다."], ["C", "Elapsed와 CPU 차이가 크므로 I/O 대기 또는 경합 가능성을 함께 본다.", "정답이다. CPU보다 elapsed가 훨씬 크면 대기 시간을 확인해야 한다."], ["D", "Disk가 있으므로 반드시 Full Table Scan만 원인이다.", "오답이다. 물리 읽기는 원인 후보지만 실행계획과 함께 봐야 한다."]],
+    answer: "A", relatedConceptId: "tuning-sql-trace", hint: ["Call별 시간이 어디에 몰렸는지 본다.", "Rows 대비 Query 수치를 계산한다.", "CPU와 elapsed 차이를 대기 시간 관점으로 해석한다."],
+    explanation: "Trace는 Fetch 단계의 logical reads와 elapsed가 병목임을 보여준다. Rows 대비 Query가 매우 크고 CPU와 elapsed 차이가 커서 인덱스 스캔 효율, 테이블 랜덤 액세스, I/O 대기 가능성을 함께 봐야 한다."
+  },
+  {
+    subjectId: "tuning", number: 52, majorTopic: "인덱스 튜닝", middleTopic: "파티션 인덱스", topic: "Local Prefixed Index", difficulty: "상급", questionType: "인덱스 설계 선택형", mode: "original", sourcePage: 78, parentQuestionId: "pdf-o-3-local-prefixed",
+    stem: "거래 테이블이 거래일시 기준 Range 파티션이고 LOCAL PREFIXED 파티션 인덱스를 만들려고 한다. 가장 적절한 인덱스 구성은?",
+    code: `CREATE TABLE 거래 (
+  고객번호 VARCHAR2(10),
+  종목코드 VARCHAR2(20),
+  거래일시 DATE,
+  ...
+)
+PARTITION BY RANGE (거래일시) (...);`,
+    choices: [["A", "CREATE INDEX 거래_N1 ON 거래(거래일시) LOCAL", "정답이다. 파티션 키가 인덱스 선두에 있어 Local Prefixed 조건을 만족한다."], ["B", "CREATE INDEX 거래_N2 ON 거래(고객번호) LOCAL", "오답이다. 파티션 키가 선두에 없어 Local Nonprefixed다."], ["C", "CREATE INDEX 거래_N3 ON 거래(종목코드) LOCAL", "오답이다. 파티션 키 거래일시가 선두가 아니다."], ["D", "CREATE INDEX 거래_N4 ON 거래(종목코드, 거래일시) LOCAL", "오답이다. 거래일시가 포함되어도 선두 컬럼이 아니면 Prefixed가 아니다."]],
+    answer: "A", relatedConceptId: "tuning-partition-pruning", hint: ["Prefixed는 파티션 키가 인덱스 선두인지 본다.", "LOCAL 여부와 선두 컬럼 여부를 분리한다.", "거래일시가 첫 컬럼인 인덱스를 찾는다."],
+    explanation: "Local Prefixed Index는 로컬 인덱스이면서 파티션 키가 인덱스 선두 컬럼으로 시작해야 한다. 거래일시 기준 파티션이므로 거래일시가 첫 컬럼인 인덱스가 정답이다."
+  },
+  {
+    subjectId: "tuning", number: 53, majorTopic: "인덱스 튜닝", middleTopic: "파티션 인덱스", topic: "Global/Local Prefixed 구분", difficulty: "최상급", questionType: "인덱스 유형 매칭형", mode: "original", sourcePage: 79, parentQuestionId: "pdf-o-3-partition-index-type",
+    stem: "거래 테이블은 거래일자 기준 Range 파티션이다. 거래_idx1은 GLOBAL PARTITION BY RANGE(거래일자)이고 컬럼은 (거래일자, 상품번호)다. 거래_idx2는 LOCAL이고 컬럼은 (계좌번호, 거래일자)다. 두 인덱스 유형으로 가장 적절한 것은?",
+    choices: [["A", "idx1 Global Prefixed, idx2 Local Prefixed", "오답이다. idx2는 로컬이지만 파티션 키가 선두가 아니다."], ["B", "idx1 Global Prefixed, idx2 Local Nonprefixed", "정답이다. idx1은 Global이고 파티션 키가 선두, idx2는 Local이지만 선두가 계좌번호다."], ["C", "idx1 Local Prefixed, idx2 Global Nonprefixed", "오답이다. idx1은 GLOBAL로 정의되어 있다."], ["D", "idx1 Global Nonprefixed, idx2 Local Prefixed", "오답이다. 두 인덱스의 선두 컬럼 판단이 반대다."]],
+    answer: "B", relatedConceptId: "tuning-partition-pruning", hint: ["GLOBAL/LOCAL 정의를 먼저 본다.", "Prefixed는 파티션 키가 선두인지 본다.", "idx2의 첫 컬럼은 계좌번호다."],
+    explanation: "idx1은 GLOBAL 파티션 인덱스이고 파티션 키 거래일자가 선두이므로 Global Prefixed다. idx2는 LOCAL이지만 선두가 계좌번호이고 거래일자는 두 번째이므로 Local Nonprefixed다."
+  },
+  {
+    subjectId: "tuning", number: 54, majorTopic: "인덱스 튜닝", middleTopic: "인덱스 스캔 효율화", topic: "SARGable 조건", difficulty: "상급", questionType: "Access Predicate 판단형", mode: "variant", sourcePage: 109, parentQuestionId: "pdf-v-3-index-range-impossible",
+    stem: "일반 B-tree 인덱스 IDX1(C1)이 있을 때 Index Range Scan 시작점을 만들기 가장 어려운 조건은?",
+    choices: [["A", "C1 LIKE 'ABC%'", "오답이다. 우측 와일드카드는 범위 시작점을 만들 수 있다."], ["B", "C1 BETWEEN 'A' AND 'C'", "오답이다. 명확한 범위 조건이다."], ["C", "SUBSTR(C1,1,3) = 'ABC'", "정답이다. 컬럼을 함수로 가공해 일반 인덱스 access가 어렵다."], ["D", "C1 = 'ABC'", "오답이다. 동등 조건은 가장 전형적인 access 조건이다."]],
+    answer: "C", relatedConceptId: "tuning-index-scan-efficiency", hint: ["컬럼 자체가 왼쪽에 보존되는지 본다.", "함수 적용 여부를 확인한다.", "일반 인덱스와 함수 기반 인덱스를 구분한다."],
+    explanation: "인덱스 컬럼을 SUBSTR로 가공하면 일반 B-tree 인덱스의 정렬 순서를 그대로 활용하기 어렵다. 함수 기반 인덱스가 없다면 access predicate가 되기 힘들다."
+  },
+  {
+    subjectId: "tuning", number: 55, majorTopic: "인덱스 튜닝", middleTopic: "테이블 액세스 최소화", topic: "클러스터링 팩터", difficulty: "상급", questionType: "성능 원인 판단형", mode: "similar", sourcePage: 112, parentQuestionId: "pdf-s-3-clustering-factor",
+    stem: "두 인덱스의 선택도는 비슷하지만 IDX_A를 사용할 때 TABLE ACCESS BY INDEX ROWID의 Buffer가 훨씬 크다. 가장 먼저 의심할 요소는?",
+    choices: [["A", "클러스터링 팩터 차이", "정답이다. 인덱스 순서와 테이블 저장 순서가 맞지 않으면 랜덤 액세스가 늘어난다."], ["B", "SELECT 절 컬럼 별칭", "오답이다. 별칭은 테이블 블록 방문량을 직접 늘리지 않는다."], ["C", "Parse Count", "오답이다. 문제는 rowid 테이블 액세스 Buffer 차이다."], ["D", "SQL 문장 줄바꿈", "오답이다. 포맷은 실행 I/O 원인이 아니다."]],
+    answer: "A", relatedConceptId: "tuning-table-access", hint: ["인덱스 스캔 후 테이블 방문 비용을 본다.", "같은 건수라도 블록 방문이 달라질 수 있다.", "인덱스 순서와 테이블 저장 순서의 상관성을 생각한다."],
+    explanation: "클러스터링 팩터가 나쁘면 인덱스에서 찾은 ROWID 순서가 테이블 블록에 흩어져 있어 랜덤 액세스가 증가한다. 선택도가 비슷해도 테이블 액세스 비용이 크게 달라질 수 있다."
+  },
+  {
+    subjectId: "tuning", number: 56, majorTopic: "실행계획", middleTopic: "Predicate", topic: "Access와 Filter", difficulty: "상급", questionType: "Predicate 해석형", mode: "variant", sourcePage: 110, parentQuestionId: "pdf-v-3-access-filter",
+    stem: "실행계획 Predicate Information에서 A.COL1 = :B1은 access, A.COL2 = :B2는 filter로 표시되었다. 가장 적절한 해석은?",
+    choices: [["A", "COL1 조건은 인덱스 탐색 범위를 줄이는 데 사용되었고 COL2는 읽은 뒤 걸러졌다.", "정답이다. access와 filter의 핵심 차이다."], ["B", "filter 조건이 access 조건보다 항상 먼저 수행된다.", "오답이다. 표시 의미가 실행 순서를 단순히 말하는 것은 아니다."], ["C", "access 조건은 WHERE 절에 없는 조건이다.", "오답이다. WHERE 조건 중 인덱스 탐색에 사용된 조건일 수 있다."], ["D", "filter 조건은 성능에 전혀 영향이 없다.", "오답이다. 많이 읽은 뒤 버리면 비효율이 커진다."]],
+    answer: "A", relatedConceptId: "tuning-index-scan-efficiency", hint: ["access는 시작점/범위 축소에 쓰였는지 본다.", "filter는 읽은 후 적용되는지 본다.", "filter로 많이 버리는 경우 인덱스 설계를 의심한다."],
+    explanation: "Access Predicate는 인덱스 또는 액세스 경로의 탐색 범위를 줄이는 조건이고, Filter Predicate는 읽은 뒤 평가되는 조건이다. Filter가 선택도가 높으면 불필요한 I/O가 커질 수 있다."
+  },
+  {
+    subjectId: "tuning", number: 57, majorTopic: "조인 튜닝", middleTopic: "NL Join", topic: "선행 집합과 후행 인덱스", difficulty: "상급", questionType: "조인 방식 판단형", mode: "similar", sourcePage: 120, parentQuestionId: "pdf-s-3-nl-join",
+    stem: "선행 집합이 50건이고 후행 테이블은 조인 컬럼 인덱스로 1건씩 빠르게 찾을 수 있다. 첫 화면 응답시간이 중요하다. 우선 검토할 조인 방식은?",
+    choices: [["A", "Nested Loops Join", "정답이다. 소량 선행 집합과 후행 인덱스 탐색, 부분범위 처리에 유리하다."], ["B", "Hash Join", "오답이다. 대량 집합 처리에 강하지만 첫 행 응답 중심에서는 NL이 더 적합할 수 있다."], ["C", "Sort Merge Join", "오답이다. 양쪽 정렬 비용이 필요할 수 있다."], ["D", "Cartesian Join", "오답이다. 조인 조건 없는 곱집합은 요구와 다르다."]],
+    answer: "A", relatedConceptId: "tuning-nl-join", hint: ["선행 집합 크기를 본다.", "후행 테이블 조인 인덱스 유무를 확인한다.", "첫 화면 응답시간이면 부분범위 처리도 고려한다."],
+    explanation: "NL Join은 선행 집합이 작고 후행 테이블을 인덱스로 빠르게 찾을 수 있을 때 유리하다. 특히 일부 행을 빨리 반환해야 하는 부분범위 처리에서 장점이 있다."
+  },
+  {
+    subjectId: "tuning", number: 58, majorTopic: "조인 튜닝", middleTopic: "Hash Join", topic: "Build Input", difficulty: "상급", questionType: "조인 입력 판단형", mode: "variant", sourcePage: 124, parentQuestionId: "pdf-v-3-hash-build-input",
+    stem: "Hash Join에서 한쪽 집합은 5천 건, 다른 쪽은 5천만 건이다. PGA 메모리가 제한적일 때 일반적으로 Build Input으로 더 적절한 것은?",
+    choices: [["A", "5천 건 집합", "정답이다. 작은 집합으로 해시 테이블을 만들어야 메모리와 spill 부담이 작다."], ["B", "5천만 건 집합", "오답이다. 큰 집합을 Build로 잡으면 해시 영역이 커지고 spill 위험이 높다."], ["C", "항상 먼저 SQL에 적힌 테이블", "오답이다. 텍스트 순서가 Build Input을 결정하는 절대 기준은 아니다."], ["D", "인덱스가 더 많은 테이블", "오답이다. Hash Join Build는 주로 입력 크기와 메모리 관점으로 판단한다."]],
+    answer: "A", relatedConceptId: "tuning-hash-join", hint: ["Hash Join은 한쪽으로 해시 테이블을 만든다.", "메모리에 올릴 집합 크기를 본다.", "작은 집합이 Build Input인 것이 일반적이다."],
+    explanation: "Hash Join은 Build Input으로 해시 테이블을 만든 후 Probe Input으로 탐색한다. 작은 집합을 Build로 선택해야 메모리 사용량과 디스크 spill 위험을 줄일 수 있다."
+  },
+  {
+    subjectId: "tuning", number: 59, majorTopic: "인덱스 튜닝", middleTopic: "Sort 제거", topic: "ORDER BY 인덱스 활용", difficulty: "상급", questionType: "인덱스 구성 선택형", mode: "similar", sourcePage: 126, parentQuestionId: "pdf-s-3-sort-omission",
+    stem: "WHERE 고객번호 = :b1 ORDER BY 주문일시 DESC FETCH FIRST 10 ROWS ONLY 패턴이 매우 빈번하다. Sort 제거와 부분범위 처리에 가장 유리한 인덱스는?",
+    choices: [["A", "(고객번호, 주문일시 DESC)", "정답이다. 동등 조건 후 정렬 순서가 인덱스와 맞아 상위 10건을 빠르게 읽을 수 있다."], ["B", "(주문일시, 고객번호)", "오답이다. 고객번호 조건으로 좁히기 전에 날짜 범위를 넓게 읽을 수 있다."], ["C", "(주문금액)", "오답이다. 조건과 정렬에 맞지 않는다."], ["D", "(고객번호) 단일 인덱스만 있으면 ORDER BY가 항상 제거된다.", "오답이다. 주문일시 정렬 순서가 인덱스에 없다."]],
+    answer: "A", relatedConceptId: "tuning-index-design", hint: ["동등 조건 컬럼을 선두로 둔다.", "ORDER BY 컬럼과 방향을 맞춘다.", "FETCH FIRST 10은 부분범위 처리를 노린다."],
+    explanation: "고객번호로 좁힌 뒤 주문일시 DESC 순서로 바로 읽을 수 있으면 SORT ORDER BY를 제거하고 상위 10건에서 멈출 수 있다."
+  },
+  {
+    subjectId: "tuning", number: 60, majorTopic: "SQL 옵티마이저", middleTopic: "쿼리 변환", topic: "OR Expansion", difficulty: "상급", questionType: "쿼리 변환 판단형", mode: "variant", sourcePage: 132, parentQuestionId: "pdf-v-3-or-expansion",
+    stem: "WHERE C1 = :b1 OR C2 = :b2 조건에서 C1, C2 각각에 선택도 높은 인덱스가 있다. 옵티마이저 변환 관점에서 검토할 수 있는 것은?",
+    choices: [["A", "OR Expansion으로 UNION ALL 분기를 만들어 각 인덱스를 활용한다.", "정답이다. OR 조건을 분기하면 각 조건별 인덱스 접근이 가능해질 수 있다."], ["B", "항상 Full Scan만 가능하므로 인덱스는 무의미하다.", "오답이다. OR Expansion이나 Bitmap 등 대안이 있다."], ["C", "C1 인덱스만 사용하고 C2 조건은 삭제한다.", "오답이다. 결과가 달라진다."], ["D", "ORDER BY를 추가하면 OR 조건이 자동으로 사라진다.", "오답이다. 정렬은 조건 변환과 무관하다."]],
+    answer: "A", relatedConceptId: "tuning-query-transformation", hint: ["OR 양쪽 컬럼에 각각 인덱스가 있는지 본다.", "분기별로 access 조건이 될 수 있는지 확인한다.", "중복 제거 조건이 필요한 상황도 고려한다."],
+    explanation: "OR Expansion은 OR 조건을 UNION ALL 분기로 바꿔 각 분기가 적합한 인덱스를 사용할 수 있게 하는 쿼리 변환이다. 단, 분기 중복 가능성은 검증해야 한다."
+  },
+  {
+    subjectId: "tuning", number: 61, majorTopic: "SQL 옵티마이저", middleTopic: "쿼리 변환", topic: "View Merging과 NO_MERGE", difficulty: "최상급", questionType: "힌트 의도 판단형", mode: "similar", sourcePage: 135, parentQuestionId: "pdf-s-3-no-merge",
+    stem: "인라인 뷰 내부에서 GROUP BY로 대량 데이터를 먼저 집계한 뒤 코드 테이블과 조인해야 빠르다. 옵티마이저가 뷰를 병합하면 조인 후 집계가 될 수 있다. 적절한 힌트는?",
+    choices: [["A", "NO_MERGE", "정답이다. 인라인 뷰 병합을 막아 집계 후 조인 구조를 보존한다."], ["B", "USE_NL", "오답이다. 조인 방식 힌트이지 뷰 병합 차단 힌트가 아니다."], ["C", "INDEX_FFS", "오답이다. 인덱스 Fast Full Scan 유도 힌트다."], ["D", "APPEND", "오답이다. Direct Path Insert 관련 힌트다."]],
+    answer: "A", relatedConceptId: "tuning-query-transformation", hint: ["인라인 뷰의 처리 순서가 의미 있는지 본다.", "뷰 병합을 막는 힌트를 찾는다.", "집계 후 조인 구조를 보존해야 한다."],
+    explanation: "NO_MERGE는 인라인 뷰를 바깥 쿼리와 병합하지 않도록 유도한다. 집계 후 조인처럼 뷰 내부 처리 결과가 작아진 뒤 조인해야 하는 경우 자주 사용된다."
+  },
+  {
+    subjectId: "tuning", number: 62, majorTopic: "SQL 옵티마이저", middleTopic: "서브쿼리 변환", topic: "Unnesting", difficulty: "상급", questionType: "힌트 선택형", mode: "variant", sourcePage: 136, parentQuestionId: "pdf-v-3-unnest-hash-sj",
+    stem: "EXISTS 서브쿼리를 반복 필터가 아니라 해시 세미 조인으로 변환시키고자 한다. 가장 직접적인 힌트 조합은?",
+    choices: [["A", "UNNEST HASH_SJ", "정답이다. 서브쿼리 Unnesting과 Hash Semi Join 유도를 나타낸다."], ["B", "NO_UNNEST PUSH_SUBQ", "오답이다. NO_UNNEST는 서브쿼리를 풀지 않게 한다."], ["C", "INDEX_DESC FULL", "오답이다. 접근 경로 힌트일 뿐 세미 조인 변환을 직접 표현하지 않는다."], ["D", "ORDERED USE_MERGE", "오답이다. 조인 순서/방식 힌트로 해시 세미 조인 변환 의도가 아니다."]],
+    answer: "A", relatedConceptId: "tuning-query-transformation", hint: ["EXISTS를 조인으로 푸는 변환 이름을 떠올린다.", "세미 조인 방식이 Hash인지 확인한다.", "NO_UNNEST는 반대 의도다."],
+    explanation: "UNNEST는 서브쿼리를 조인 형태로 풀도록 유도하고 HASH_SJ는 해시 세미 조인을 의미한다. EXISTS 반복 비용을 줄이는 데 자주 사용된다."
+  },
+  {
+    subjectId: "tuning", number: 63, majorTopic: "파티션 튜닝", middleTopic: "Partition Pruning", topic: "컬럼 가공 제거", difficulty: "상급", questionType: "SQL Rewrite 선택형", mode: "similar", sourcePage: 140, parentQuestionId: "pdf-s-3-partition-pruning-substr",
+    stem: "주문번호 앞 6자리가 주문월이며 주문번호 기준 파티션 프루닝이 가능하다. 다음 중 2025년 1~2월 주문 조회 조건으로 가장 적절한 것은?",
+    choices: [["A", "SUBSTR(주문번호,1,6) IN ('202501','202502')", "오답이다. 컬럼 가공으로 시작점 탐색과 pruning이 어려울 수 있다."], ["B", "주문번호 >= '2025010000000000' AND 주문번호 < '2025030000000000'", "정답이다. 컬럼을 가공하지 않는 반개구간 범위 조건이다."], ["C", "TO_CHAR(주문번호) LIKE '%202501%'", "오답이다. 앞쪽 와일드카드와 가공으로 비효율적이다."], ["D", "주문번호 <> '2025030000000000'", "오답이다. 제외 조건은 원하는 월 범위를 좁히지 못한다."]],
+    answer: "B", relatedConceptId: "tuning-partition-pruning", hint: ["파티션 키나 인덱스 컬럼을 함수로 감싸는지 본다.", "연속된 두 달은 반개구간으로 표현할 수 있다.", "상한은 다음 월 시작값 미만이 안전하다."],
+    explanation: "컬럼 가공 조건은 인덱스 Range Scan과 Partition Pruning을 방해할 수 있다. 주문월 접두가 정렬되는 구조라면 시작값 이상, 다음 월 시작값 미만 조건이 적절하다."
+  },
+  {
+    subjectId: "tuning", number: 64, majorTopic: "대량 처리 튜닝", middleTopic: "Parallel DML", topic: "세션 설정과 APPEND", difficulty: "상급", questionType: "대량 INSERT 판단형", mode: "original", sourcePage: 142, parentQuestionId: "pdf-o-3-parallel-dml",
+    stem: "INSERT /*+ APPEND PARALLEL(t 4) */ SELECT 문을 작성했지만 병렬 DML이 기대대로 동작하지 않는다. 우선 확인할 사항은?",
+    choices: [["A", "ALTER SESSION ENABLE PARALLEL DML 설정 여부", "정답이다. Oracle Parallel DML은 세션 활성화가 필요하다."], ["B", "SELECT 절 컬럼 별칭 길이", "오답이다. 병렬 DML 활성화와 직접 관련 없다."], ["C", "ORDER BY 절 존재 여부만 확인하면 된다.", "오답이다. 정렬 여부가 핵심 설정은 아니다."], ["D", "COMMIT을 먼저 수행하면 INSERT가 병렬로 바뀐다.", "오답이다. 병렬 DML은 실행 전 세션 설정이 필요하다."]],
+    answer: "A", relatedConceptId: "tuning-parallel", hint: ["Parallel 힌트와 Parallel DML 세션 설정은 다르다.", "DML 전에 설정해야 하는 문장을 찾는다.", "APPEND는 Direct Path와 관련된다."],
+    explanation: "Oracle에서 병렬 DML을 사용하려면 ALTER SESSION ENABLE PARALLEL DML이 필요하다. 힌트만 작성했다고 모든 DML이 병렬로 수행되는 것은 아니다."
+  },
+  {
+    subjectId: "tuning", number: 65, majorTopic: "SQL 분석 도구", middleTopic: "SQL Trace", topic: "Application Cursor Caching", difficulty: "상급", questionType: "Trace 계산형", mode: "similar", sourcePage: 9, parentQuestionId: "pdf-s-3-cursor-caching",
+    stem: "Trace에서 Parse Count는 10, Execute Count는 1,000이다. 가장 적절한 해석은?",
+    choices: [["A", "Execute Count가 Parse Count보다 크므로 커서 재사용 또는 Application Cursor Caching 가능성을 볼 수 있다.", "정답이다. 실행 횟수보다 파싱 횟수가 훨씬 적다."], ["B", "Parse Count가 10이면 하드 파싱이 1,000번 발생했다.", "오답이다. 하드 파싱 횟수는 library cache miss 등 추가 지표를 봐야 한다."], ["C", "Execute Count가 많으면 SQL이 실행되지 않았다는 뜻이다.", "오답이다. Execute는 실행 호출 수다."], ["D", "Parse와 Execute는 항상 같은 값이어야 정상이다.", "오답이다. 커서 재사용 시 Execute가 더 클 수 있다."]],
+    answer: "A", relatedConceptId: "tuning-sql-trace", hint: ["Parse와 Execute의 비율을 본다.", "같은 커서가 여러 번 실행될 수 있다.", "하드 파싱 여부는 library cache miss를 확인한다."],
+    explanation: "Execute Count가 Parse Count보다 훨씬 크면 매번 새로 파싱하지 않고 커서를 재사용했을 가능성이 있다. 하드/소프트 파싱은 parse count misses in library cache 등과 함께 판단한다."
+  },
+  {
+    subjectId: "tuning", number: 66, majorTopic: "SQL 옵티마이저", middleTopic: "통계정보", topic: "카디널리티 오류", difficulty: "상급", questionType: "실행계획 원인 판단형", mode: "variant", sourcePage: 118, parentQuestionId: "pdf-v-3-cardinality",
+    stem: "예상 Rows는 10건인데 실제 A-Rows는 100만 건이다. 이 차이가 조인 순서 선택 실패로 이어졌다. 가장 먼저 확인할 항목은?",
+    choices: [["A", "통계정보와 히스토그램, 조건 컬럼 선택도", "정답이다. 카디널리티 추정 오류의 대표 원인이다."], ["B", "SQL 파일의 줄 수", "오답이다. 줄 수는 옵티마이저 추정 근거가 아니다."], ["C", "SELECT 절 컬럼 순서", "오답이다. 조인 카디널리티 오류의 직접 원인으로 보기 어렵다."], ["D", "테이블 주석 존재 여부", "오답이다. 주석은 비용 계산에 사용되지 않는다."]],
+    answer: "A", relatedConceptId: "tuning-optimizer", hint: ["예상 Rows와 실제 Rows 차이를 본다.", "선택도 추정에 쓰이는 정보가 무엇인지 확인한다.", "히스토그램과 최신 통계를 검토한다."],
+    explanation: "옵티마이저는 통계정보와 선택도 추정을 바탕으로 카디널리티를 계산한다. 실제 행 수와 큰 차이가 있으면 조인 순서와 방식 선택이 잘못될 수 있다."
+  },
+  {
+    subjectId: "tuning", number: 67, majorTopic: "SQL 옵티마이저", middleTopic: "바인드 변수", topic: "Bind Peeking", difficulty: "상급", questionType: "계획 공유 함정형", mode: "similar", sourcePage: 119, parentQuestionId: "pdf-s-3-bind-peeking",
+    stem: "같은 SQL이 바인드 값에 따라 선택도가 크게 달라진다. 처음 실행 바인드 값 기준으로 생성된 계획이 다른 값에도 공유되어 성능 편차가 발생한다. 관련 개념은?",
+    choices: [["A", "Bind Peeking 또는 Adaptive Cursor Sharing", "정답이다. 바인드 값 분포에 따라 계획 공유 문제가 발생할 수 있다."], ["B", "Cartesian Product", "오답이다. 조인 조건 누락으로 인한 곱집합 개념이다."], ["C", "Direct Path Insert", "오답이다. 대량 적재 방식이다."], ["D", "GROUPING SETS", "오답이다. 다차원 집계 구문이다."]],
+    answer: "A", relatedConceptId: "tuning-optimizer", hint: ["바인드 값에 따라 선택도가 달라지는지 본다.", "첫 실행 값으로 계획이 만들어지는 현상을 떠올린다.", "여러 계획 분리가 필요한 상황이다."],
+    explanation: "Bind Peeking은 최초 바인드 값을 참고해 계획을 만들 수 있고, 값 분포가 치우치면 다른 바인드 값에서 부적절한 계획이 공유될 수 있다. Adaptive Cursor Sharing은 이를 완화한다."
+  },
+  {
+    subjectId: "tuning", number: 68, majorTopic: "Lock과 동시성", middleTopic: "Blocking", topic: "행 잠금", difficulty: "중급", questionType: "동시성 시나리오형", mode: "variant", sourcePage: 128, parentQuestionId: "pdf-v-3-lock-blocking",
+    stem: "세션 A가 주문번호 100의 행을 UPDATE하고 COMMIT하지 않았다. 세션 B가 같은 행을 UPDATE하려고 할 때 가장 적절한 설명은?",
+    choices: [["A", "세션 B는 A가 COMMIT 또는 ROLLBACK할 때까지 대기할 수 있다.", "정답이다. 같은 행에 대한 TX row lock 경합이 발생한다."], ["B", "세션 B는 항상 즉시 성공하고 A의 변경을 덮어쓴다.", "오답이다. 행 잠금으로 동시 갱신 충돌을 막는다."], ["C", "SELECT 문도 항상 같은 방식으로 대기한다.", "오답이다. 일반 일관 읽기는 잠금 대기 없이 이전 버전을 읽을 수 있다."], ["D", "A가 UPDATE한 행은 DB에서 즉시 삭제된다.", "오답이다. UPDATE와 DELETE는 다르다."]],
+    answer: "A", relatedConceptId: "tuning-lock",
+    hint: ["같은 행을 동시에 갱신하는지 본다.", "UPDATE는 행 잠금을 획득한다.", "일반 SELECT와 UPDATE 대기를 구분한다."],
+    explanation: "Oracle에서 UPDATE는 대상 행에 TX 잠금을 잡는다. 다른 세션이 같은 행을 갱신하려 하면 선행 트랜잭션 종료까지 대기할 수 있다."
+  },
+  {
+    subjectId: "tuning", number: 69, majorTopic: "인덱스 튜닝", middleTopic: "Index Fast Full Scan", topic: "Index FFS", difficulty: "중급", questionType: "스캔 방식 구분형", mode: "original", sourcePage: 113, parentQuestionId: "pdf-o-3-index-ffs",
+    stem: "Index Fast Full Scan에 대한 설명으로 가장 적절한 것은?",
+    choices: [["A", "인덱스 전체를 멀티블록 I/O로 읽을 수 있으며 정렬 순서는 보장하지 않는다.", "정답이다. 테이블 대신 인덱스 세그먼트를 전체 스캔하는 방식이다."], ["B", "항상 인덱스 키 순서대로 결과를 반환한다.", "오답이다. 키 순서 보장은 Index Full Scan 쪽 성격이다."], ["C", "선두 컬럼 동등 조건이 반드시 필요하다.", "오답이다. 전체 인덱스 스캔이므로 선두 동등 조건이 필수는 아니다."], ["D", "테이블 블록을 반드시 한 건씩 ROWID로 방문한다.", "오답이다. 필요한 컬럼이 인덱스에 있으면 테이블 액세스를 피할 수 있다."]],
+    answer: "A", relatedConceptId: "tuning-index-basic", hint: ["Fast Full은 전체 인덱스 스캔이다.", "정렬 순서 보장 여부를 구분한다.", "인덱스만으로 필요한 컬럼을 충족할 수 있는지 본다."],
+    explanation: "Index Fast Full Scan은 인덱스 세그먼트를 전체 스캔하며 멀티블록 I/O와 병렬 처리가 가능하다. 결과의 키 순서를 보장하지 않는 점이 Index Full Scan과 다르다."
+  },
+  {
+    subjectId: "tuning", number: 70, majorTopic: "SQL 분석 도구", middleTopic: "실행계획", topic: "COUNT STOPKEY", difficulty: "상급", questionType: "실행계획 해석형", mode: "similar", sourcePage: 127, parentQuestionId: "pdf-s-3-count-stopkey",
+    stem: "실행계획에 COUNT STOPKEY가 보이고, 인덱스 Range Scan 후 상위 10건에서 멈춘다. 가장 적절한 해석은?",
+    choices: [["A", "ROWNUM 또는 FETCH FIRST 조건으로 부분범위 처리가 가능해 불필요한 나머지 행 처리를 줄인다.", "정답이다. Stopkey는 필요한 건수에서 조기 중단하는 계획이다."], ["B", "항상 전체 테이블을 읽은 뒤 마지막에 10건만 버린다.", "오답이다. Stopkey는 조기 중단 가능성을 의미한다."], ["C", "COUNT STOPKEY는 집계 오류를 나타내는 경고다.", "오답이다. 정상 실행계획 Operation이다."], ["D", "정렬을 반드시 TEMP로 수행했다는 뜻이다.", "오답이다. 인덱스 순서와 결합되면 정렬 없이 Top-N이 가능하다."]],
+    answer: "A", relatedConceptId: "tuning-top-n",
+    hint: ["Stopkey는 필요한 건수 제한과 관련된다.", "인덱스 순서와 만나면 조기 중단할 수 있다.", "전체 처리 후 필터인지 부분범위 처리인지 구분한다."],
+    explanation: "COUNT STOPKEY는 ROWNUM <= N 또는 FETCH FIRST N ROWS 같은 조건으로 필요한 행 수만큼 처리하고 멈출 수 있음을 의미한다. Top-N 튜닝에서 중요하다."
+  }
+] as CompactManualQuestion[]).map(makeCompactManualQuestion);
+
+const manualVerifiedObjectiveQuestionsBatch10: ObjectiveQuestion[] = ([
+  {
+    subjectId: "sql-basic",
+    number: 81,
+    majorTopic: "SQL 기본 및 활용",
+    middleTopic: "Window Function",
+    topic: "LAG 함수",
+    difficulty: "중급",
+    questionType: "분석 함수 결과형",
+    mode: "similar",
+    sourcePage: 88,
+    parentQuestionId: "pdf-s-2-lag",
+    stem: "월별 매출 테이블에서 같은 고객의 직전 월 매출을 현재 행에 함께 표시하려고 한다. 가장 적절한 분석 함수는?",
+    choices: [
+      ["A", "LAG(매출) OVER (PARTITION BY 고객 ORDER BY 매출월)", "정답이다. 같은 고객 파티션 안에서 이전 행의 매출을 가져온다."],
+      ["B", "LEAD(매출) OVER (PARTITION BY 고객 ORDER BY 매출월)", "오답이다. LEAD는 다음 행 값을 가져온다."],
+      ["C", "SUM(매출) OVER (PARTITION BY 고객)", "오답이다. 누적 또는 합계이지 직전 월 값을 가져오지 않는다."],
+      ["D", "COUNT(*) OVER (ORDER BY 매출월)", "오답이다. 행 수를 계산할 뿐 직전 매출을 반환하지 않는다."]
+    ],
+    answer: "A",
+    relatedConceptId: "sql-window-functions",
+    hint: ["현재 행 기준 이전 행 값을 가져와야 한다.", "고객별로 분리하려면 PARTITION BY 고객이 필요하다.", "시간 순서는 매출월 ORDER BY로 정한다."],
+    explanation: "LAG 함수는 현재 행보다 앞선 행의 값을 같은 결과 행에 표시할 때 사용한다. 고객별 직전 월 매출은 고객 파티션 안에서 매출월 순서로 LAG(매출)을 계산하면 된다."
+  }
+] as CompactManualQuestion[]).map(makeCompactManualQuestion);
+
 const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
   ...manualVerifiedObjectiveQuestions,
   ...manualVerifiedObjectiveQuestionsBatch02,
   ...manualVerifiedObjectiveQuestionsBatch03,
   ...manualVerifiedObjectiveQuestionsBatch04,
+  ...manualVerifiedObjectiveQuestionsBatch05,
+  ...manualVerifiedObjectiveQuestionsBatch06,
+  ...manualVerifiedObjectiveQuestionsBatch07,
+  ...manualVerifiedObjectiveQuestionsBatch08,
+  ...manualVerifiedObjectiveQuestionsBatch09,
+  ...manualVerifiedObjectiveQuestionsBatch10,
   ...manualVerifiedTuningPartitionAndTraceQuestions
 ]);
 

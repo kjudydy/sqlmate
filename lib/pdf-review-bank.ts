@@ -96,6 +96,7 @@ function choices(values: Array<[string, string]>): PdfReviewChoice[] {
 
 const sqlExam = "SQL-자격검정-실전문제.pdf";
 const subject3Full = "sqlp_subject3_full.pdf";
+const practiceExpected = "SQLP_실기_기출복기_예상문제집.pdf";
 
 const commonOriginalNote = "PDF 페이지 PNG 렌더와 정답 및 해설 페이지를 직접 대조했다. 사용자 화면에는 출처와 검수 메타데이터를 노출하지 않는다.";
 
@@ -3844,6 +3845,381 @@ WHERE o.주문일자 >= '20160601'
     explanation: "예상 실행계획은 주문 3개월 3,000만 건을 읽고 배송을 주문번호로 반복 탐색하며, 고객명도 스칼라 서브쿼리로 반복 조회한다. 야간 배치이고 동시 DML이 없으며 최대 병렬도 4가 허용되므로 고객 조회를 조인으로 바꾸고 대량 집합은 Hash Join과 병렬 처리 중심으로 재작성하는 것이 적절하다. 단, 파티션 구성 변경은 금지되어 있으므로 SQL과 힌트, 세션 설정 범위에서 개선해야 한다.",
     relatedConcepts: ["Parallel DML", "Hash Join", "Scalar Subquery", "Partition Pruning"],
     hints: ["예상 실행계획에서 배송_N1이 주문 건수만큼 반복 탐색되는지 본다.", "고객명 조회가 SELECT 절 스칼라 서브쿼리로 반복되는지 확인한다.", "대량 INSERT SELECT에서 APPEND와 Parallel DML 설정이 필요한지 검토한다."]
+  }),
+  subject3Lab({
+    id: "practical-expected-01-or-subquery-unnesting",
+    title: "실기문제 12 | OR 조건 서브쿼리 변환 및 Unnesting",
+    topic: "Subquery Unnesting과 OR Expansion",
+    difficulty: "최상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 1,
+    answerPage: 2,
+    questionNumber: "실기문제 1",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 1~2쪽 실기문제 1의 AS-IS SQL, TO-BE 실행계획, 표준 해설을 렌더링 페이지와 텍스트 추출 결과로 대조했다.",
+    scenario: "T1 테이블을 갱신하는 UPDATE 문에서 T2를 두 번 반복 조회하고, T3 존재 여부도 상관 서브쿼리로 확인한다. OR 조건 때문에 인덱스 활용이 불안정하고 서브쿼리 반복 수행 비용이 크다.",
+    requirements: ["T2 반복 액세스를 줄이고 OR 조건을 인덱스 활용 가능한 형태로 유도하시오.", "EXISTS 서브쿼리는 Unnesting되어 해시 세미 조인으로 처리되도록 작성하시오.", "필요한 힌트를 SQL 문장에 명확히 기술하시오."],
+    schemaSql: "",
+    currentSql: `UPDATE T1 A
+SET A.C4 = (SELECT MAX(C3) FROM T2 X WHERE X.C1 = A.C2 OR X.C2 = A.C3),
+    A.C5 = (SELECT MAX(C4) FROM T2 X WHERE X.C1 = A.C2 OR X.C2 = A.C3)
+WHERE EXISTS (
+  SELECT 1
+  FROM T3 X
+  WHERE X.C1 = A.C2
+    AND ROWNUM = 1
+);`,
+    executionPlan: `[TO-BE 실행계획]
+Id | Operation                           | Name
+0  | UPDATE STATEMENT                    |
+1  | UPDATE                              | T1
+2  | HASH JOIN RIGHT SEMI                |
+3  | TABLE ACCESS FULL                   | T3
+4  | TABLE ACCESS FULL                   | T1
+5  | SORT AGGREGATE                      |
+6  | VIEW                                | VW_ORE_AE9E49E8
+7  | UNION-ALL                           |
+8  | TABLE ACCESS BY INDEX ROWID BATCHED | T2
+9  | INDEX RANGE SCAN                    | T2_X1
+10 | TABLE ACCESS BY INDEX ROWID BATCHED | T2
+11 | INDEX RANGE SCAN                    | T2_X2`,
+    answerSql: `UPDATE /*+ SWAP_JOIN_INPUTS(B@SQ) FULL(A) */ T1 A
+SET (C4, C5) = (
+  SELECT /*+ OR_EXPAND INDEX(T2 T2_X1) INDEX(T2 T2_X2) */ MAX(C3), MAX(C4)
+  FROM T2
+  WHERE C1 = A.C2 OR C2 = A.C3
+)
+WHERE EXISTS (
+  SELECT /*+ UNNEST HASH_SJ FULL(B) QB_NAME(SQ) */ 1
+  FROM T3 B
+  WHERE B.C1 = A.C2
+);
+
+COMMIT;`,
+    acceptedAlternatives: ["T2 집계를 한 번의 다중 컬럼 서브쿼리로 통합하고, EXISTS가 세미 조인으로 변환되며, OR 조건이 OR_EXPAND 또는 동등한 UNION ALL 분기로 처리되는 답안은 인정한다."],
+    rubric: ["T2를 C4, C5 각각 따로 읽는 구조를 제거한다.", "EXISTS 서브쿼리의 UNNEST HASH_SJ 의도를 정확히 표현한다.", "OR 조건을 T2_X1, T2_X2 각각의 Range Scan으로 분기할 수 있게 한다.", "힌트의 쿼리 블록과 별칭 의미를 설명한다."],
+    explanation: "핵심은 같은 조건으로 T2를 두 번 조회하던 SET 절을 다중 컬럼 서브쿼리 하나로 합치고, EXISTS를 반복 필터가 아니라 해시 세미 조인으로 변환시키는 것이다. OR_EXPAND는 OR 조건을 UNION ALL 형태로 분리해 각각 T2_X1, T2_X2 인덱스 접근을 유도한다.",
+    relatedConcepts: ["Subquery Unnesting", "OR Expansion", "Hash Semi Join", "SQL Rewrite"],
+    hints: ["T2가 C4, C5 계산 때문에 몇 번 읽히는지 먼저 확인한다.", "EXISTS는 필터 서브쿼리로 남기기보다 세미 조인으로 바꿀 수 있는지 본다.", "OR 조건의 양쪽 컬럼에 각각 인덱스를 타게 하려면 OR_EXPAND 또는 UNION ALL 분기를 생각한다."]
+  }),
+  subject3Lab({
+    id: "practical-expected-02-multi-table-insert",
+    title: "실기문제 13 | Multi-Table Insert와 Direct Path Insert",
+    topic: "대량 INSERT 튜닝",
+    difficulty: "최상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 2,
+    answerPage: 3,
+    questionNumber: "실기문제 2",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 2~3쪽 실기문제 2의 DELETE/UNION ALL AS-IS, TO-BE 실행계획, 표준 스크립트를 대조했다.",
+    scenario: "T_SRC를 두 번 읽어 T_TGT에 A/B 유형 데이터를 적재하는 배치다. 기존 방식은 DELETE 후 INSERT UNION ALL로 처리해 원본 테이블 반복 스캔과 인덱스 유지 비용이 크다.",
+    requirements: ["T_SRC를 한 번만 읽도록 재작성하시오.", "대량 적재에 적합한 Direct Path Insert와 병렬 DML 설정을 제시하시오.", "적재 전후 인덱스 처리 방식을 함께 작성하시오."],
+    schemaSql: "",
+    currentSql: `DELETE FROM T_TGT;
+COMMIT;
+
+INSERT /*+ PARALLEL(2) */ INTO T_TGT
+SELECT C1, 'A' AS C2, C3 FROM T_SRC
+UNION ALL
+SELECT C1, 'B' AS C2, C3 FROM T_SRC;
+
+COMMIT;`,
+    executionPlan: `[TO-BE 실행계획]
+Id | Operation             | Name
+0  | INSERT STATEMENT      |
+1  | PX COORDINATOR        |
+2  | PX SEND QC (RANDOM)   | :TQ10000
+3  | MULTI-TABLE INSERT    |
+4  | PX RECEIVE            |
+5  | PX SEND ROUND-ROBIN   | :TQ10001
+6  | PX BLOCK ITERATOR     |
+7  | TABLE ACCESS FULL     | T_SRC
+8  | DIRECT LOAD INTO      | T_TGT
+9  | DIRECT LOAD INTO      | T_TGT`,
+    answerSql: `TRUNCATE TABLE T_TGT;
+
+ALTER INDEX TGT_X1 UNUSABLE;
+ALTER SESSION ENABLE PARALLEL DML;
+
+INSERT /*+ APPEND PARALLEL(T_TGT 2) */ ALL
+  INTO T_TGT (C1, C2, C3) VALUES (C1, 'A', C3)
+  INTO T_TGT (C1, C2, C3) VALUES (C1, 'B', C3)
+SELECT /*+ PARALLEL(T_SRC 2) */ C1, C3
+FROM T_SRC;
+
+COMMIT;
+
+ALTER INDEX TGT_X1 REBUILD PARALLEL 2;
+ALTER INDEX TGT_X1 NOPARALLEL;
+ALTER SESSION DISABLE PARALLEL DML;`,
+    acceptedAlternatives: ["TRUNCATE가 업무적으로 허용되지 않는 경우를 명시하고, 적재 전 인덱스 유지 비용을 줄인 뒤 INSERT ALL 또는 동등한 단일 원본 스캔 구조로 처리하면 인정한다."],
+    rubric: ["DELETE 대신 TRUNCATE 가능성을 판단한다.", "UNION ALL 두 분기로 인한 T_SRC 2회 스캔을 제거한다.", "INSERT ALL로 Multi-Table Insert를 유도한다.", "APPEND, Parallel DML, 인덱스 UNUSABLE/REBUILD 순서를 함께 제시한다."],
+    explanation: "원본을 두 번 읽는 UNION ALL 방식은 대량 배치에서 I/O가 불필요하게 커진다. INSERT ALL은 T_SRC를 한 번 읽어 두 대상 로우를 동시에 생성할 수 있고, APPEND와 Parallel DML을 사용하면 Direct Path Insert 실행계획을 만들 수 있다.",
+    relatedConcepts: ["Multi-Table Insert", "Direct Path Insert", "Parallel DML", "Index Rebuild"],
+    hints: ["UNION ALL 양쪽 SELECT가 같은 T_SRC를 반복 읽는지 본다.", "대량 적재에서는 기존 인덱스를 유지하며 행마다 갱신하는 비용을 줄일 수 있는지 본다.", "Parallel DML은 힌트만으로 충분하지 않고 세션 설정이 필요하다."]
+  }),
+  subject3Lab({
+    id: "practical-expected-03-count-stopkey",
+    title: "실기문제 14 | 부분범위처리와 Count Stopkey",
+    topic: "Top-N 부분범위 처리",
+    difficulty: "최상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 4,
+    answerPage: 5,
+    questionNumber: "실기문제 3",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 4~5쪽 실기문제 3의 UNION ALL, EXISTS, T3 조인 제거 방향과 TO-BE 계획을 대조했다.",
+    scenario: "T1, T2의 결과를 UNION ALL로 합친 뒤 T3와 조인하고 T4 존재 여부를 확인한 후 상위 10건만 반환하는 SQL이다. 기존 구조는 최종 단계까지 많은 행을 처리한 뒤 ROWNUM 조건을 적용한다.",
+    requirements: ["각 UNION ALL 분기에서 가능한 한 빨리 상위 10건만 읽도록 재작성하시오.", "T3 조회가 전체 후보 행에 대해 반복 조인되지 않도록 바꾸시오.", "Count Stopkey가 분기별로 나타나는 실행계획을 유도하시오."],
+    schemaSql: "",
+    currentSql: `SELECT A.TP, A.NM
+FROM (
+  SELECT *
+  FROM (
+    SELECT 1 AS TP, A.ID, B.NM
+    FROM T1 A, T3 B
+    WHERE A.ID = B.ID
+      AND A.DT <= SYSDATE
+    UNION ALL
+    SELECT 2 AS TP, A.ID, B.NM
+    FROM T2 A, T3 B
+    WHERE A.ID = B.ID
+      AND A.DT <= SYSDATE
+  )
+  ORDER BY TP, NM
+) A
+WHERE EXISTS (SELECT 1 FROM T4 WHERE ID = A.ID)
+  AND ROWNUM <= 10;`,
+    executionPlan: `[TO-BE 실행계획 핵심]
+- VIEW
+  - TABLE ACCESS BY INDEX ROWID | T3
+  - INDEX UNIQUE SCAN | T3_PK
+  - COUNT STOPKEY
+    - UNION-ALL
+      - COUNT STOPKEY
+        - NESTED LOOPS
+          - INDEX RANGE SCAN | T1_PK
+          - INDEX UNIQUE SCAN | T4_PK
+      - COUNT STOPKEY
+        - NESTED LOOPS
+          - INDEX RANGE SCAN | T2_PK
+          - INDEX UNIQUE SCAN | T4_PK`,
+    answerSql: `SELECT A.TP,
+       (SELECT NM FROM T3 WHERE ID = A.ID) AS NM
+FROM (
+  SELECT *
+  FROM (
+    SELECT 1 AS TP, A.ID
+    FROM T1 A, T4 B
+    WHERE A.ID = B.ID
+      AND A.DT <= SYSDATE
+    ORDER BY TP, A.ID
+  )
+  WHERE ROWNUM <= 10
+  UNION ALL
+  SELECT *
+  FROM (
+    SELECT 2 AS TP, A.ID
+    FROM T2 A, T4 B
+    WHERE A.ID = B.ID
+      AND A.DT <= SYSDATE
+    ORDER BY TP, A.ID
+  )
+  WHERE ROWNUM <= 10
+) A
+WHERE ROWNUM <= 10;`,
+    acceptedAlternatives: ["분기별 Stopkey가 가능하도록 T1/T2 각각에서 T4 조건을 먼저 적용하고, T3 이름 조회를 최종 소량 집합으로 늦추는 구조면 인정한다."],
+    rubric: ["T3 조인을 최종 소량 결과에 대한 스칼라 조회로 늦춘다.", "T4 존재 조건을 각 분기 내부로 이동한다.", "각 분기에서 ROWNUM <= 10이 먼저 적용되도록 한다.", "최종 ROWNUM으로 전체 10건을 보존한다."],
+    explanation: "부분범위처리 문제의 핵심은 필요 없는 행을 끝까지 끌고 가지 않는 것이다. T3의 NM은 최종 출력에 필요하지만 상위 10건 후보를 정하는 데 필수 입력이 아니므로 뒤로 미루고, T4 존재 조건은 각 분기 안으로 밀어 넣어 분기별 Count Stopkey가 가능하게 만든다.",
+    relatedConcepts: ["Top-N", "COUNT STOPKEY", "Scalar Subquery", "Predicate Pushing"],
+    hints: ["최종 10건만 필요한데 T3를 전체 후보에 조인하고 있는지 본다.", "EXISTS 조건이 UNION ALL 바깥에 있으면 분기별 조기 중단이 어려운지 확인한다.", "각 분기별 ROWNUM과 최종 ROWNUM의 역할을 구분한다."]
+  }),
+  subject3Lab({
+    id: "practical-expected-04-partition-exchange",
+    title: "실기문제 15 | Partition Exchange 대용량 배치",
+    topic: "Partition Exchange와 MERGE 대체",
+    difficulty: "최상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 5,
+    answerPage: 6,
+    questionNumber: "실기문제 4",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 5~6쪽 실기문제 4의 MERGE AS-IS와 임시 테이블 + EXCHANGE PARTITION 표준 답안을 대조했다.",
+    scenario: "T1의 특정 월 파티션에 대해 T2 변경분을 반영하는 배치다. 기존 MERGE는 UPDATE, DELETE, INSERT가 섞여 대량 Undo/Redo와 인덱스 유지 비용이 발생한다.",
+    requirements: ["대상 월 파티션만 대상으로 작업하는 방식으로 재작성하시오.", "MERGE 대신 임시 테이블 적재 후 Partition Exchange로 교체하는 절차를 제시하시오.", "INCLUDING INDEXES와 WITHOUT VALIDATION 사용 조건을 설명하시오."],
+    schemaSql: "",
+    currentSql: `MERGE INTO T1 A
+USING T2 B
+ON (A.ID = B.ID AND A.DT = B.DT)
+WHEN MATCHED THEN
+  UPDATE SET V1 = A.V1 + B.V1
+  DELETE WHERE CD <= 100
+WHEN NOT MATCHED THEN
+  INSERT (DT, ID, V1) VALUES (B.DT, B.ID, B.V1);`,
+    executionPlan: "",
+    answerSql: `CREATE TABLE T1_P202501 (
+  DT DATE,
+  ID VARCHAR2(10),
+  CD VARCHAR2(10),
+  V1 NUMBER
+);
+
+CREATE UNIQUE INDEX T1_P202501_PK ON T1_P202501 (DT, ID);
+
+INSERT /*+ APPEND */ INTO T1_P202501
+SELECT NVL(A.DT, B.DT) AS DT,
+       NVL(A.ID, B.ID) AS ID,
+       A.CD,
+       CASE
+         WHEN A.DT IS NOT NULL AND B.DT IS NOT NULL THEN A.V1 + B.V1
+         WHEN A.DT IS NOT NULL THEN A.V1
+         ELSE B.V1
+       END AS V1
+FROM T1 PARTITION(P202501) A
+FULL OUTER JOIN T2 B
+  ON A.DT = B.DT
+ AND A.ID = B.ID
+WHERE A.CD IS NULL OR A.CD > 100;
+
+COMMIT;
+
+ALTER TABLE T1 EXCHANGE PARTITION P202501
+WITH TABLE T1_P202501
+INCLUDING INDEXES
+WITHOUT VALIDATION;
+
+DROP TABLE T1_P202501;`,
+    acceptedAlternatives: ["특정 파티션 전체를 새 이미지로 만든 뒤 EXCHANGE PARTITION으로 바꾸는 절차와 동일 결과를 보장하면 인정한다."],
+    rubric: ["MERGE의 행 단위 변경 비용을 지적한다.", "대상 파티션과 동일 구조의 임시 테이블을 만든다.", "기존 파티션과 변경분을 FULL OUTER JOIN으로 합성한다.", "삭제 조건 CD <= 100을 결과 테이블에서 제외한다.", "EXCHANGE PARTITION 옵션의 의미를 설명한다."],
+    explanation: "대량 파티션 단위 배치에서는 기존 파티션을 행 단위로 UPDATE/DELETE/INSERT하는 것보다 새 파티션 이미지를 만들어 교체하는 방식이 유리할 수 있다. Partition Exchange는 데이터 이동 없이 세그먼트 메타데이터를 교환하므로 Undo/Redo와 인덱스 유지 비용을 크게 줄인다.",
+    relatedConcepts: ["Partition Exchange", "MERGE", "Direct Path Insert", "Full Outer Join"],
+    hints: ["MERGE가 실제로 어떤 DML을 대량으로 발생시키는지 생각한다.", "월 파티션 전체를 다시 만들 수 있으면 행 단위 갱신보다 세그먼트 교체가 가능한지 본다.", "삭제 조건은 새 파티션 이미지 생성 시 제외 조건으로 반영한다."]
+  }),
+  subject3Lab({
+    id: "practical-expected-05-order-by-removal",
+    title: "실기문제 16 | Order By 제거와 부분범위 처리",
+    topic: "Index Desc Scan과 Top-N 튜닝",
+    difficulty: "최상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 7,
+    answerPage: 7,
+    questionNumber: "실기문제 5",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 7쪽 실기문제 5의 AS-IS SQL, 인덱스 DDL, TO-BE SQL, 핵심 포인트를 대조했다.",
+    scenario: "특정 고객의 최근 주문 10건을 조회하면서 주문상품, 상품이력, 배송 상태를 함께 보여준다. 기존 SQL은 DENSE_RANK와 ORDER BY 후 상위 10건을 잘라 많은 조인 비용이 발생한다.",
+    requirements: ["주문 인덱스로 정렬을 대체하고 상위 10건을 먼저 제한하시오.", "상위 10건에 대해서만 주문상품과 상품이력 조인이 수행되도록 재작성하시오.", "필요한 인덱스 추가 또는 변경안을 제시하시오."],
+    schemaSql: `[인덱스 변경안]
+DROP INDEX 주문_X1;
+CREATE INDEX 주문_X1 ON 주문(고객번호, 주문일시 DESC);
+CREATE INDEX 상품이력_X2 ON 상품이력(상품번호, 시작일시, 종료일시);`,
+    currentSql: `SELECT A.주문번호, A.주문일시, A.주문금액, A.배송상태코드
+FROM (
+  SELECT A.주문번호,
+         A.주문일시,
+         (B.주문수량 * C.상품금액) AS 주문금액,
+         (SELECT 배송상태코드 FROM 배송 WHERE 배송번호 = A.배송번호) AS 배송상태코드,
+         DENSE_RANK() OVER (ORDER BY A.주문일시 DESC) RNUM
+  FROM 주문 A, 주문상품 B, 상품이력 C
+  WHERE A.고객번호 = '00000000042'
+    AND B.주문번호 = A.주문번호
+    AND C.상품번호(+) = B.상품번호
+    AND A.주문일시 BETWEEN C.시작일시(+) AND C.종료일시(+)
+    AND C.이벤트명(+) = 'SQLP'
+) A
+WHERE RNUM <= 10;`,
+    executionPlan: "",
+    answerSql: `SELECT /*+ LEADING(A B C) USE_NL(B) USE_NL(C) INDEX(C 상품이력_X2) INDEX(B 주문상품_PK) */
+       A.주문번호,
+       A.주문일시,
+       B.주문수량 * C.상품금액 AS 주문금액,
+       (SELECT /*+ NO_UNNEST */ 배송상태코드
+        FROM 배송
+        WHERE 배송번호 = A.배송번호) AS 배송상태코드
+FROM (
+  SELECT /*+ INDEX_DESC(A 주문_X1) */ 주문번호, 주문일시, 배송번호
+  FROM 주문 A
+  WHERE 고객번호 = '00000000042'
+    AND ROWNUM <= 10
+) A,
+     주문상품 B,
+     상품이력 C
+WHERE B.주문번호 = A.주문번호
+  AND C.상품번호(+) = B.상품번호
+  AND A.주문일시 >= C.시작일시(+)
+  AND A.주문일시 <= C.종료일시(+)
+  AND C.이벤트명(+) = 'SQLP';`,
+    acceptedAlternatives: ["고객번호 + 주문일시 DESC 인덱스로 주문 10건을 먼저 읽고 그 이후 NL 조인하는 구조면 인정한다."],
+    rubric: ["정렬 작업을 인덱스 순서로 대체한다.", "DENSE_RANK 전체 계산 후 필터하는 구조를 제거한다.", "주문 10건 제한 후 후속 조인을 수행한다.", "상품이력 기간 조건 인덱스를 제시한다.", "배송 스칼라 서브쿼리가 10건에 대해서만 수행됨을 설명한다."],
+    explanation: "최근 10건만 필요하면 전체 주문상품/상품이력까지 조인한 뒤 정렬하는 방식이 비효율적이다. 고객번호, 주문일시 DESC 인덱스에서 상위 10건을 먼저 읽으면 조인 입력이 작아지고 SORT ORDER BY도 제거할 수 있다.",
+    relatedConcepts: ["Top-N", "Index Desc Scan", "Sort Omission", "Nested Loops"],
+    hints: ["DENSE_RANK가 조인 후 전체 후보에 대해 계산되는지 본다.", "ORDER BY 컬럼과 필터 컬럼을 함께 만족하는 인덱스를 생각한다.", "상위 10건을 먼저 잘라낸 뒤 조인하면 어떤 반복 비용이 줄어드는지 설명한다."]
+  }),
+  subject3Lab({
+    id: "practical-expected-06-partition-pruning-inline-aggregate",
+    title: "실기문제 17 | Partition Pruning과 Inline View 집계",
+    topic: "Partition Pruning과 조인 전 집계",
+    difficulty: "최상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 8,
+    answerPage: 8,
+    questionNumber: "실기문제 6",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 8쪽 실기문제 6의 주문통계 INSERT, SUBSTR 조건 제거, Inline View 집계 후 코드상세 조인 구조를 대조했다.",
+    scenario: "주문, 고객, 주문상세, 상품, 코드상세를 조인해 주문통계를 적재한다. 기존 SQL은 주문번호를 SUBSTR로 가공해 파티션 프루닝이 어렵고, 코드상세까지 조인한 뒤 전체 집계를 수행한다.",
+    requirements: ["주문번호 가공 조건을 제거해 파티션 프루닝이 가능한 범위 조건으로 바꾸시오.", "코드상세 조인은 집계 이후 축소된 결과에 대해 수행하도록 재작성하시오.", "필요한 힌트를 이용해 Inline View 병합을 제어하시오."],
+    schemaSql: "",
+    currentSql: `INSERT INTO 주문통계
+SELECT TRUNC(A.주문일시) AS 주문일시,
+       B.고객유형,
+       E.코드상세유형 AS 고객유형명,
+       D.상품유형,
+       F.코드상세유형 AS 상품유형명,
+       COUNT(*) AS 주문수량
+FROM 주문 A, 고객 B, 주문상세 C, 상품 D, 코드상세 E, 코드상세 F
+WHERE SUBSTR(A.주문번호, 1, 6) IN ('202501', '202502')
+  AND B.고객번호 = A.고객번호
+  AND C.주문번호 = A.주문번호
+  AND D.상품번호 = C.상품번호
+  AND E.코드구분(+) = 'A01'
+  AND E.코드상세유형(+) = B.고객유형
+  AND F.코드구분(+) = 'A02'
+  AND F.코드상세유형(+) = D.상품유형
+GROUP BY TRUNC(A.주문일시), B.고객유형, E.코드상세유형, D.상품유형, F.코드상세유형;`,
+    executionPlan: "",
+    answerSql: `INSERT INTO 주문통계
+SELECT /*+ LEADING(A) USE_HASH(E) USE_HASH(F) SWAP_JOIN_INPUTS(E) SWAP_JOIN_INPUTS(F) */
+       A.주문일시,
+       A.고객유형,
+       E.코드상세유형 AS 고객유형명,
+       A.상품유형,
+       F.코드상세유형 AS 상품유형명,
+       A.주문수량
+FROM (
+  SELECT /*+ NO_MERGE LEADING(A C B D) USE_HASH(C) USE_HASH(B) USE_HASH(D) */
+         TRUNC(A.주문일시) AS 주문일시,
+         B.고객유형,
+         D.상품유형,
+         COUNT(*) AS 주문수량
+  FROM 주문 A, 고객 B, 주문상세 C, 상품 D
+  WHERE A.주문번호 >= '2025010000000000'
+    AND A.주문번호 <  '2025030000000000'
+    AND C.주문번호 = A.주문번호
+    AND B.고객번호 = A.고객번호
+    AND D.상품번호 = C.상품번호
+  GROUP BY TRUNC(A.주문일시), B.고객유형, D.상품유형
+) A,
+     코드상세 E,
+     코드상세 F
+WHERE E.코드구분(+) = 'A01'
+  AND A.고객유형 = E.코드상세유형(+)
+  AND F.코드구분(+) = 'A02'
+  AND A.상품유형 = F.코드상세유형(+);`,
+    acceptedAlternatives: ["주문번호 범위 조건으로 파티션 접근을 가능하게 하고, 코드상세는 집계 후 조인하는 구조라면 인정한다."],
+    rubric: ["SUBSTR(A.주문번호, 1, 6) 조건을 SARGable한 범위 조건으로 바꾼다.", "주문·고객·주문상세·상품을 먼저 조인하고 집계한다.", "코드상세 E/F는 집계 후 축소 결과에 Outer Join한다.", "NO_MERGE로 집계 Inline View를 보존한다.", "코드상세 소량 테이블의 Build/Probe 방향을 설명한다."],
+    explanation: "파티션 키 또는 인덱스 선두 컬럼을 함수로 감싸면 Partition Pruning과 Range Scan이 어려워진다. 먼저 가공 없는 주문번호 범위 조건으로 입력을 줄이고, 코드명 조인은 집계 후 수행하면 조인 대상 행 수가 크게 줄어든다.",
+    relatedConcepts: ["Partition Pruning", "NO_MERGE", "Group By 튜닝", "Hash Join"],
+    hints: ["SUBSTR 조건이 주문번호의 시작점을 만들 수 있는지 확인한다.", "코드상세 조인이 집계 전 대량 행에 붙어 있는지 본다.", "집계 결과를 보존하려면 Inline View 병합을 막아야 하는지 생각한다."]
   })
 ];
 

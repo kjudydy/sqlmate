@@ -174,6 +174,15 @@ export const officialPdfSources: OfficialPdfSource[] = [
     questionCandidates: 65,
     focus: ["modeling", "sql-basic", "tuning"],
     visualChecks: [1, 8, 16]
+  },
+  {
+    name: "SQLP_실기_기출복기_예상문제집.pdf",
+    pages: 9,
+    textPages: 9,
+    lowTextPages: [],
+    questionCandidates: 6,
+    focus: ["tuning"],
+    visualChecks: [1, 2, 4, 5, 7, 8, 9]
   }
 ];
 
