@@ -5287,7 +5287,7 @@ function hasCollapsedMaterialInStem(question: ObjectiveQuestion) {
   );
 }
 
-const rejectedKnownDuplicateQuestionIds = new Set(["prod-ext-tuning-210"]);
+const rejectedKnownDuplicateQuestionIds = new Set(["prod-ext-tuning-210", "prod-ext-tuning-212"]);
 
 function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
   if (rejectedKnownDuplicateQuestionIds.has(question.id)) return false;
@@ -5555,6 +5555,59 @@ EXEC :v_주식선물구분 := '선물';
     };
   }
 
+  if (
+    question.id === "prod-ext-tuning-051" &&
+    question.parentQuestionId === "pdf-o-3-trace-cpu-elapsed"
+  ) {
+    return {
+      ...question,
+      difficulty: "최상급",
+      questionType: "Trace 수치 해석형",
+      stem: "아래 Trace 결과를 보고 병목 원인을 판단할 때 가장 직접적인 근거로 적절한 것은?",
+      table: {
+        title: "Trace 요약",
+        headers: ["Call", "Count", "CPU Time", "Elapsed Time", "Disk", "Query", "Current", "Rows"],
+        rows: [
+          ["Parse", "1", "0.010", "0.012", "0", "0", "0", "0"],
+          ["Execute", "1", "0.000", "0.000", "0", "0", "0", "0"],
+          ["Fetch", "78", "10.150", "49.199", "27830", "266468", "0", "1909"],
+          ["Total", "80", "10.160", "49.231", "27830", "266468", "0", "1909"]
+        ]
+      },
+      choices: [
+        {
+          id: "A",
+          text:
+            "Index Range Scan에서 약 26만 건의 ROWID 후보가 발생한 뒤 TABLE ACCESS BY INDEX ROWID에서 1,909건으로 줄었으므로 인덱스 컬럼 순서나 필터 컬럼 포함 여부를 우선 점검한다."
+        },
+        {
+          id: "B",
+          text: "Parse가 1회 발생했으므로 병목의 핵심은 하드 파싱이며 실행 단계의 I/O는 중요하지 않다."
+        },
+        {
+          id: "C",
+          text: "Rows가 1,909건으로 적으므로 Query와 Disk 수치가 커도 테이블 랜덤 액세스 비용은 문제가 되지 않는다."
+        },
+        {
+          id: "D",
+          text: "Current가 0이므로 이 SQL은 블록을 거의 읽지 않았고 성능 개선 대상이 아니다."
+        }
+      ],
+      answer: "A",
+      hint:
+        "1단계: Fetch 단계의 Disk, Query, Rows 수치를 함께 봅니다.\n2단계: Row Source에서 인덱스 단계의 Rows와 테이블 액세스 단계의 Rows 차이를 확인합니다.\n3단계: 많이 읽고 적게 남기는 구조라면 인덱스 스캔 효율과 테이블 랜덤 액세스를 의심합니다.",
+      explanation:
+        "Trace는 Fetch 단계에 대부분의 elapsed time과 I/O가 집중되어 있고, Row Source에서는 INDEX RANGE SCAN이 약 26만 건의 후보를 만든 뒤 TABLE ACCESS BY INDEX ROWID 단계에서 1,909건만 남는다. 이는 필요한 행을 찾기 전에 너무 많은 ROWID 후보와 테이블 블록 방문이 발생한 구조이므로 인덱스 컬럼 순서, 조건 컬럼 포함 여부, 테이블 랜덤 액세스 비용을 우선 점검해야 한다. CPU Time과 Elapsed Time의 차이가 큰 점도 I/O 대기 가능성을 함께 보게 만드는 근거다.",
+      whyWrong: {
+        A: "정답이다. Rows 대비 Query와 Disk가 크고, 인덱스 단계에서 많은 후보가 발생한 뒤 테이블 액세스에서 크게 줄어드는 구조라 인덱스 스캔 효율과 테이블 랜덤 액세스 비용을 우선 점검해야 한다.",
+        B: "오답이다. Parse는 1회이고 시간과 I/O는 Fetch 단계에 몰려 있다. 하드 파싱 병목으로 단정할 수 없다.",
+        C: "오답이다. 최종 반환 Rows가 적더라도 그 과정에서 Query 266,468, Disk 27,830이 발생했다면 비효율을 의심해야 한다.",
+        D: "오답이다. Current는 변경 블록 읽기 성격의 수치이며, Query와 Disk가 매우 크므로 읽기 비용이 없다고 볼 수 없다."
+      },
+      duplicationCheck: "manual PDF recheck: Trace 수치와 Row Source Operation을 PDF 51번 자료와 대조해 단일 선택형으로 보정"
+    };
+  }
+
   if (question.id === "prod-ext-modeling-106") {
     return {
       ...question,
@@ -5736,6 +5789,19 @@ function withKnownVisualAssets(question: ObjectiveQuestion): ObjectiveQuestion {
       alt: "APPEND 힌트가 포함된 INSERT ALL 문장과 세션 100, 세션 200 실행 정보 및 락 상태 선택지",
       caption: "병렬/Direct Path Insert의 대상 테이블 락 판단에 필요한 SQL과 실행 조건을 원문 형태로 확인합니다.",
       kind: "sql"
+    });
+  }
+
+  if (
+    question.id === "prod-ext-tuning-051" &&
+    question.parentQuestionId === "pdf-o-3-trace-cpu-elapsed"
+  ) {
+    return addVisualAssetOnce(question, {
+      src: "/problem-visuals/sql-cert-q51-trace-row-source.png",
+      title: "SQL Trace와 Row Source 자료",
+      alt: "Parse, Execute, Fetch 단계별 Trace 수치와 TABLE ACCESS BY INDEX ROWID 및 INDEX RANGE SCAN Row Source",
+      caption: "Fetch 단계의 I/O 수치와 Row Source별 처리 행 수를 함께 보며 병목 위치를 판단합니다.",
+      kind: "trace"
     });
   }
 
