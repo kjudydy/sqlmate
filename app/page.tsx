@@ -244,6 +244,47 @@ function labUserVisibleText(lab: LabQuestion) {
     .join("\n");
 }
 
+type LabMaterialSection = {
+  title: string;
+  badge: string;
+  body: string;
+  kind: "sql" | "plan" | "trace" | "material";
+};
+
+function splitLabMaterial(seedSql: string): LabMaterialSection[] {
+  const source = seedSql.trim();
+  if (!source) return [];
+
+  const labels = ["현재 SQL", "실행계획/관찰 정보"] as const;
+  const sections: LabMaterialSection[] = [];
+  const pattern = /\[(현재 SQL|실행계획\/관찰 정보)\]\n([\s\S]*?)(?=\n\n\[(?:현재 SQL|실행계획\/관찰 정보)\]\n|$)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(source))) {
+    const label = match[1] as (typeof labels)[number];
+    const body = match[2]?.trim();
+    if (!body) continue;
+
+    sections.push({
+      title: label === "현재 SQL" ? "현재 SQL" : "실행계획/관찰 정보",
+      badge: label === "현재 SQL" ? "AS-IS SQL" : "PLAN · TRACE",
+      body,
+      kind: label === "현재 SQL" ? "sql" : /Trace|TKPROF|Call|Rows|CR|PR|대기 이벤트|enq:/i.test(body) ? "trace" : "plan"
+    });
+  }
+
+  if (sections.length) return sections;
+
+  return [
+    {
+      title: "제시 SQL/추가 자료",
+      badge: "문제 자료",
+      body: source,
+      kind: /Trace|TKPROF|Call|Rows|CR|PR|대기 이벤트|enq:/i.test(source) ? "trace" : /\bOperation\b|실행계획|INDEX|TABLE ACCESS|NESTED|HASH JOIN/i.test(source) ? "plan" : "material"
+    }
+  ];
+}
+
 function isPublishedObjectiveQuestion(question: ObjectiveQuestion) {
   return (
     question.sourceVersion === officialSourceVersion &&
@@ -419,6 +460,7 @@ export default function Home() {
   const selectedPersonalNote = personalNotes.find((note) => note.id === selectedPersonalNoteId) ?? personalNotes[0];
   const activeLabBase = allLabQuestions[activeLabIndex];
   const activeLab = activeLabBase ? { ...activeLabBase, number: activeLabIndex + 1 } : undefined;
+  const labMaterialSections = useMemo(() => splitLabMaterial(activeLab?.seedSql ?? ""), [activeLab?.seedSql]);
   const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
 
   const completed = Object.keys(currentAnswers).length;
@@ -1308,12 +1350,12 @@ export default function Home() {
               </div>
               <h2>준비된 문제를 모두 풀었습니다</h2>
               <p className="lead">
-                이 과목에서 현재 공개 가능한 PDF 기반 검수 문제는 여기까지입니다. 더 이상 검수된 문제가 없으면 자동 템플릿으로 억지 생성하지 않습니다.
+                이 과목에서 현재 공개 가능한 검수 문제는 여기까지입니다. 더 이상 검수된 문제가 없으면 자동 템플릿으로 억지 생성하지 않습니다.
               </p>
               <div className="prompt-box">
                 <strong>다음 문제 공개 기준</strong>
                 <p>
-                  PDF 원문과 정답·해설을 문항 단위로 대조해 깨짐이 없고, 정답이 확정된 문제만 공개합니다. 검수되지 않은 문제와 자동 템플릿 문제는 사용자 화면에 노출하지 않습니다.
+                  문제 본문과 정답·해설을 문항 단위로 대조해 깨짐이 없고, 정답이 확정된 문제만 공개합니다. 검수되지 않은 문제와 자동 템플릿 문제는 사용자 화면에 노출하지 않습니다.
                 </p>
               </div>
             </section>
@@ -1528,7 +1570,7 @@ export default function Home() {
               <div className="prompt-box">
                 <strong>공개 기준</strong>
                 <p>
-                  SQL Practice는 숫자만 바꾼 반복 문제를 공개하지 않습니다. PDF 원문과 복기 자료에서 확인 가능한 조건을 바탕으로 서로 다른 풀이 능력을 평가하는 문제만 올립니다.
+                  SQL Practice는 숫자만 바꾼 반복 문제를 공개하지 않습니다. 원문 대조와 복기 자료에서 확인 가능한 조건을 바탕으로 서로 다른 풀이 능력을 평가하는 문제만 올립니다.
                 </p>
               </div>
             </section>
@@ -1618,15 +1660,22 @@ export default function Home() {
                     <pre>{activeLab.schemaSql}</pre>
                   </div>
                 )}
-                {activeLab.seedSql.trim() && (
-                  <div className="code-panel schema-panel compact">
+                {labMaterialSections.map((material) => (
+                  <div className={`code-panel schema-panel lab-material-card ${material.kind === "sql" ? "sql-material" : ""} ${material.kind === "plan" ? "plan-material" : ""} ${material.kind === "trace" ? "trace-material" : ""}`} key={`${activeLab.id}-${material.title}`}>
                     <div className="code-panel-heading">
-                      <h3>제시 SQL/추가 자료</h3>
-                      <span>문제에 포함된 내용</span>
+                      <h3>{material.title}</h3>
+                      <span>{material.badge}</span>
                     </div>
-                    <pre>{activeLab.seedSql}</pre>
+                    {material.kind === "trace" ? (
+                      <details className="trace-raw lab-material-details" open>
+                        <summary>핵심 원문 보기</summary>
+                        <pre>{material.body}</pre>
+                      </details>
+                    ) : (
+                      <pre>{material.body}</pre>
+                    )}
                   </div>
-                )}
+                ))}
                 {((activeLab.targetPlanExplanations?.length ?? 0) > 0 || activeLab.targetPlan.length > 0) && (
                   <div className="code-panel plan-target-panel">
                     <div className="code-panel-heading">

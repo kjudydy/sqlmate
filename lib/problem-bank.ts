@@ -183,6 +183,24 @@ export const officialPdfSources: OfficialPdfSource[] = [
     questionCandidates: 6,
     focus: ["tuning"],
     visualChecks: [1, 2, 4, 5, 7, 8, 9]
+  },
+  {
+    name: "SQLP_Exam_Problem_Bank_60.pdf",
+    pages: 17,
+    textPages: 17,
+    lowTextPages: [],
+    questionCandidates: 60,
+    focus: ["modeling", "sql-basic", "tuning"],
+    visualChecks: [1, 2, 5, 8, 9, 12, 17]
+  },
+  {
+    name: "SQLD_기출복원문제집_58회_59회_60회.pdf",
+    pages: 13,
+    textPages: 13,
+    lowTextPages: [],
+    questionCandidates: 34,
+    focus: ["modeling", "sql-basic"],
+    visualChecks: [2, 5, 13]
   }
 ];
 

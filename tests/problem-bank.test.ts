@@ -61,16 +61,16 @@ function questionSignature(question: ObjectiveQuestion) {
 
 describe("SQLMate verified production problem bank", () => {
   it("publishes only reviewed PDF objective questions", () => {
-    expect(objectiveQuestions).toHaveLength(210);
-    expect(bySubject("modeling")).toHaveLength(70);
-    expect(bySubject("sql-basic")).toHaveLength(70);
-    expect(bySubject("tuning")).toHaveLength(70);
+    expect(objectiveQuestions).toHaveLength(240);
+    expect(bySubject("modeling")).toHaveLength(80);
+    expect(bySubject("sql-basic")).toHaveLength(80);
+    expect(bySubject("tuning")).toHaveLength(80);
   });
 
   it("summarizes original, variant, and similar questions for each subject", () => {
     const summary = getVerifiedProductionSummary();
 
-    expect(summary.objectiveTotal).toBe(210);
+    expect(summary.objectiveTotal).toBe(240);
     for (const subject of subjects) {
       const subjectSummary = summary.bySubject[subject.id];
       expect(subjectSummary.total).toBe(bySubject(subject.id).length);

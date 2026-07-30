@@ -1009,6 +1009,12 @@ ul {
   color: #344054;
 }
 
+.choice span {
+  line-height: 1.58;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .choice.selected {
   border-color: var(--primary);
   background: white;
@@ -1234,6 +1240,60 @@ ul {
 
 .split-panels .plan-target-panel {
   grid-column: 1 / -1;
+}
+
+.lab-material-card {
+  min-width: 0;
+}
+
+.lab-material-card.sql-material {
+  border-color: rgba(8, 117, 104, 0.2);
+  background: rgba(240, 250, 247, 0.56);
+}
+
+.lab-material-card.plan-material {
+  grid-column: 1 / -1;
+  border-color: rgba(22, 130, 75, 0.22);
+  background: rgba(240, 253, 244, 0.72);
+}
+
+.lab-material-card.trace-material {
+  grid-column: 1 / -1;
+  border-color: rgba(185, 111, 0, 0.24);
+  background: rgba(255, 249, 232, 0.78);
+}
+
+.lab-material-card pre,
+.lab-result .code-panel pre {
+  white-space: pre;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-width: 100%;
+  line-height: 1.68;
+}
+
+.lab-material-card.plan-material pre,
+.lab-material-card.trace-material pre {
+  font-size: 12.5px;
+  background:
+    linear-gradient(to right, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0)) 0 0 / 18px 100% no-repeat,
+    #f8fafc;
+  border: 1px solid rgba(31, 41, 55, 0.1);
+  border-radius: 8px;
+  padding: 13px;
+}
+
+.lab-material-details {
+  display: grid;
+  gap: 10px;
+}
+
+.lab-material-details summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .schema-panel pre {
@@ -2522,6 +2582,8 @@ body {
   color: #f8fafc;
   padding: 14px;
   font-size: 13px;
+  white-space: pre;
+  overflow-x: auto;
 }
 
 .exam-table-wrap {
