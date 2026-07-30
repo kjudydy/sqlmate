@@ -4568,6 +4568,252 @@ CREATE INDEX SALES_FACT_LN1 ON sales_fact(prod_id, sale_date) LOCAL;`,
     explanation: "리터럴 날짜 범위는 컴파일 시점에 접근할 파티션을 결정할 수 있으므로 Static Partition Pruning이 가능하다. 월별 파티션 관리성을 유지하려면 Local Index가 유리하고, 조회/조인 조건에서는 prod_id가 핵심 탐색 컬럼이므로 `(prod_id, sale_date)` Local Non-Prefixed Index가 적절하다.",
     relatedConcepts: ["Static Partition Pruning", "Local Non-Prefixed Index", "Global Index", "Partition-wise 관리"],
     hints: ["파티션 키 조건이 리터럴인지 바인드인지 먼저 본다.", "파티션 Drop/Truncate 같은 관리 작업의 영향을 고려한다.", "파티션 내부에서는 prod_id 조인 탐색 효율을 높여야 한다."]
+  }),
+  subject3Lab({
+    id: "practice-review-running-total-two-ways",
+    title: "지점별 월별 누적매출 SQL 작성",
+    topic: "분석 함수와 누적 합계",
+    difficulty: "상급",
+    mode: "original",
+    document: practiceExpected,
+    page: 1,
+    answerPage: 1,
+    questionNumber: "실기 1",
+    verificationNote: "SQLP_실기_기출복기_예상문제집 1쪽 실기문제 1의 좌측 원천 표와 우측 목표 표를 화면 렌더링으로 대조했다.",
+    scenario: "월별지점매출 테이블을 읽어 지점별 판매월 순서로 증가하는 누적매출을 구한다.",
+    requirements: ["윈도우 함수를 이용한 SQL을 작성하시오.", "윈도우 함수나 스칼라 서브쿼리를 지원하지 않는 DBMS에서도 사용할 수 있는 방식으로 작성하시오."],
+    schemaSql: "월별지점매출(지점 NUMBER, 판매월 NUMBER, 매출 NUMBER)",
+    sampleData: [
+      {
+        title: "입력 데이터",
+        headers: ["순번", "지점", "판매월", "매출"],
+        rows: [
+          ["1", "10", "1", "521"],
+          ["2", "10", "2", "684"],
+          ["3", "10", "3", "590"],
+          ["4", "20", "1", "537"],
+          ["5", "20", "2", "650"],
+          ["6", "20", "3", "500"],
+          ["7", "20", "4", "919"],
+          ["8", "20", "5", "658"],
+          ["9", "30", "1", "631"],
+          ["10", "30", "2", "736"],
+          ["11", "30", "3", "513"],
+          ["12", "30", "4", "970"],
+          ["13", "30", "5", "939"],
+          ["14", "30", "6", "666"]
+        ]
+      },
+      {
+        title: "목표 결과",
+        headers: ["지점", "판매월", "매출", "누적매출"],
+        rows: [
+          ["10", "1", "521", "521"],
+          ["10", "2", "684", "1205"],
+          ["10", "3", "590", "1795"],
+          ["20", "1", "537", "537"],
+          ["20", "2", "650", "1187"],
+          ["20", "3", "500", "1687"],
+          ["20", "4", "919", "2606"],
+          ["20", "5", "658", "3264"],
+          ["30", "1", "631", "631"],
+          ["30", "2", "736", "1367"],
+          ["30", "3", "513", "1880"],
+          ["30", "4", "970", "2850"],
+          ["30", "5", "939", "3789"],
+          ["30", "6", "666", "4455"]
+        ]
+      }
+    ],
+    answerSql: `-- 1. 분석 함수 방식
+SELECT 지점, 판매월, 매출,
+       SUM(매출) OVER (
+         PARTITION BY 지점
+         ORDER BY 판매월
+         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       ) AS 누적매출
+FROM 월별지점매출
+ORDER BY 지점, 판매월;
+
+-- 2. 분석 함수를 쓰지 않는 방식
+SELECT a.지점, a.판매월, a.매출, SUM(b.매출) AS 누적매출
+FROM 월별지점매출 a
+JOIN 월별지점매출 b
+  ON b.지점 = a.지점
+ AND b.판매월 <= a.판매월
+GROUP BY a.지점, a.판매월, a.매출
+ORDER BY a.지점, a.판매월;`,
+    acceptedAlternatives: ["스칼라 서브쿼리 방식도 가능하지만, 문제의 두 번째 요구에서는 조인과 그룹 집계 방식이 가장 일반적인 대안이다."],
+    rubric: ["지점별로 누적 범위를 끊는다.", "판매월 순서로 현재 행까지의 매출을 합산한다.", "분석 함수 미지원 대안에서는 자기 조인 조건 `b.판매월 <= a.판매월`을 사용한다.", "목표 결과의 순서를 지점, 판매월로 맞춘다."],
+    explanation: "누적합은 집계 단위와 순서가 핵심이다. 분석 함수 방식은 `PARTITION BY 지점 ORDER BY 판매월`과 현재 행까지의 윈도우 프레임을 사용한다. 대안 방식은 같은 지점에서 현재 판매월 이하인 행을 자기 조인해 합산한다.",
+    relatedConcepts: ["Window Function", "Running Total", "Self Join"],
+    hints: ["누적합의 파티션은 지점이다.", "순서는 판매월이다.", "분석 함수가 없다면 현재 행보다 작거나 같은 판매월을 조인해 합산한다."]
+  }),
+  subject3Lab({
+    id: "practice-review-customer-latest-history",
+    title: "기준일 현재 고객 최신 이력 조회",
+    topic: "최신 이력 조회 SQL",
+    difficulty: "최상급",
+    mode: "original",
+    document: sqlExam,
+    page: 69,
+    answerPage: 69,
+    questionNumber: "69",
+    verificationNote: "SQL 자격검정 실전문제 69번의 ERD와 SQL 선택지 구조를 대조해 실습형으로 재구성했다.",
+    scenario: "전체 고객을 대상으로 2010년 12월 4일자 현재 정보를 조회한다. 고객변경이력에는 변경일자와 변경순번이 기록된다.",
+    requirements: ["기준일 이전 이력 중 고객별 최신 행을 선택하는 SQL을 작성하시오.", "전체 고객을 대상으로 하되 이력이 없는 고객도 누락되지 않게 하시오."],
+    schemaSql: `고객(고객ID, 고객명, 전화번호, 주소, 자녀수, 직업)
+고객변경이력(고객ID, 변경순번, 변경일자, 고객등급, 전화번호, 주소, 자녀수, 직업)`,
+    answerSql: `SELECT c.고객ID,
+       c.고객명,
+       h.변경순번,
+       COALESCE(h.전화번호, c.전화번호) AS 전화번호,
+       COALESCE(h.주소, c.주소) AS 주소,
+       COALESCE(h.자녀수, c.자녀수) AS 자녀수,
+       COALESCE(h.직업, c.직업) AS 직업,
+       h.고객등급
+FROM 고객 c
+LEFT JOIN (
+  SELECT 고객ID, 변경순번, 전화번호, 주소, 자녀수, 직업, 고객등급
+  FROM (
+    SELECT h.*,
+           ROW_NUMBER() OVER (
+             PARTITION BY 고객ID
+             ORDER BY 변경일자 DESC, 변경순번 DESC
+           ) AS rn
+    FROM 고객변경이력 h
+    WHERE h.변경일자 <= '20101204'
+  )
+  WHERE rn = 1
+) h
+  ON h.고객ID = c.고객ID;`,
+    acceptedAlternatives: ["고객별 MAX(변경순번) 또는 MAX(변경일자, 변경순번) 결과를 다시 이력과 조인하는 방식도 허용된다."],
+    rubric: ["기준일 조건을 이력 테이블 안에서 먼저 적용한다.", "고객별 최신 행을 선택한다.", "전체 고객 보존을 위해 LEFT JOIN을 사용한다.", "최신 이력 선택 기준이 전체 1건이 아니라 고객별 1건임을 설명한다."],
+    explanation: "최신 이력 조회 문제는 전체 최신 행이 아니라 고객별 최신 행을 골라야 한다. 분석 함수의 파티션 기준을 고객ID로 두고 변경일자와 변경순번을 내림차순 정렬한 뒤 rn=1을 선택한다.",
+    relatedConcepts: ["Analytic Function", "Latest Row per Group", "Outer Join"],
+    hints: ["기준일보다 이후 이력은 제외한다.", "고객별 최신 1건이어야 한다.", "이력이 없는 고객도 보존해야 하므로 고객 테이블 기준으로 조인한다."]
+  }),
+  subject3Lab({
+    id: "practice-review-partition-pruning-month-range",
+    title: "월별 Range 파티션 조건 Rewrite",
+    topic: "Partition Pruning",
+    difficulty: "최상급",
+    mode: "original",
+    document: sqlExam,
+    page: 77,
+    answerPage: 77,
+    questionNumber: "77",
+    verificationNote: "SQL 자격검정 실전문제 77번의 파티션 구성과 보기 SQL을 대조했다.",
+    scenario: "주문 테이블은 주문일자 문자열 YYYYMMDD 기준 월별 Range 파티션이다. 2011년 1월부터 3월까지의 데이터를 읽어야 한다.",
+    requirements: ["파티션 프루닝이 잘 일어나는 조건과 그렇지 않은 조건을 구분하시오.", "비효율 조건을 효율적인 범위 조건으로 재작성하시오."],
+    schemaSql: `CREATE TABLE 주문 (
+  고객번호 VARCHAR2(10),
+  주문일자 VARCHAR2(8),
+  주문시각 VARCHAR2(6)
+)
+PARTITION BY RANGE(주문일자) (
+  PARTITION m201101 VALUES LESS THAN('20110201'),
+  PARTITION m201102 VALUES LESS THAN('20110301'),
+  PARTITION m201103 VALUES LESS THAN('20110401'),
+  PARTITION m201104 VALUES LESS THAN('20110501'),
+  PARTITION mmax VALUES LESS THAN(MAXVALUE)
+);`,
+    currentSql: `SELECT *
+FROM 주문
+WHERE SUBSTR(주문일자, 1, 6) IN ('201101', '201102', '201103');`,
+    answerSql: `SELECT *
+FROM 주문
+WHERE 주문일자 BETWEEN '20110101' AND '20110331';
+
+-- 또는 월별 분기
+SELECT * FROM 주문 WHERE 주문일자 BETWEEN '20110101' AND '20110131'
+UNION ALL
+SELECT * FROM 주문 WHERE 주문일자 BETWEEN '20110201' AND '20110228'
+UNION ALL
+SELECT * FROM 주문 WHERE 주문일자 BETWEEN '20110301' AND '20110331';`,
+    acceptedAlternatives: ["날짜 컬럼이면 DATE 리터럴을 사용한 `>= 시작일 AND < 다음월시작일` 반개구간 조건이 더 안전하다."],
+    rubric: ["파티션 키 주문일자를 함수로 감싸지 않는다.", "조회 대상 파티션이 2011년 1~3월로 제한됨을 설명한다.", "UNION ALL 분기는 중복 없이 월별 범위를 직접 지정한다.", "SUBSTR 조건이 파티션 프루닝을 어렵게 할 수 있음을 설명한다."],
+    explanation: "Range 파티션 프루닝은 파티션 키에 대한 직접 범위 조건에서 명확하다. `SUBSTR(주문일자,1,6)`은 컬럼 가공이므로 파티션 경계를 직접 활용하기 어렵다.",
+    relatedConcepts: ["Partition Pruning", "Sargable Predicate", "UNION ALL"],
+    hints: ["파티션 키를 그대로 사용하는 조건인지 본다.", "월별 파티션 경계값과 조건 범위를 맞춘다.", "함수 기반 조건을 범위 조건으로 바꾼다."]
+  }),
+  subject3Lab({
+    id: "practice-review-update-merge-rewrite",
+    title: "상관 UPDATE를 MERGE로 재작성",
+    topic: "UPDATE와 MERGE 튜닝",
+    difficulty: "최상급",
+    mode: "original",
+    document: sqlExam,
+    page: 73,
+    answerPage: 73,
+    questionNumber: "73",
+    verificationNote: "SQL 자격검정 실전문제 73번의 UPDATE/MERGE 비교 SQL을 대조해 실습형으로 구성했다.",
+    scenario: "2011년 1월 급여지급 테이블의 월급여를 부서코드 30 사원의 현재 월급여로 갱신한다.",
+    requirements: ["상관 서브쿼리 UPDATE의 반복 접근 가능성을 설명하시오.", "동일 결과를 만드는 MERGE 문장을 작성하시오.", "두 방식의 성능 차이가 발생할 수 있는 조건을 설명하시오."],
+    schemaSql: `급여지급(사원번호, 급여월, 월급여)
+사원(사원번호, 부서코드, 월급여)`,
+    currentSql: `UPDATE 급여지급 T
+   SET T.월급여 = (
+       SELECT S.월급여
+       FROM 사원 S
+       WHERE S.사원번호 = T.사원번호
+   )
+ WHERE T.급여월 = '201101'
+   AND EXISTS (
+       SELECT 1
+       FROM 사원 S
+       WHERE S.사원번호 = T.사원번호
+         AND S.부서코드 = '30'
+   );`,
+    answerSql: `MERGE INTO 급여지급 T
+USING (
+  SELECT 사원번호, 월급여
+  FROM 사원
+  WHERE 부서코드 = '30'
+) S
+ON (
+  T.급여월 = '201101'
+  AND T.사원번호 = S.사원번호
+)
+WHEN MATCHED THEN
+  UPDATE SET T.월급여 = S.월급여;`,
+    acceptedAlternatives: ["인덱스가 적절하고 옵티마이저가 서브쿼리를 조인으로 변환한다면 UPDATE도 유사하게 수행될 수 있다. 핵심은 결과 동일성과 반복 접근 검증이다."],
+    rubric: ["MERGE의 USING 집합을 부서코드 30 사원으로 제한한다.", "ON 절에 급여월과 사원번호 매칭 조건을 둔다.", "WHEN MATCHED THEN UPDATE만 사용한다.", "UPDATE 방식이 사원 테이블을 반복 접근할 수 있음을 설명한다."],
+    explanation: "같은 수정 결과라도 상관 서브쿼리 UPDATE는 내부 사원 조회가 반복될 수 있다. MERGE는 대상 급여지급과 필터링된 사원 집합을 조인해 갱신하므로 실행계획을 비교하기 좋다.",
+    relatedConcepts: ["MERGE", "Correlated Subquery", "SQL Rewrite"],
+    hints: ["수정 대상 조건과 갱신 값 조회 조건을 분리한다.", "부서코드 조건은 소스 집합에 넣는다.", "결과가 같아도 실행계획은 다를 수 있다."]
+  }),
+  subject3Lab({
+    id: "practice-review-direct-path-insert-lock",
+    title: "APPEND INSERT의 대기 원인 분석",
+    topic: "Direct Path Insert와 Lock",
+    difficulty: "최상급",
+    mode: "original",
+    document: sqlExam,
+    page: 70,
+    answerPage: 70,
+    questionNumber: "70",
+    verificationNote: "SQL 자격검정 실전문제 70번의 APPEND INSERT ALL과 동시 세션 상황을 대조했다.",
+    scenario: "주식월별시세와 선물월별시세에 `INSERT /*+ APPEND */ ALL` 문장으로 월별 시세를 적재한다. 세션 100이 주식 데이터를 적재 중이고, 세션 200이 선물 데이터를 적재하려고 한다.",
+    requirements: ["두 번째 세션이 대기하는 잠금 종류와 모드를 설명하시오.", "APPEND Direct Path Insert가 일반 Insert와 다른 점을 설명하시오."],
+    schemaSql: "주식월별시세(종목코드, 거래일자, 종가), 선물월별시세(종목코드, 거래일자, 종가), 주식일별시세(종목코드, 거래일자, 종가)",
+    currentSql: `INSERT /*+ APPEND */ ALL
+WHEN :v_주식선물구분 = '주식'
+THEN INTO 주식월별시세(종목코드, 거래일자, 종가)
+WHEN :v_주식선물구분 = '선물'
+THEN INTO 선물월별시세(종목코드, 거래일자, 종가)
+SELECT 종목코드, :v_기준일자, AVG(종가)
+FROM 주식일별시세
+WHERE 거래일자 BETWEEN ADD_MONTHS(:v_기준일자, -1) AND :v_기준일자
+GROUP BY 종목코드;`,
+    answerSql: `-- 정답 설명
+-- APPEND Direct Path Insert는 대상 세그먼트에 대해 강한 TM Lock을 요구할 수 있다.
+-- 같은 대상 테이블에 대한 후속 Direct Path Insert는 TM Exclusive 모드 대기 상태가 될 수 있다.`,
+    acceptedAlternatives: ["DBMS 버전, 대상 테이블, 트리거, 인덱스, 병렬 DML 설정에 따라 세부 동작은 달라질 수 있으나, 시험 포인트는 Direct Path Insert의 강한 테이블 잠금이다."],
+    rubric: ["APPEND가 Direct Path Insert를 유도함을 설명한다.", "행 단위 TX 충돌보다 TM 테이블 Lock 대기 성격을 우선 판단한다.", "HWM 확장과 버퍼 캐시 우회 특성을 설명한다.", "동시 세션에서 일반 DML과 다른 대기 가능성을 설명한다."],
+    explanation: "Direct Path Insert는 세그먼트 끝에 직접 데이터를 적재하고 고수위선을 조정하는 방식이다. 이 과정에서 대상 테이블에 강한 TM Lock을 요구할 수 있어 같은 대상에 대한 동시 APPEND Insert가 대기할 수 있다.",
+    relatedConcepts: ["Direct Path Insert", "TM Lock", "Parallel DML"],
+    hints: ["APPEND 힌트의 의미를 먼저 확인한다.", "행 잠금인지 테이블 잠금인지 구분한다.", "Direct Path Insert는 HWM 조정과 관련된다."]
   })
 ];
 

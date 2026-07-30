@@ -6,6 +6,7 @@ import {
   type PdfReviewQuestion
 } from "@/lib/pdf-review-bank";
 import { pdfExtensionQuestionsBatch12 } from "@/lib/pdf-extension-bank-v13";
+import { manualPdfObjectiveExtensionBatch14 } from "@/lib/manual-pdf-extension-batch-v14";
 import type {
   Choice,
   ChoiceId,
@@ -5140,6 +5141,9 @@ const manualVerifiedObjectiveQuestionsBatch11: ObjectiveQuestion[] = ([
   }
 ] as CompactManualQuestion[]).map(makeCompactManualQuestion);
 
+const manualVerifiedObjectiveQuestionsBatch14: ObjectiveQuestion[] =
+  manualPdfObjectiveExtensionBatch14.map((question) => makeCompactManualQuestion(question));
+
 const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
   ...manualVerifiedObjectiveQuestions,
@@ -5154,7 +5158,8 @@ const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...manualVerifiedObjectiveQuestionsBatch10,
   ...manualVerifiedObjectiveQuestionsBatch11,
   ...manualVerifiedObjectiveQuestionsBatch12,
-  ...manualVerifiedTuningPartitionAndTraceQuestions
+  ...manualVerifiedTuningPartitionAndTraceQuestions,
+  ...manualVerifiedObjectiveQuestionsBatch14
 ]);
 
 const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
