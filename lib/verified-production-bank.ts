@@ -7,6 +7,7 @@ import {
 } from "@/lib/pdf-review-bank";
 import { pdfExtensionQuestionsBatch12 } from "@/lib/pdf-extension-bank-v13";
 import { manualPdfObjectiveExtensionBatch14 } from "@/lib/manual-pdf-extension-batch-v14";
+import { newPdfSubject3LabBatch15, newPdfSubject3ObjectiveBatch15 } from "@/lib/new-pdf-subject3-batch-v15";
 import type {
   Choice,
   ChoiceId,
@@ -5151,6 +5152,9 @@ const manualVerifiedObjectiveQuestionsBatch11: ObjectiveQuestion[] = ([
 const manualVerifiedObjectiveQuestionsBatch14: ObjectiveQuestion[] =
   manualPdfObjectiveExtensionBatch14.map((question) => makeCompactManualQuestion(question));
 
+const manualVerifiedObjectiveQuestionsBatch15: ObjectiveQuestion[] =
+  newPdfSubject3ObjectiveBatch15.map((question) => makeCompactManualQuestion(question));
+
 const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
   ...manualVerifiedObjectiveQuestions,
@@ -5166,10 +5170,11 @@ const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...manualVerifiedObjectiveQuestionsBatch11,
   ...manualVerifiedObjectiveQuestionsBatch12,
   ...manualVerifiedTuningPartitionAndTraceQuestions,
-  ...manualVerifiedObjectiveQuestionsBatch14
+  ...manualVerifiedObjectiveQuestionsBatch14,
+  ...manualVerifiedObjectiveQuestionsBatch15
 ]);
 
-const convertedReviewLabs = pdfReviewLabs.map((lab, index) => convertReviewLab(lab, index));
+const convertedReviewLabs = [...pdfReviewLabs, ...newPdfSubject3LabBatch15].map((lab, index) => convertReviewLab(lab, index));
 const labQuestionCandidates = dedupeLabQuestions(convertedReviewLabs);
 
 export function createVerifiedExtraQuestion(subjectId: SubjectId, count: number): ObjectiveQuestion {

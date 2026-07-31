@@ -20,7 +20,7 @@ import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 const expectedObjectiveCounts: Record<SubjectId, number> = {
   modeling: 100,
   "sql-basic": 120,
-  tuning: 118
+  tuning: 129
 };
 
 function bySubject(subjectId: SubjectId) {
@@ -241,7 +241,7 @@ describe("SQLMate verified production problem bank", () => {
   });
 
   it("publishes the verified SQL Practice starter cases", () => {
-    expect(labQuestions).toHaveLength(32);
+    expect(labQuestions).toHaveLength(34);
     expect(new Set(labQuestions.map((lab) => lab.topic)).size).toBeGreaterThanOrEqual(32);
   });
 
