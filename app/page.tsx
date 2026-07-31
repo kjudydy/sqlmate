@@ -1977,6 +1977,10 @@ export default function Home() {
 
               {activeLab.sampleData?.length ? (
                 <div className="exam-material lab-sample-material">
+                  <DataMaterialVisual
+                    tables={activeLab.sampleData}
+                    context={[activeLab.title, activeLab.scenario, activeLab.prompt].filter(Boolean).join("\n")}
+                  />
                   <div className={`exam-table-grid ${activeLab.sampleData.length > 1 ? "multi-table" : ""}`}>
                     {activeLab.sampleData.map((table, tableIndex) => (
                       <ExamDataTable table={table} tableKey={`${activeLab.id}-sample-${tableIndex}`} key={`${activeLab.id}-sample-${tableIndex}`} />

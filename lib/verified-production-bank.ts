@@ -280,6 +280,7 @@ function metadataForObjective(args: {
   subjectId: SubjectId;
   number: number;
   mode: GenerationBucket;
+  sourceDocument?: string;
   sourcePage?: number;
   sourceQuestionNumber?: number | string;
   parentQuestionId?: string;
@@ -293,7 +294,7 @@ function metadataForObjective(args: {
   const sourceQuestionNumber = typeof args.sourceQuestionNumber === "number" ? args.sourceQuestionNumber : undefined;
 
   return {
-    sourceDocument: source.name,
+    sourceDocument: args.sourceDocument ?? source.name,
     sourceVersion: verifiedOfficialSourceVersion,
     sourcePage: args.sourcePage ?? ((args.number * 7) % Math.max(source.pages - 1, 1)) + 1,
     sourceQuestionNumber,
@@ -469,6 +470,7 @@ function convertReviewQuestion(question: PdfReviewQuestion, number: number): Obj
       subjectId: question.subjectId as SubjectId,
       number,
       mode,
+      sourceDocument: source.document,
       sourcePage: source.page,
       sourceQuestionNumber: source.questionNumber,
       parentQuestionId: mode === "original" ? undefined : `${question.subjectId}-verified-original-${Math.max(1, number % 5)}`,
@@ -538,6 +540,7 @@ type ManualPublishedQuestion = {
   difficulty: Difficulty;
   questionType: string;
   mode: GenerationBucket;
+  sourceDocument?: string;
   sourcePage: number;
   sourceQuestionNumber?: number;
   parentQuestionId?: string;
@@ -573,6 +576,7 @@ function makeManualQuestion(input: ManualPublishedQuestion): ObjectiveQuestion {
       subjectId: input.subjectId,
       number: input.number,
       mode: input.mode,
+      sourceDocument: input.sourceDocument,
       sourcePage: input.sourcePage,
       sourceQuestionNumber: input.sourceQuestionNumber,
       parentQuestionId: input.parentQuestionId,
@@ -2892,6 +2896,7 @@ PARTITION BY RANGE (거래일시) (
     difficulty: "상급",
     questionType: "DDL 기반 복합 판단형",
     mode: "variant",
+    sourceDocument: "SQL-자격검정-실전문제.pdf",
     sourcePage: 99,
     sourceQuestionNumber: 79,
     stem: "아래 DDL에서 거래_IDX1과 거래_IDX2의 인덱스 유형 조합으로 가장 적절한 것은?",
@@ -3216,6 +3221,7 @@ function convertReviewLab(lab: PdfReviewLab, index: number): LabQuestion {
       number: index + 1,
       mode,
       signature,
+      sourceDocument: lab.source.document,
       sourcePage: lab.source.page,
       sourceQuestionNumber: lab.source.questionNumber,
       approved: true
@@ -3248,6 +3254,7 @@ function metadataForLab(args: {
   number: number;
   mode: GenerationBucket;
   signature: string;
+  sourceDocument?: string;
   sourcePage?: number;
   sourceQuestionNumber?: number | string;
   approved: boolean;
@@ -3255,7 +3262,7 @@ function metadataForLab(args: {
   const source = sourceFor("tuning", args.number + 2);
   const sourceType = sourceTypeForMode(args.mode);
   return {
-    sourceDocument: source.name,
+    sourceDocument: args.sourceDocument ?? source.name,
     sourceVersion: verifiedOfficialSourceVersion,
     sourcePage: args.sourcePage ?? ((args.number * 11) % Math.max(source.pages - 1, 1)) + 1,
     sourceQuestionNumber: typeof args.sourceQuestionNumber === "number" ? args.sourceQuestionNumber : undefined,
@@ -5397,6 +5404,19 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
 
   question = withPatchedWhyWrong;
 
+  if (question.id === "prod-tuning-009") {
+    return {
+      ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 88,
+      sourceQuestionNumber: 51,
+      sourceType: "owner_pdf_similar",
+      generationMode: "generated_similar",
+      duplicationCheck:
+        "manual PDF recheck: SQL-자격검정 실전문제 51번은 Trace를 보고 2개를 고르는 원문 문제다. 현재 문항은 Access/Filter Predicate 유사형이므로 원문형으로 표시하지 않는다."
+    };
+  }
+
   if (
     question.subjectId === "tuning" &&
     question.sourcePage === 99 &&
@@ -5405,6 +5425,11 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
   ) {
     return {
       ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 99,
+      sourceQuestionNumber: 78,
+      sourceType: "owner_pdf",
+      generationMode: "original",
       majorTopic: "SQL 고급활용 및 튜닝",
       middleTopic: "파티션 튜닝",
       topic: "Local Prefixed 파티션 인덱스",
@@ -5457,6 +5482,11 @@ PARTITION BY RANGE (거래일시) (
   ) {
     return {
       ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 96,
+      sourceQuestionNumber: 70,
+      sourceType: "owner_pdf_variant",
+      generationMode: "transformed",
       code: `INSERT /*+ APPEND */ ALL
 WHEN :v_주식선물구분 = '주식'
 THEN INTO 주식월별시세(종목코드, 거래일자, 종가)
@@ -5485,7 +5515,7 @@ EXEC :v_주식선물구분 := '주식';
 -- 세션 200
 EXEC :v_주식선물구분 := '선물';
 /`,
-      duplicationCheck: "manual PDF recheck: SQL-자격검정 실전문제 70번 원문 INSERT ALL/UNION ALL 실행 SQL 복원"
+      duplicationCheck: "manual PDF recheck: SQL-자격검정 실전문제 70번 원문 SQL을 근거로 한 변형 문제다. PDF 원문 선택지와 완전히 같지 않으므로 Original이 아닌 Variant로 관리한다."
     };
   }
 
