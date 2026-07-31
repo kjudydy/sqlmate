@@ -5404,6 +5404,99 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
 
   question = withPatchedWhyWrong;
 
+  if (question.id === "prod-ext-tuning-014") {
+    return {
+      ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 70,
+      sourceQuestionNumber: 143,
+      sourceType: "owner_pdf_variant",
+      generationMode: "transformed",
+      majorTopic: "SQL 고급활용 및 튜닝",
+      middleTopic: "조인 튜닝",
+      topic: "Semi Join 실행 방식",
+      difficulty: "상급",
+      questionType: "SQL 기반 조인 기법 판단형",
+      stem: "다음 SQL에서 나타날 수 있는 조인 기법으로 가장 적절한 것은?",
+      passage: "[DEPT 테이블 INDEX 정보]\nPK_DEPT : DEPTNO\n\n[EMP 테이블 INDEX 정보]\nPK_EMP : EMPNO\nIDX_EMP_01 : DEPTNO",
+      code: `SELECT *
+FROM   DEPT D
+WHERE  D.DEPTNO = 'A001'
+AND    EXISTS (
+         SELECT 'X'
+         FROM   EMP E
+         WHERE  D.DEPTNO = E.DEPTNO
+       );`,
+      table: undefined,
+      tables: undefined,
+      visualAssets: undefined,
+      choices: [
+        { id: "A", text: "HASH ANTI JOIN" },
+        { id: "B", text: "HASH SEMI JOIN" },
+        { id: "C", text: "NESTED LOOP ANTI JOIN" },
+        { id: "D", text: "NESTED LOOP SEMI JOIN" }
+      ],
+      answer: "D",
+      relatedConceptId: "tuning-nl-join",
+      hint:
+        "1단계: EXISTS는 결과를 중복 생성하지 않고 존재 여부만 확인합니다.\n2단계: ANTI JOIN은 NOT EXISTS/NOT IN 계열에서 주로 나타납니다.\n3단계: 선행 DEPT가 단건에 가깝고 EMP.DEPTNO 인덱스가 있으면 후행 인덱스 탐색형 Semi Join을 판단합니다.",
+      explanation:
+        "EXISTS 서브쿼리는 조건을 만족하는 행의 존재 여부만 확인하므로 Semi Join으로 변환될 수 있다. 여기서는 DEPT가 DEPTNO = 'A001' 조건으로 매우 작게 줄고, EMP에는 DEPTNO 인덱스가 있으므로 후행 EMP를 반복 탐색하는 Nested Loop Semi Join이 가장 자연스럽다.",
+      whyWrong: {
+        A: "오답이다. ANTI JOIN은 존재하지 않는 행을 찾는 NOT EXISTS 또는 NOT IN 계열에 대응한다.",
+        B: "오답이다. EXISTS는 Semi Join 계열이지만, 이 문제의 인덱스와 선행 집합 조건에서는 Hash보다 Nested Loop 방식이 더 적절하다.",
+        C: "오답이다. 조인 방식은 Nested Loop일 수 있으나 EXISTS는 Anti가 아니라 Semi 성격이다.",
+        D: "정답이다. EXISTS 조건은 Semi Join으로 변환될 수 있고, DEPT 단건 조건과 EMP.DEPTNO 인덱스가 있어 Nested Loop Semi Join이 적절하다."
+      },
+      duplicationCheck:
+        "manual PDF recheck: SQL-자격검정 실전문제 143번의 SQL/인덱스 정보 기반 조인 기법 판단형으로 교체"
+    };
+  }
+
+  if (question.id === "prod-ext-tuning-015") {
+    return {
+      ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 70,
+      sourceQuestionNumber: 145,
+      sourceType: "owner_pdf_variant",
+      generationMode: "transformed",
+      majorTopic: "SQL 고급활용 및 튜닝",
+      middleTopic: "조인 튜닝",
+      topic: "Hash Join 적용 조건",
+      difficulty: "상급",
+      questionType: "조인 방식 조건 판단형",
+      stem:
+        "해싱(Hashing) 기법을 이용하여 조인하는 Hash Join이 더 효과적일 수 있는 조건에 대한 설명으로 가장 부적절한 것은?",
+      passage:
+        "Hash Join은 한쪽 입력을 메모리에 해시 테이블로 만들고 다른 입력을 Probe하는 방식이다. 조인 컬럼 인덱스 부재, 대량 랜덤 액세스 부담, 정렬 비용 등을 함께 판단한다.",
+      code: undefined,
+      table: undefined,
+      tables: undefined,
+      visualAssets: undefined,
+      choices: [
+        { id: "A", text: "조인 컬럼에 적절한 인덱스가 없어 Nested Loops Join의 반복 탐색이 비효율적인 경우" },
+        { id: "B", text: "드라이빙 집합에서 후행 테이블로 조인 액세스하는 양이 많아 랜덤 액세스 부하가 심한 경우" },
+        { id: "C", text: "Sort Merge Join을 수행하기에는 두 입력이 커서 정렬 부하가 큰 경우" },
+        { id: "D", text: "유니크 인덱스를 활용해 소량 테이블을 온라인으로 빠르게 조회하는 경우" }
+      ],
+      answer: "D",
+      relatedConceptId: "tuning-hash-join",
+      hint:
+        "1단계: Hash Join은 대량 조인에서 랜덤 액세스와 정렬 부담을 줄일 때 유리합니다.\n2단계: 소량 온라인 조회와 유니크 인덱스 탐색은 보통 NL Join에 가까운 조건입니다.\n3단계: Hash Join이 유리한 조건이 아닌 보기를 찾습니다.",
+      explanation:
+        "Hash Join은 후행 테이블 인덱스 탐색이 비효율적이거나 대량 랜덤 액세스가 발생하거나 Sort Merge Join의 정렬 비용이 큰 경우 유리할 수 있다. 반대로 소량 데이터를 유니크 인덱스로 빠르게 찾는 온라인 조회는 Nested Loops Join이 더 자연스러운 조건이므로 Hash Join의 효과적 조건으로 보기 어렵다.",
+      whyWrong: {
+        A: "오답이다. 후행 조인 컬럼에 적절한 인덱스가 없으면 NL Join 반복 탐색 비용이 커져 Hash Join이 대안이 될 수 있다.",
+        B: "오답이다. 많은 조인 액세스가 랜덤 I/O로 이어지는 상황은 Hash Join 검토 대상이다.",
+        C: "오답이다. 두 입력의 정렬 비용이 큰 경우 Sort Merge Join보다 Hash Join이 유리할 수 있다.",
+        D: "정답이다. 소량 테이블을 유니크 인덱스로 빠르게 조회하는 온라인 처리라면 Hash Join보다 NL Join 조건에 가깝다."
+      },
+      duplicationCheck:
+        "manual PDF recheck: SQL-자격검정 실전문제 145번의 Hash Join 적용 조건 판단형으로 교체"
+    };
+  }
+
   if (question.id === "prod-tuning-009") {
     return {
       ...question,
@@ -5641,6 +5734,11 @@ EXEC :v_주식선물구분 := '선물';
   if (question.id === "prod-ext-sql-basic-022") {
     return {
       ...question,
+      sourceDocument: "manual-pdf-derived-outer-join",
+      sourcePage: undefined,
+      sourceQuestionNumber: undefined,
+      sourceType: "owner_pdf_similar",
+      generationMode: "generated_similar",
       stem:
         "EMP와 DEPT를 C 컬럼으로 조인한다. 아래 데이터에서 LEFT OUTER JOIN, FULL OUTER JOIN, RIGHT OUTER JOIN 결과 건수 조합으로 가장 적절한 것은?",
       passage:
@@ -5776,6 +5874,11 @@ EXEC :v_주식선물구분 := '선물';
 
   return {
     ...question,
+    sourceDocument: "manual-pdf-derived-outer-join",
+    sourcePage: undefined,
+    sourceQuestionNumber: undefined,
+    sourceType: "owner_pdf_similar",
+    generationMode: "generated_similar",
     stem: "EMP.C는 DEPT.C와 연결된다. EMP 테이블과 DEPT 테이블을 각각 LEFT OUTER JOIN, FULL OUTER JOIN, RIGHT OUTER JOIN 했을 때 결과 건수로 가장 적절한 것은?",
     passage: "조인 조건은 EMP.C = DEPT.C 이며, 결과 건수는 LEFT, FULL, RIGHT 순서로 판단한다.",
     table: undefined,
