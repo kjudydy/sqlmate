@@ -5404,6 +5404,115 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
 
   question = withPatchedWhyWrong;
 
+  if (question.id === "prod-tuning-010") {
+    return {
+      ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 89,
+      sourceQuestionNumber: 53,
+      sourceType: "owner_pdf_variant",
+      generationMode: "transformed",
+      majorTopic: "SQL 고급활용 및 튜닝",
+      middleTopic: "인덱스 튜닝",
+      topic: "결합 인덱스 액세스 조건",
+      difficulty: "상급",
+      questionType: "실행계획 기반 인덱스 조건 판단형",
+      stem:
+        "다음 인덱스 구성과 SQL을 고려할 때, 실행계획 맨 아래 ID=5의 주문_IDX 인덱스 Range Scan에서 액세스 조건으로 가장 적절한 것은?",
+      passage:
+        "[인덱스 구성]\nCREATE INDEX 주문_IDX ON 주문(주문일자, 고객번호);\n\n[실행계획 요약]\n0 SELECT STATEMENT\n1  TABLE ACCESS BY INDEX ROWID 주문\n2   NESTED LOOPS\n3    TABLE ACCESS BY INDEX ROWID 고객\n4     INDEX RANGE SCAN 고객_X01\n5    INDEX RANGE SCAN 주문_IDX",
+      code: `SELECT /*+ ordered use_nl(o) */ *
+FROM   고객 c,
+       주문 o
+WHERE  c.가입일자 = '20130414'
+AND    o.고객번호 = c.고객번호
+AND    o.주문일자 = '20130414'
+AND    o.상품코드 = 'A123';`,
+      table: undefined,
+      tables: undefined,
+      visualAssets: undefined,
+      choices: [
+        { id: "A", text: "o.고객번호 = c.고객번호" },
+        { id: "B", text: "o.주문일자 = '20130414'" },
+        { id: "C", text: "o.주문일자 = '20130414' AND o.고객번호 = c.고객번호" },
+        {
+          id: "D",
+          text:
+            "o.주문일자 = '20130414' AND o.고객번호 = c.고객번호 AND o.상품코드 = 'A123'"
+        }
+      ],
+      answer: "C",
+      relatedConceptId: "tuning-index-design",
+      hint:
+        "1단계: 주문_IDX의 컬럼 순서를 먼저 확인한다.\n2단계: 인덱스에 포함된 컬럼만 액세스 조건 후보가 될 수 있다.\n3단계: 선두 컬럼 주문일자와 두 번째 컬럼 고객번호는 모두 조건에 있고, 상품코드는 인덱스 컬럼이 아니다.",
+      explanation:
+        "주문_IDX는 (주문일자, 고객번호) 순서의 결합 인덱스다. SQL에는 주문일자 동등 조건과 고객번호 조인 조건이 모두 존재하므로 두 조건은 주문_IDX Range Scan의 액세스 조건으로 사용할 수 있다. 반면 상품코드는 주문_IDX에 포함되지 않았으므로 해당 인덱스의 액세스 조건이 될 수 없고, 테이블 액세스 이후 필터 조건으로 평가된다.",
+      whyWrong: {
+        A: "오답이다. 고객번호 조건만으로는 주문_IDX의 선두 컬럼인 주문일자를 사용하지 못한다.",
+        B: "오답이다. 주문일자는 선두 컬럼이므로 액세스 조건이 되지만, 두 번째 컬럼 고객번호 조건도 함께 사용할 수 있다.",
+        C: "정답이다. 주문일자와 고객번호가 모두 주문_IDX의 구성 컬럼이고 SQL 조건에도 존재하므로 액세스 조건으로 가장 적절하다.",
+        D: "오답이다. 상품코드는 주문_IDX 구성 컬럼이 아니므로 주문_IDX의 액세스 조건에 포함될 수 없다."
+      },
+      duplicationCheck:
+        "manual PDF recheck: SQL-자격검정-실전문제 53번의 결합 인덱스 액세스 조건 판단 구조를 기준으로 짧은 Hash Join 개념형 문제를 교체"
+    };
+  }
+
+  if (question.id === "prod-ext-tuning-016") {
+    return {
+      ...question,
+      sourceDocument: "SQL-자격검정-실전문제.pdf",
+      sourcePage: 89,
+      sourceQuestionNumber: 54,
+      sourceType: "owner_pdf_variant",
+      generationMode: "transformed",
+      majorTopic: "SQL 고급활용 및 튜닝",
+      middleTopic: "SQL Trace",
+      topic: "Row Source Operation 해석",
+      difficulty: "최상급",
+      questionType: "SQL Trace 기반 튜닝 우선순위 판단형",
+      stem:
+        "다음 SQL Trace의 Row Source Operation을 보고 튜닝을 위해 가장 우선적으로 검토할 사항으로 가장 적절한 것은? 단, 한 달 주문 건수는 평균 50만 건이다.",
+      passage:
+        "[Row Source Operation]\n10    NESTED LOOPS (cr=149480 pr=13563 time=19337719 us)\n23    TABLE ACCESS BY INDEX ROWID 고객 (cr=103541 pr=13562 time=8766716 us)\n2978  INDEX RANGE SCAN 고객_IDX (cr=46092 pr=968 time=1879909 us)\n10    TABLE ACCESS BY INDEX ROWID 주문 (cr=45939 pr=1 time=5375998 us)\n28    INDEX RANGE SCAN 주문_IDX (cr=4 pr=0)",
+      code: `SELECT c.고객명,
+       c.연령,
+       c.전화번호,
+       o.주문일자,
+       o.주문금액,
+       o.배송지주소
+FROM   고객 c,
+       주문 o
+WHERE  o.고객번호 = c.고객번호
+AND    c.고객등급 = 'A'
+AND    c.연령 BETWEEN 51 AND 60
+AND    o.주문일자 BETWEEN '20101201' AND '20101231';`,
+      table: undefined,
+      tables: undefined,
+      visualAssets: undefined,
+      choices: [
+        { id: "A", text: "고객_IDX 인덱스의 컬럼 순서를 조정한다." },
+        { id: "B", text: "고객_IDX 인덱스에 필터링 컬럼을 추가하는 방안을 검토한다." },
+        { id: "C", text: "주문_IDX 인덱스에 배송지주소 컬럼을 추가한다." },
+        { id: "D", text: "주문 테이블을 항상 선행 집합으로 변경한다." }
+      ],
+      answer: "B",
+      relatedConceptId: "tuning-sql-trace",
+      hint:
+        "1단계: Rows와 cr이 어느 Row Source에서 크게 발생하는지 본다.\n2단계: 고객_IDX에서 많은 행을 찾은 뒤 고객 테이블 액세스에서 많이 걸러지는지 확인한다.\n3단계: 고객 조건 컬럼이 인덱스에서 충분히 필터링되지 못하면 인덱스 구성 보완이 우선 검토 대상이다.",
+      explanation:
+        "Trace에서는 고객_IDX Range Scan에서 2,978건을 찾고 고객 테이블 액세스에서 23건만 남는다. 이 과정에서 고객 쪽 cr과 pr이 크게 발생하므로, 고객 조건인 고객등급과 연령을 인덱스 단계에서 더 줄일 수 있는지 검토하는 것이 우선이다. 주문 쪽은 주문_IDX Range Scan의 cr이 매우 작고 반환 Rows도 제한적이므로 첫 번째 병목으로 보기 어렵다.",
+      whyWrong: {
+        A: "부분적으로 검토할 수는 있지만, 문제의 핵심은 단순 순서 조정 자체보다 고객 조건을 인덱스에서 더 많이 처리하도록 구성하는 것이다.",
+        B: "정답이다. 고객_IDX에서 많은 후보를 읽고 테이블 액세스 후 적은 행만 남으므로 고객 조건 컬럼을 인덱스에 반영하는 방안이 우선이다.",
+        C: "오답이다. 배송지주소는 SELECT 컬럼일 뿐이며 Trace의 주된 병목은 주문_IDX가 아니라 고객 쪽 후보 행과 테이블 액세스다.",
+        D: "오답이다. 한 달 주문이 50만 건이면 주문을 무조건 선행하는 방식은 더 큰 선행 집합을 만들 수 있다."
+      },
+      duplicationCheck:
+        "manual PDF recheck: SQL-자격검정-실전문제 54번의 Trace Row Source 기반 튜닝 우선순위 판단 구조를 기준으로 짧은 Sort Merge Join 개념형 문제를 교체"
+    };
+  }
+
   if (question.id === "prod-ext-tuning-014") {
     return {
       ...question,
