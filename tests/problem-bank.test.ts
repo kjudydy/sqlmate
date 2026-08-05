@@ -20,7 +20,7 @@ import type { ObjectiveQuestion, SubjectId } from "@/lib/types";
 const expectedObjectiveCounts: Record<SubjectId, number> = {
   modeling: 101,
   "sql-basic": 121,
-  tuning: 132
+  tuning: 152
 };
 
 function bySubject(subjectId: SubjectId) {

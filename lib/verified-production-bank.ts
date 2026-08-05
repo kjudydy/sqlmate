@@ -8,6 +8,7 @@ import {
 import { pdfExtensionQuestionsBatch12 } from "@/lib/pdf-extension-bank-v13";
 import { manualPdfObjectiveExtensionBatch14 } from "@/lib/manual-pdf-extension-batch-v14";
 import { newPdfSubject3LabBatch15, newPdfSubject3ObjectiveBatch15 } from "@/lib/new-pdf-subject3-batch-v15";
+import { sqlmateAdvanced20qObjectiveBatch17 } from "@/lib/sqlmate-advanced-20q-batch-v17";
 import { sqlmateAdvancedUploadObjectiveBatch16 } from "@/lib/sqlmate-advanced-upload-batch-v16";
 import type {
   Choice,
@@ -5159,6 +5160,9 @@ const manualVerifiedObjectiveQuestionsBatch15: ObjectiveQuestion[] =
 const manualVerifiedObjectiveQuestionsBatch16: ObjectiveQuestion[] =
   sqlmateAdvancedUploadObjectiveBatch16.map((question) => makeCompactManualQuestion(question));
 
+const manualVerifiedObjectiveQuestionsBatch17: ObjectiveQuestion[] =
+  sqlmateAdvanced20qObjectiveBatch17.map((question) => makeCompactManualQuestion(question));
+
 const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...verifiedObjectiveSeedQuestions,
   ...manualVerifiedObjectiveQuestions,
@@ -5176,7 +5180,8 @@ const objectiveQuestionCandidates = dedupeObjectiveQuestions([
   ...manualVerifiedTuningPartitionAndTraceQuestions,
   ...manualVerifiedObjectiveQuestionsBatch14,
   ...manualVerifiedObjectiveQuestionsBatch15,
-  ...manualVerifiedObjectiveQuestionsBatch16
+  ...manualVerifiedObjectiveQuestionsBatch16,
+  ...manualVerifiedObjectiveQuestionsBatch17
 ]);
 
 const convertedReviewLabs = [...pdfReviewLabs, ...newPdfSubject3LabBatch15].map((lab, index) => convertReviewLab(lab, index));
