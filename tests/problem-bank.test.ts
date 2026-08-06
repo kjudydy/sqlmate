@@ -9,6 +9,7 @@ import {
   officialSourceVersion,
   subjects
 } from "@/lib/problem-bank";
+import { conceptArticles } from "@/lib/concepts";
 import { findLikelyDuplicateQuestions } from "@/lib/question-batch";
 import {
   findPublishedUserVisibleIssues,
@@ -199,6 +200,32 @@ describe("SQLMate verified production problem bank", () => {
         expect(question.whyWrong[choice.id]).toBeTruthy();
         expect(question.whyWrong[choice.id].length).toBeGreaterThan(10);
       }
+    }
+  });
+
+  it("links NULL-focused SQL questions to the detailed NULL concept", () => {
+    const nullConcept = conceptArticles.find((concept) => concept.id === "sql-null");
+    const nullConceptText = JSON.stringify(nullConcept?.studyBlocks ?? []);
+    const nullFocusedQuestions = objectiveQuestions.filter(
+      (question) => {
+        const topicText = [question.middleTopic, question.topic].filter(Boolean).join(" ");
+        const sourceText = [question.parentQuestionId, question.stem].filter(Boolean).join(" ");
+        return question.subjectId === "sql-basic" && /\bNULL\b/i.test(topicText) && !/SET NULL/i.test(sourceText);
+      }
+    );
+
+    expect(nullConcept?.studyBlocks?.length).toBeGreaterThanOrEqual(5);
+    expect(nullConceptText).toContain("UNKNOWN");
+    expect(nullConceptText).toContain("NOT IN");
+    expect(nullConceptText).toContain("COUNT(*)");
+    expect(nullConceptText).toContain("OUTER JOIN");
+    expect(nullFocusedQuestions.length).toBeGreaterThanOrEqual(5);
+
+    for (const question of nullFocusedQuestions) {
+      expect(
+        question.relatedConceptId,
+        `${question.subjectId} ${question.number} ${question.middleTopic} ${question.topic} ${question.parentQuestionId ?? ""}`
+      ).toBe("sql-null");
     }
   });
 

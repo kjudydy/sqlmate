@@ -113,14 +113,14 @@ const modelingTopics = [
 
 const sqlTopics = [
   ["SQL 기본 및 활용", "SELECT", "논리적 SQL 처리 순서", "sql-select", "중급", "FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY의 논리 순서를 기준으로 별칭 참조와 집계 가능 여부를 판단한다.", "SELECT 별칭을 WHERE에서 바로 사용할 수 있다고 판단한다."],
-  ["SQL 기본 및 활용", "WHERE", "NULL 비교", "sql-where", "중급", "NULL 비교는 TRUE/FALSE가 아니라 UNKNOWN을 만들 수 있으며 WHERE에서는 TRUE인 행만 남는다.", "NULL을 0이나 빈 문자열과 같은 값으로 비교한다."],
+  ["SQL 기본 및 활용", "WHERE", "NULL 비교", "sql-null", "중급", "NULL 비교는 TRUE/FALSE가 아니라 UNKNOWN을 만들 수 있으며 WHERE에서는 TRUE인 행만 남는다.", "NULL을 0이나 빈 문자열과 같은 값으로 비교한다."],
   ["SQL 기본 및 활용", "함수", "NVL과 COALESCE", "sql-functions", "중급", "NVL은 Oracle 함수이고 COALESCE는 표준 표현이며 데이터 타입 결정과 평가 방식 차이를 함께 확인한다.", "두 함수가 모든 DBMS와 타입 조합에서 완전히 동일하다고 본다."],
   ["SQL 기본 및 활용", "함수", "날짜 연산", "sql-functions", "상급", "Oracle DATE는 날짜와 시간을 함께 보관하므로 기간 조건은 종료일 미만 방식으로 작성해야 누락이 적다.", "BETWEEN 종료일을 날짜 리터럴로 쓰면 그날 전체가 포함된다고 판단한다."],
   ["SQL 기본 및 활용", "함수", "CASE 표현식", "sql-functions", "중급", "CASE는 조건 순서대로 평가되며 첫 번째로 만족한 결과가 반환된다.", "여러 WHEN이 참이면 모든 결과가 결합된다고 판단한다."],
   ["SQL 기본 및 활용", "JOIN", "INNER JOIN 결과", "sql-join", "중급", "INNER JOIN은 조인 조건을 만족하는 행 조합만 남기므로 중복 행은 관계 건수에 따라 증가할 수 있다.", "조인 컬럼이 PK/FK이면 결과 건수가 항상 한쪽 테이블 건수와 같다고 본다."],
   ["SQL 기본 및 활용", "JOIN", "OUTER JOIN 조건 위치", "sql-standard-join", "상급", "OUTER JOIN의 보존 테이블과 ON/WHERE 조건 위치는 NULL 확장 행의 보존 여부를 바꾼다.", "LEFT JOIN 후 WHERE에서 오른쪽 테이블 컬럼을 필터해도 보존 효과가 유지된다고 본다."],
   ["SQL 기본 및 활용", "Subquery", "상관 서브쿼리", "sql-subquery", "상급", "상관 서브쿼리는 외부 행마다 내부 조건이 달라지며 EXISTS/IN/스칼라 결과의 의미를 구분해야 한다.", "상관 서브쿼리는 항상 한 번만 실행된다고 판단한다."],
-  ["SQL 기본 및 활용", "Subquery", "NOT IN과 NULL", "sql-subquery", "상급", "NOT IN 목록이나 서브쿼리 결과에 NULL이 있으면 전체 비교가 UNKNOWN이 되어 예상과 다른 결과가 나온다.", "NOT IN과 NOT EXISTS가 NULL 상황에서도 항상 같은 결과라고 본다."],
+  ["SQL 기본 및 활용", "Subquery", "NOT IN과 NULL", "sql-null", "상급", "NOT IN 목록이나 서브쿼리 결과에 NULL이 있으면 전체 비교가 UNKNOWN이 되어 예상과 다른 결과가 나온다.", "NOT IN과 NOT EXISTS가 NULL 상황에서도 항상 같은 결과라고 본다."],
   ["SQL 기본 및 활용", "집합 연산", "UNION과 UNION ALL", "sql-set-operators", "기본", "UNION은 중복 제거 정렬 또는 해시 작업이 필요하고 UNION ALL은 중복 제거 없이 결합한다.", "UNION ALL도 결과를 자동 정렬한다고 판단한다."],
   ["SQL 기본 및 활용", "GROUP BY", "GROUP BY 표현식", "sql-group-having", "중급", "GROUP BY가 있으면 SELECT에는 그룹 기준 컬럼이나 집계 함수만 올 수 있다.", "그룹에 포함되지 않은 일반 컬럼을 SELECT해도 임의 값이 반환된다고 본다."],
   ["SQL 기본 및 활용", "HAVING", "WHERE와 HAVING", "sql-group-having", "중급", "WHERE는 그룹 전 행 필터, HAVING은 그룹 후 집계 결과 필터다.", "집계 함수 조건을 WHERE 절에 쓰면 더 빠르므로 항상 가능하다고 판단한다."],
@@ -516,6 +516,7 @@ function conceptIdForQuestion(question: PdfReviewQuestion) {
     return "modeling-data-model";
   }
   if (question.subjectId === "sql-basic") {
+    if (/NULL/.test([question.middleTopic, question.topic, question.stem].filter(Boolean).join(" "))) return "sql-null";
     if (/JOIN|조인/.test(question.topic)) return "sql-join";
     if (/GROUP|ROLLUP|CUBE|집계/.test(question.topic)) return "sql-group-functions";
     if (/Window|순위|분석/.test(question.topic)) return "sql-window-functions";
@@ -916,7 +917,7 @@ WHERE grade <> 'A';`,
         { id: "D", text: "3", explanation: "오답입니다. 'A' 행은 조건이 FALSE이므로 제외됩니다." }
       ],
       answer: "B",
-      relatedConceptId: "sql-where",
+      relatedConceptId: "sql-null",
       hint: "1단계: WHERE는 TRUE인 행만 통과합니다.\n2단계: NULL 비교 결과는 TRUE나 FALSE가 아니라 UNKNOWN입니다.\n3단계: 'B'만 grade <> 'A' 조건을 만족합니다.",
       explanation: "NULL과의 비교 연산 결과는 UNKNOWN이다. WHERE 절에서는 TRUE만 선택되므로 NULL 행은 제외되고 'B' 행만 카운트된다."
     },
@@ -952,7 +953,7 @@ WHERE e.deptno NOT IN (
         { id: "D", text: "200만 반환된다.", explanation: "오답입니다. 20은 목록에 존재하므로 제외되어야 하며 NULL 문제와도 맞지 않습니다." }
       ],
       answer: "C",
-      relatedConceptId: "sql-where",
+      relatedConceptId: "sql-null",
       hint: "1단계: NOT IN은 여러 개의 <> 비교가 AND로 연결된 것처럼 생각합니다.\n2단계: 비교 대상 중 NULL이 있으면 UNKNOWN이 섞입니다.\n3단계: UNKNOWN이 포함된 조건은 WHERE에서 TRUE로 통과하지 않습니다.",
       explanation: "NOT IN 서브쿼리 결과에 NULL이 포함되면 비교 결과가 TRUE로 확정되지 않아 기대와 달리 행이 반환되지 않을 수 있다. 이런 경우 NOT EXISTS나 서브쿼리의 NULL 제거 조건을 검토한다."
     },
@@ -1744,7 +1745,7 @@ WHERE deptno NOT IN (SELECT deptno FROM temp_dept);`,
       { id: "D", text: "20", explanation: "오답입니다. 20은 목록에 존재하므로 제외 대상입니다." }
     ],
     answer: "C",
-    relatedConceptId: "sql-where",
+    relatedConceptId: "sql-null",
     hint: "1단계: IN 목록에 NULL이 있는지 확인합니다.\n2단계: NOT IN은 모든 비교가 거짓이어야 TRUE가 됩니다.\n3단계: NULL 비교는 TRUE/FALSE가 아니라 UNKNOWN입니다.",
     explanation: "NOT IN은 내부적으로 여러 부등 비교의 AND 조건처럼 동작한다. 목록에 NULL이 있으면 비교 결과에 UNKNOWN이 섞여 WHERE 조건을 통과하지 못하므로 결과가 없을 수 있다. 이런 경우 NOT EXISTS와 NULL 배제를 고려한다."
   },
@@ -2259,7 +2260,7 @@ FROM dual;`,
       { id: "D", text: "25", explanation: "오답입니다. NULL 대체와 비NULL 유지 규칙을 혼동한 값입니다." }
     ],
     answer: "A",
-    relatedConceptId: "sql-functions",
+    relatedConceptId: "sql-null",
     hint: "1단계: NVL의 첫 번째 인자가 NULL인지 확인합니다.\n2단계: 첫 번째 인자가 NULL이 아니면 그대로 반환합니다.\n3단계: 각 NVL 결과를 더합니다.",
     explanation: "NVL(expr1, expr2)는 expr1이 NULL이면 expr2를 반환하고, NULL이 아니면 expr1을 반환한다. 따라서 10 + 5 = 15다."
   },
@@ -4600,7 +4601,7 @@ const manualVerifiedObjectiveQuestionsBatch11: ObjectiveQuestion[] = ([
       ["D", "결과 행 없음", "오답이다. 집계 함수만 있는 SELECT는 결과 행 1건을 반환한다."]
     ],
     answer: "A",
-    relatedConceptId: "sql-group-by",
+    relatedConceptId: "sql-null",
     hint: ["COUNT(*)와 COUNT(컬럼)의 NULL 처리를 구분한다.", "집계 함수만 있는 SELECT는 행이 없어도 집계 결과 한 행을 반환한다.", "NVL은 여기서 0을 다시 0으로 바꿀 뿐이다."],
     explanation: "WHERE 조건이 거짓이라 입력 행은 0건이지만 COUNT(*)는 0을 반환한다. 따라서 NVL(COUNT(*), 0)의 결과도 0이다."
   },
@@ -4635,7 +4636,7 @@ const manualVerifiedObjectiveQuestionsBatch11: ObjectiveQuestion[] = ([
       ["D", "0", "오답이다. NULL이 아닌 COMM 값이 존재한다."]
     ],
     answer: "B",
-    relatedConceptId: "sql-group-by",
+    relatedConceptId: "sql-null",
     hint: ["COUNT(*)와 COUNT(COMM)을 구분한다.", "NULL인 COMM 값은 세지 않는다.", "NULL이 아닌 값이 3개다."],
     explanation: "COUNT(컬럼명)은 해당 컬럼이 NULL이 아닌 행만 센다. COMM 값 중 NULL이 아닌 값은 3건이므로 결과는 3이다."
   },
@@ -4684,7 +4685,7 @@ const manualVerifiedObjectiveQuestionsBatch11: ObjectiveQuestion[] = ([
       ["D", "항상 ORA 오류가 발생한다.", "오답이다. 문법 오류가 아니라 논리 결과가 UNKNOWN이 되는 문제다."]
     ],
     answer: "B",
-    relatedConceptId: "sql-where",
+    relatedConceptId: "sql-null",
     hint: ["NOT IN은 여러 개의 <> 조건을 AND로 묶은 것과 유사하다.", "col <> NULL의 결과를 생각한다.", "UNKNOWN이 WHERE에서 통과하는지 본다."],
     explanation: "NOT IN 목록 또는 서브쿼리 결과에 NULL이 있으면 col <> NULL 판단이 UNKNOWN이 된다. WHERE는 TRUE만 통과시키므로 결과가 0건이 될 수 있다."
   },
@@ -5419,6 +5420,11 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
 
   question = withPatchedWhyWrong;
 
+  const nullLinkText = [question.middleTopic, question.topic, question.stem, question.parentQuestionId].filter(Boolean).join(" ");
+  if (question.subjectId === "sql-basic" && /\bNULL\b/i.test(nullLinkText) && !/SET NULL/i.test(nullLinkText)) {
+    question = { ...question, relatedConceptId: "sql-null" };
+  }
+
   if (question.id === "prod-tuning-010") {
     return {
       ...question,
@@ -6123,3 +6129,4 @@ export function getVerifiedProductionSummary() {
     qualityIssues: findPublishedUserVisibleIssues()
   };
 }
+

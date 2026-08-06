@@ -497,7 +497,8 @@ function inferRelatedConceptId(subjectId: SubjectId, topic: string) {
   }
 
   if (subjectId === "sql-basic") {
-    if (topic.includes("WHERE") || topic.includes("NULL") || topic.includes("SARGable")) return "sql-where";
+    if (topic.includes("NULL")) return "sql-null";
+    if (topic.includes("WHERE") || topic.includes("SARGable")) return "sql-where";
     if (topic.includes("조인") || topic.includes("JOIN")) return "sql-standard-join";
     if (topic.includes("GROUP") || topic.includes("ROLLUP") || topic.includes("CUBE") || topic.includes("집계")) return "sql-group-having";
     if (topic.includes("윈도우")) return "sql-window-functions";
@@ -1203,7 +1204,7 @@ const qualitySeedDrafts: Record<SubjectId, DraftQuestion[]> = {
         "오답입니다. 비교 대상이 NULL인 조건은 UNKNOWN이 될 수 있어 조건을 만족한 것으로 보지 않습니다.",
         "오답입니다. WHERE 조건을 적용하지 않은 전체 행 수입니다."
       ],
-      relatedConceptId: "sql-where",
+      relatedConceptId: "sql-null",
       hint: "WHERE는 TRUE인 행만 남기고, FALSE와 UNKNOWN은 모두 제외합니다.",
       explanation: "NULL 비교가 포함된 조건은 UNKNOWN을 만들 수 있으므로 각 행을 TRUE/FALSE/UNKNOWN으로 따로 판정해야 합니다."
     },
@@ -1232,7 +1233,7 @@ const qualitySeedDrafts: Record<SubjectId, DraftQuestion[]> = {
         "오답입니다. NULL이 자동 제거된다고 가정하면 SQL 3값 논리 함정을 놓치게 됩니다.",
         "오답입니다. NOT EXISTS는 상관 조건으로 존재 여부를 판단하므로 NULL에 대한 동작이 NOT IN과 달라질 수 있습니다."
       ],
-      relatedConceptId: "sql-subquery",
+      relatedConceptId: "sql-null",
       hint: "서브쿼리 결과 목록 안의 NULL 하나가 NOT IN 판단 전체에 어떤 영향을 주는지 보세요.",
       explanation: "SQLD/SQLP 기출형 NULL 함정 중 가장 대표적인 유형이며, 안전한 부정 존재 조건은 NOT EXISTS로 바꾸는 사고가 필요합니다."
     },

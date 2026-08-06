@@ -1802,7 +1802,80 @@ const supplementalConceptSeeds: ConceptSeed[] = [
     majorTopic: "SQL 기본 및 활용",
     detailTopic: "NULL과 UNKNOWN",
     summary: "NULL은 값이 없거나 알 수 없음을 나타내며, 비교 연산 결과가 TRUE/FALSE가 아닌 UNKNOWN이 될 수 있다.",
-    keyPoints: ["WHERE 절은 TRUE만 통과시키며 UNKNOWN은 제외한다.", "NULL 비교는 `IS NULL` 또는 `IS NOT NULL`을 사용한다.", "NOT IN 목록이나 서브쿼리에 NULL이 있으면 결과가 크게 달라질 수 있다."],
+    studyBlocks: [
+      {
+        type: "section",
+        title: "핵심 원리",
+        paragraphs: [
+          "NULL은 0, 공백, 빈 문자열과 같은 일반 값이 아니라 '값을 알 수 없음' 또는 '해당 없음'을 표현한다. 그래서 `col = NULL`, `col <> NULL` 같은 비교는 TRUE나 FALSE가 아니라 UNKNOWN이 된다.",
+          "WHERE 절은 TRUE인 행만 통과시킨다. FALSE뿐 아니라 UNKNOWN도 결과에서 제외된다. NULL 문제를 풀 때는 조건식이 TRUE인지, FALSE인지, UNKNOWN인지 먼저 나누어야 한다.",
+          "Oracle에서는 빈 문자열 `''`을 NULL로 취급한다. 문자 조건, NVL 처리, 함수 기반 인덱스 판단에서 다른 DBMS와 결과가 달라질 수 있다."
+        ]
+      },
+      {
+        type: "table",
+        title: "NULL 비교와 WHERE 통과 여부",
+        headers: ["표현식", "평가 결과", "시험 포인트"],
+        rows: [
+          ["NULL = NULL", "UNKNOWN", "NULL끼리도 같다고 판정하지 않는다."],
+          ["col = NULL", "UNKNOWN", "`IS NULL`을 사용해야 한다."],
+          ["col <> 'A'", "col이 NULL이면 UNKNOWN", "'A가 아니므로 NULL도 통과'가 아니다."],
+          ["col IS NULL", "TRUE 또는 FALSE", "NULL 판정 전용 조건이다."],
+          ["NVL(col, 'X') = 'X'", "col이 NULL이면 TRUE", "결과 보정은 가능하지만 컬럼 가공으로 인덱스 사용성이 낮아질 수 있다."]
+        ]
+      },
+      {
+        type: "section",
+        title: "NOT IN 함정",
+        paragraphs: [
+          "`NOT IN`은 내부적으로 `<> ALL`에 가깝게 동작한다고 생각하면 이해하기 쉽다. 비교 목록이나 서브쿼리 결과에 NULL이 포함되면 `col <> NULL`이 UNKNOWN이 되어 전체 조건이 TRUE로 확정되지 않는다.",
+          "예를 들어 `T1.id`가 1,2,3이고 `T2.id`가 2,NULL일 때 `WHERE id NOT IN (SELECT id FROM T2)`는 1과 3도 반환하지 않을 수 있다. 1은 2와 다르지만 NULL과의 비교가 UNKNOWN이기 때문이다.",
+          "안티 조인 문제에서는 `NOT IN`과 `NOT EXISTS`를 무조건 같은 의미로 보면 틀린다. 서브쿼리 컬럼이 NOT NULL로 보장되는지, 또는 `WHERE sub_col IS NOT NULL` 필터가 있는지 확인해야 한다."
+        ]
+      },
+      {
+        type: "section",
+        title: "함수와 NULL 전파",
+        paragraphs: [
+          "대부분의 단일 행 함수는 입력이 NULL이면 결과도 NULL이 될 수 있다. 예를 들어 `LENGTH(NULL)`은 0이 아니라 NULL이며, 산술식에 NULL이 섞이면 전체 계산 결과도 NULL로 전파될 수 있다.",
+          "문자 개수를 세는 문제에서 `LENGTH(col) - LENGTH(REPLACE(col, 'B', ''))` 같은 식을 보면, col이 NULL인 행은 차이가 0이 아니라 NULL이 될 수 있음을 확인해야 한다. 집계 함수가 그 NULL을 어떻게 처리하는지도 함께 판단한다.",
+          "Oracle은 빈 문자열을 NULL로 취급하므로 `''`, `LENGTH('')`, 문자 대체 함수의 결과가 다른 DBMS와 다르게 해석될 수 있다."
+        ]
+      },
+      {
+        type: "table",
+        title: "집계 함수와 NULL",
+        headers: ["함수", "NULL 처리", "예시 판단"],
+        rows: [
+          ["COUNT(*)", "행 자체를 센다.", "값이 모두 NULL이어도 행이 있으면 카운트된다."],
+          ["COUNT(col)", "col이 NULL이 아닌 행만 센다.", "1,NULL,2,NULL이면 결과는 2이다."],
+          ["COUNT(DISTINCT col)", "NULL 제외 후 중복을 제거한다.", "A,NULL,B,B이면 결과는 2이다."],
+          ["SUM(col), AVG(col)", "NULL은 집계 대상에서 제외한다.", "모든 값이 NULL이면 결과가 NULL이 될 수 있다."],
+          ["GROUPING(col)", "집계로 생긴 NULL과 실제 NULL을 구분한다.", "ROLLUP/CUBE 문제에서 자주 출제된다."]
+        ]
+      },
+      {
+        type: "section",
+        title: "OUTER JOIN과 NULL 확장",
+        paragraphs: [
+          "OUTER JOIN은 보존 테이블의 미매칭 행을 남기고 반대편 컬럼을 NULL로 채운다. 이 NULL 확장 행을 WHERE 절에서 반대편 테이블 조건으로 필터링하면 OUTER JOIN이 사실상 INNER JOIN처럼 바뀔 수 있다.",
+          "예를 들어 `LEFT JOIN dept d ON e.deptno = d.deptno WHERE d.use_yn = 'Y'`는 부서가 없는 사원의 NULL 확장 행을 제거한다. 보존해야 하는 행이 있다면 `d.use_yn = 'Y'` 조건을 ON 절에 둘지 검토한다."
+        ]
+      },
+      {
+        type: "checklist",
+        title: "문제 풀이 체크",
+        items: [
+          "`= NULL`, `<> NULL`이 보이면 먼저 UNKNOWN을 의심한다.",
+          "WHERE 절은 TRUE만 통과시키고 UNKNOWN은 제외한다.",
+          "`NOT IN` 서브쿼리 컬럼에 NULL이 섞일 수 있는지 확인한다.",
+          "`COUNT(*)`와 `COUNT(컬럼)`을 구분한다.",
+          "OUTER JOIN 후 WHERE 절에서 반대편 테이블 컬럼을 필터링하는지 확인한다.",
+          "NVL/COALESCE가 결과 보정인지, 컬럼 가공으로 인덱스 접근성을 낮추는지 함께 본다."
+        ]
+      }
+    ],
+    keyPoints: ["WHERE 절은 TRUE만 통과시키며 UNKNOWN은 제외한다.", "NULL 비교는 `IS NULL` 또는 `IS NOT NULL`을 사용한다.", "NOT IN 목록이나 서브쿼리에 NULL이 있으면 결과가 크게 달라질 수 있다.", "COUNT(*)는 행 수를 세고 COUNT(컬럼)은 NULL을 제외한다.", "OUTER JOIN의 NULL 확장 행은 WHERE 조건 위치에 따라 사라질 수 있다."],
     examTrap: "`NULL <> 'A'`를 TRUE로 판단하거나, `NOT IN`과 `NOT EXISTS`를 항상 같다고 보는 선택지가 함정이다.",
     oracleAngle: "NVL/COALESCE는 결과 보정에는 유용하지만 컬럼 가공으로 인덱스 접근성을 낮출 수 있다."
   },
