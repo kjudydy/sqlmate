@@ -3,6 +3,54 @@ import type { ConceptArticle, ConceptStudyBlock } from "@/lib/types";
 type ConceptSeed = Omit<ConceptArticle, "category" | "title">;
 
 const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
+  "sql-window-functions": [
+    {
+      type: "section",
+      title: "분석 함수와 순번 핵심",
+      paragraphs: [
+        "분석 함수는 GROUP BY처럼 행을 하나로 줄이지 않고, 현재 행을 유지한 채 파티션 안에서 순위, 순번, 누적 합계, 이전/다음 행 값을 계산한다. 핵심 문법은 함수명 OVER (PARTITION BY ... ORDER BY ... [windowing])이다.",
+        "ROW_NUMBER()는 파티션 안에서 정렬 순서대로 각 행에 서로 다른 순번을 부여한다. 부서별 최고 급여자 한 명, 고객별 최신 이력 한 건처럼 ‘정확히 한 행’을 고를 때 자주 사용한다.",
+        "RANK()와 DENSE_RANK()는 동점자에게 같은 순위를 부여한다. 따라서 1등이 여러 명이면 RANK=1 조건은 여러 행을 반환할 수 있고, 한 행만 필요하면 ROW_NUMBER와 동점 해소용 추가 정렬 기준이 필요하다."
+      ]
+    },
+    {
+      type: "table",
+      title: "ROW_NUMBER, RANK, DENSE_RANK 차이",
+      headers: ["함수", "동점 처리", "대표 사용"],
+      rows: [
+        ["ROW_NUMBER()", "동점이어도 행마다 1, 2, 3처럼 고유 순번을 부여한다.", "그룹별 최신 1건, 부서별 대표 1명처럼 정확히 한 행을 선택할 때"],
+        ["RANK()", "동점은 같은 순위이고 다음 순위는 동점 행 수만큼 건너뛴다.", "공동 순위를 인정하고 순위 간격을 유지해야 할 때"],
+        ["DENSE_RANK()", "동점은 같은 순위이고 다음 순위는 건너뛰지 않는다.", "공동 순위를 인정하되 순위를 1, 2, 3처럼 연속으로 매길 때"]
+      ]
+    },
+    {
+      type: "section",
+      title: "PARTITION BY와 ORDER BY",
+      paragraphs: [
+        "PARTITION BY는 순번이나 순위를 따로 매길 그룹을 정한다. PARTITION BY 고객번호이면 고객별로 1번부터 다시 시작하고, PARTITION BY가 없으면 전체 결과가 하나의 파티션이다.",
+        "ORDER BY는 파티션 안에서 순번을 매길 기준이다. 정렬 기준이 유일하지 않으면 ROW_NUMBER 결과가 실행마다 달라질 수 있으므로 시험에서는 동점 해소 컬럼이 있는지 확인한다.",
+        "예를 들어 고객별 최신 이력 한 건은 ROW_NUMBER() OVER (PARTITION BY 고객번호 ORDER BY 변경일자 DESC, 변경순번 DESC)처럼 최신 판단 기준을 모두 정렬에 포함해야 안정적이다."
+      ]
+    },
+    {
+      type: "section",
+      title: "WHERE에서 바로 필터링할 수 없는 이유",
+      paragraphs: [
+        "분석 함수는 논리적으로 WHERE, GROUP BY, HAVING 처리 후 SELECT 목록 단계에서 계산된다. 그래서 같은 SELECT 문의 WHERE 절에서 ROW_NUMBER 별칭을 바로 사용할 수 없다.",
+        "순번 결과로 필터링하려면 인라인 뷰나 CTE에서 먼저 rn을 계산한 뒤, 바깥 쿼리에서 WHERE rn = 1처럼 조건을 적용한다.",
+        "ROWNUM과 ROW_NUMBER도 구분해야 한다. ROWNUM은 결과 행에 붙는 의사 컬럼이고, ROW_NUMBER는 명시한 PARTITION BY와 ORDER BY 기준으로 계산되는 분석 함수다."
+      ]
+    },
+    {
+      type: "section",
+      title: "누적 합계와 윈도우 프레임",
+      paragraphs: [
+        "SUM(금액) OVER (PARTITION BY 지점 ORDER BY 판매월 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)는 지점별 판매월 순서로 현재 행까지의 누적 합계를 계산한다.",
+        "ROWS는 물리적인 행 수 기준이고 RANGE는 정렬 값의 범위 기준이다. 같은 정렬 값이 여러 행이면 RANGE 누적 결과가 ROWS와 달라질 수 있다.",
+        "시험에서는 누적 기준이 전체인지 파티션별인지, 동점 정렬 값이 있는지, 현재 행까지 누적인지 전체 합계인지가 자주 출제된다."
+      ]
+    }
+  ],
   "sql-identifiers": [
     {
       type: "section",

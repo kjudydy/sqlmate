@@ -277,6 +277,46 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("links row-number and ranking SQL questions to the window function concept", () => {
+    const windowConcept = conceptArticles.find((concept) => concept.id === "sql-window-functions");
+    const windowConceptText = JSON.stringify(windowConcept?.studyBlocks ?? []);
+    const windowQuestions = objectiveQuestions.filter((question) => {
+      const linkText = [
+        question.middleTopic,
+        question.topic,
+        question.stem,
+        question.passage,
+        question.code,
+        question.parentQuestionId,
+        ...question.choices.map((choice) => choice.text)
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return (
+        question.subjectId === "sql-basic" &&
+        /(ROW_NUMBER|DENSE_RANK|RANK|NTILE|LAG|LEAD|OVER\s*\(|PARTITION\s+BY|ROWS\s+BETWEEN|RANGE\s+BETWEEN|Window|window)/i.test(
+          linkText
+        )
+      );
+    });
+
+    expect(windowConcept).toBeTruthy();
+    expect(windowConceptText).toContain("ROW_NUMBER");
+    expect(windowConceptText).toContain("RANK");
+    expect(windowConceptText).toContain("DENSE_RANK");
+    expect(windowConceptText).toContain("PARTITION BY");
+    expect(windowConceptText).toContain("ORDER BY");
+    expect(windowQuestions.length).toBeGreaterThanOrEqual(5);
+
+    for (const question of windowQuestions) {
+      expect(
+        question.relatedConceptId,
+        `${question.subjectId} ${question.number} ${question.middleTopic} ${question.topic} ${question.parentQuestionId ?? ""}`
+      ).toBe("sql-window-functions");
+    }
+  });
+
   it("does not point published questions to missing concept articles", () => {
     const conceptIds = new Set(conceptArticles.map((concept) => concept.id));
     const missingLinks = objectiveQuestions

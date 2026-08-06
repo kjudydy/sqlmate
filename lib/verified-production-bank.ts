@@ -5441,6 +5441,26 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-identifiers" };
   }
 
+  const windowFunctionLinkText = [
+    question.middleTopic,
+    question.topic,
+    question.stem,
+    question.passage,
+    question.code,
+    question.parentQuestionId,
+    ...question.choices.map((choice) => choice.text)
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (
+    question.subjectId === "sql-basic" &&
+    /(ROW_NUMBER|DENSE_RANK|RANK|NTILE|LAG|LEAD|OVER\s*\(|PARTITION\s+BY|ROWS\s+BETWEEN|RANGE\s+BETWEEN|Window|window)/i.test(
+      windowFunctionLinkText
+    )
+  ) {
+    question = { ...question, relatedConceptId: "sql-window-functions" };
+  }
+
   if (question.id === "prod-tuning-010") {
     return {
       ...question,
