@@ -4,7 +4,7 @@ type ConceptSeed = Omit<ConceptArticle, "category" | "title">;
 
 function concept(seed: ConceptSeed): ConceptArticle {
   const defaultBlocks = buildDefaultStudyBlocks(seed);
-  const studyBlocks = seed.studyBlocks?.length ? completeStudyBlocks(seed.studyBlocks, defaultBlocks) : defaultBlocks;
+  const studyBlocks = seed.studyBlocks?.length ? seed.studyBlocks : defaultBlocks;
   return {
     ...seed,
     studyBlocks,
@@ -33,6 +33,21 @@ function completeStudyBlocks(blocks: ConceptStudyBlock[], defaults: ConceptStudy
 }
 
 function buildDefaultStudyBlocks(seed: ConceptSeed): ConceptStudyBlock[] {
+  const coreParagraphs = [
+    seed.summary,
+    ...seed.keyPoints.map((point) => `- ${point}`),
+    seed.examTrap ? `시험 포인트: ${seed.examTrap}` : "",
+    seed.oracleAngle ? `Oracle 관점: ${seed.oracleAngle}` : ""
+  ].filter(Boolean);
+
+  return [
+    {
+      type: "section",
+      title: "핵심 정리",
+      paragraphs: coreParagraphs
+    }
+  ];
+
   const subjectGuide =
     seed.subjectId === "modeling"
       ? {

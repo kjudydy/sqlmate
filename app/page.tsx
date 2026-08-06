@@ -791,6 +791,11 @@ export default function Home() {
   const activeLabBase = allLabQuestions[activeLabIndex];
   const activeLab = activeLabBase ? { ...activeLabBase, number: activeLabIndex + 1 } : undefined;
   const labMaterialSections = useMemo(() => splitLabMaterial(activeLab?.seedSql ?? ""), [activeLab?.seedSql]);
+
+  useEffect(() => {
+    if (!selectedPersonalNote || !personalNoteEditorRef.current) return;
+    personalNoteEditorRef.current.innerHTML = personalNoteBodyToHtml(selectedPersonalNote.body);
+  }, [selectedPersonalNote?.id]);
   const selectedConceptHighlights = selectedConcept ? (conceptMarks[selectedConcept.id]?.highlights ?? []) : [];
 
   const completed = Object.keys(currentAnswers).length;
@@ -2670,7 +2675,6 @@ export default function Home() {
                     role="textbox"
                     aria-label="노트 본문"
                     data-placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
-                    dangerouslySetInnerHTML={{ __html: personalNoteBodyToHtml(selectedPersonalNote.body) }}
                     onInput={() => updatePersonalNoteFromEditor(true)}
                     onBlur={() => updatePersonalNoteFromEditor(false)}
                     onPaste={(event) => {
