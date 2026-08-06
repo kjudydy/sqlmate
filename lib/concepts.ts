@@ -112,6 +112,81 @@ const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
       ]
     }
   ],
+  "sql-dml": [
+    {
+      type: "section",
+      title: "DML 핵심",
+      paragraphs: [
+        "DML(Data Manipulation Language)은 테이블의 데이터를 조회하거나 변경하는 명령어다. SELECT, INSERT, UPDATE, DELETE, MERGE가 대표적이며, 데이터의 내용에 직접 영향을 준다.",
+        "DML은 트랜잭션 안에서 수행되므로 COMMIT 전에는 ROLLBACK으로 취소할 수 있다. 단, DDL 수행이나 명시적 COMMIT이 끼어들면 이전 변경은 확정될 수 있다.",
+        "SQLP 문제에서는 DML 명령 이름보다 WHERE 누락 시 영향, 제약조건 위반, MERGE의 MATCHED/NOT MATCHED 분기, DELETE와 TRUNCATE 차이를 함께 묻는 경우가 많다."
+      ]
+    },
+    {
+      type: "table",
+      title: "DML 명령별 판단 포인트",
+      headers: ["명령", "역할", "시험 포인트"],
+      rows: [
+        ["SELECT", "행을 조회한다.", "WHERE, JOIN, GROUP BY, HAVING, ORDER BY 처리 순서와 결과를 계산한다."],
+        ["INSERT", "새 행을 입력한다.", "NOT NULL, PK, FK, CHECK 제약조건을 만족하는지 확인한다."],
+        ["UPDATE", "기존 행을 수정한다.", "WHERE가 없으면 전체 행이 수정되고, 변경 대상 행에 잠금이 걸린다."],
+        ["DELETE", "조건에 맞는 행을 삭제한다.", "DML이므로 COMMIT 전 ROLLBACK 가능하며, FK 옵션에 따라 자식 행 영향이 달라진다."],
+        ["MERGE", "매칭 여부에 따라 UPDATE 또는 INSERT를 수행한다.", "ON 절 매칭 기준과 소스 중복 매칭 오류 가능성을 본다."]
+      ]
+    }
+  ],
+  "sql-tcl": [
+    {
+      type: "section",
+      title: "TCL과 관리구문 구분",
+      paragraphs: [
+        "TCL(Transaction Control Language)은 트랜잭션의 변경 내용을 확정하거나 취소하는 명령어다. COMMIT, ROLLBACK, SAVEPOINT가 대표적이다.",
+        "COMMIT은 현재 트랜잭션의 변경을 확정하고, ROLLBACK은 마지막 COMMIT 이후의 변경을 취소한다. SAVEPOINT는 트랜잭션 내부에서 일부 구간만 되돌리기 위한 지점을 만든다.",
+        "DDL, DML, TCL, DCL은 목적이 다르다. 2과목 관리구문 문제에서는 명령어 이름을 외우는 것보다 명령의 목적과 트랜잭션에 미치는 영향을 구분해야 한다."
+      ]
+    },
+    {
+      type: "table",
+      title: "DDL, DML, TCL, DCL 비교",
+      headers: ["구분", "대표 명령", "목적"],
+      rows: [
+        ["DDL", "CREATE, ALTER, DROP, TRUNCATE, RENAME", "테이블, 인덱스, 뷰 같은 객체 구조를 정의하거나 변경한다."],
+        ["DML", "SELECT, INSERT, UPDATE, DELETE, MERGE", "테이블 데이터를 조회하거나 입력, 수정, 삭제한다."],
+        ["TCL", "COMMIT, ROLLBACK, SAVEPOINT", "트랜잭션 변경의 확정, 취소, 되돌릴 지점을 제어한다."],
+        ["DCL", "GRANT, REVOKE", "사용자나 역할의 객체 권한 또는 시스템 권한을 부여하거나 회수한다."]
+      ]
+    },
+    {
+      type: "section",
+      title: "시험 함정",
+      paragraphs: [
+        "DELETE는 DML이므로 COMMIT 전에는 ROLLBACK 대상이지만, TRUNCATE는 DDL 성격이라 일반적인 DELETE와 다르게 판단한다.",
+        "DDL은 Oracle에서 암시적 COMMIT을 유발할 수 있다. 따라서 DDL 전후에 수행한 DML이 어떻게 확정되는지 묻는 문제를 주의한다.",
+        "SAVEPOINT로 되돌아가는 것은 트랜잭션을 끝내는 것이 아니다. 최종 반영 여부는 COMMIT 또는 ROLLBACK으로 결정된다."
+      ]
+    }
+  ],
+  "sql-dcl": [
+    {
+      type: "section",
+      title: "DCL 핵심",
+      paragraphs: [
+        "DCL(Data Control Language)은 데이터베이스 권한을 부여하거나 회수하는 명령어다. GRANT는 권한 부여, REVOKE는 권한 회수에 사용한다.",
+        "권한은 특정 객체에 대한 SELECT, INSERT, UPDATE, DELETE 같은 객체 권한과 사용자 생성, 테이블 생성 같은 시스템 권한으로 나눌 수 있다.",
+        "시험에서는 권한 회수 문제를 INSERT, RENAME, COMMIT 같은 다른 구문과 섞어 묻는다. 권한 부여와 회수라는 목적을 기준으로 DCL을 구분하면 된다."
+      ]
+    },
+    {
+      type: "table",
+      title: "DCL 판단 기준",
+      headers: ["명령", "역할", "혼동하기 쉬운 명령"],
+      rows: [
+        ["GRANT", "권한을 부여한다.", "INSERT는 데이터를 입력하는 DML이다."],
+        ["REVOKE", "권한을 회수한다.", "COMMIT은 트랜잭션을 확정하는 TCL이다."],
+        ["ROLE", "여러 권한을 묶어 관리하는 단위다.", "RENAME은 객체 이름을 바꾸는 DDL 성격의 명령이다."]
+      ]
+    }
+  ],
   "sql-constraints": [
     {
       type: "section",

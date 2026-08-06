@@ -5437,6 +5437,34 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-constraints" };
   }
 
+  const managementCommandLinkText = [
+    question.middleTopic,
+    question.topic,
+    question.stem,
+    question.passage,
+    question.code,
+    question.parentQuestionId
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (question.subjectId === "sql-basic") {
+    if (/(TCL|COMMIT|ROLLBACK|SAVEPOINT|트랜잭션\s*제어|저장점)/i.test(managementCommandLinkText)) {
+      question = { ...question, relatedConceptId: "sql-tcl" };
+    } else if (/(DCL|GRANT|REVOKE|권한|부여|회수)/i.test(managementCommandLinkText)) {
+      question = { ...question, relatedConceptId: "sql-dcl" };
+    } else if (
+      !isConstraintQuestion &&
+      /(DML|MERGE|INSERT|UPDATE|DELETE|데이터\s*(조작|입력|수정|삭제|변경))/i.test(managementCommandLinkText)
+    ) {
+      question = { ...question, relatedConceptId: "sql-dml" };
+    } else if (
+      !isConstraintQuestion &&
+      /(DDL|CREATE|ALTER|DROP|TRUNCATE|RENAME|객체\s*(정의|구조|변경|삭제)|테이블\s*생성)/i.test(managementCommandLinkText)
+    ) {
+      question = { ...question, relatedConceptId: "sql-ddl" };
+    }
+  }
+
   if (question.id === "prod-sql-basic-005" || question.id === "prod-sql-basic-008") {
     question = { ...question, relatedConceptId: "sql-identifiers" };
   }

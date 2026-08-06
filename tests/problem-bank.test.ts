@@ -234,8 +234,10 @@ describe("SQLMate verified production problem bank", () => {
     const constraintConceptText = JSON.stringify(constraintConcept?.studyBlocks ?? []);
     const constraintFocusedQuestions = objectiveQuestions.filter((question) => {
       const linkText = [question.middleTopic, question.topic, question.stem, question.code, question.parentQuestionId].filter(Boolean).join(" ");
+      const isPermissionCommandQuestion = /(GRANT|REVOKE|DCL|권한)/i.test(linkText);
       return (
         question.subjectId === "sql-basic" &&
+        !isPermissionCommandQuestion &&
         !/SELECT\s+목록\s+제약|GROUP BY.*SELECT/i.test(linkText) &&
         /(제약조건|참조\s*무결성|CHECK|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|ON\s+DELETE|CASCADE|SET\s+NULL|외래키|기본키)/i.test(linkText)
       );
@@ -275,6 +277,30 @@ describe("SQLMate verified production problem bank", () => {
     for (const question of identifierQuestions) {
       expect(question.relatedConceptId).toBe("sql-identifiers");
     }
+  });
+
+  it("links SQL management command questions to the management command concepts", () => {
+    const tclConcept = conceptArticles.find((concept) => concept.id === "sql-tcl");
+    const tclConceptText = JSON.stringify(tclConcept?.studyBlocks ?? []);
+    const dclConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "sql-dcl")?.studyBlocks ?? []);
+    const sqlQuestion11 = objectiveQuestions.find((question) => question.subjectId === "sql-basic" && question.number === 11);
+    const sqlQuestion1 = objectiveQuestions.find((question) => question.subjectId === "sql-basic" && question.number === 1);
+    const mergeQuestion = objectiveQuestions.find((question) => question.subjectId === "sql-basic" && question.topic === "MERGE");
+
+    expect(tclConcept).toBeTruthy();
+    expect(tclConceptText).toContain("DDL");
+    expect(tclConceptText).toContain("DML");
+    expect(tclConceptText).toContain("TCL");
+    expect(tclConceptText).toContain("DCL");
+    expect(tclConceptText).toContain("COMMIT");
+    expect(tclConceptText).toContain("ROLLBACK");
+    expect(tclConceptText).toContain("SAVEPOINT");
+    expect(dclConceptText).toContain("GRANT");
+    expect(dclConceptText).toContain("REVOKE");
+
+    expect(sqlQuestion11?.relatedConceptId).toBe("sql-tcl");
+    expect(sqlQuestion1?.relatedConceptId).toBe("sql-dcl");
+    expect(mergeQuestion?.relatedConceptId).toBe("sql-dml");
   });
 
   it("links row-number and ranking SQL questions to the window function concept", () => {
