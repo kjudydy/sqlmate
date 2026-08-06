@@ -229,6 +229,35 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("links constraint-focused SQL questions to the detailed constraint concept", () => {
+    const constraintConcept = conceptArticles.find((concept) => concept.id === "sql-constraints");
+    const constraintConceptText = JSON.stringify(constraintConcept?.studyBlocks ?? []);
+    const constraintFocusedQuestions = objectiveQuestions.filter((question) => {
+      const linkText = [question.middleTopic, question.topic, question.stem, question.code, question.parentQuestionId].filter(Boolean).join(" ");
+      return (
+        question.subjectId === "sql-basic" &&
+        !/SELECT\s+목록\s+제약|GROUP BY.*SELECT/i.test(linkText) &&
+        /(제약조건|참조\s*무결성|CHECK|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|ON\s+DELETE|CASCADE|SET\s+NULL|외래키|기본키)/i.test(linkText)
+      );
+    });
+
+    expect(constraintConcept).toBeTruthy();
+    expect(constraintConceptText).toContain("PRIMARY KEY");
+    expect(constraintConceptText).toContain("FOREIGN KEY");
+    expect(constraintConceptText).toContain("UNIQUE");
+    expect(constraintConceptText).toContain("CHECK");
+    expect(constraintConceptText).toContain("ON DELETE CASCADE");
+    expect(constraintConceptText).toContain("ON DELETE SET NULL");
+    expect(constraintFocusedQuestions.length).toBeGreaterThanOrEqual(3);
+
+    for (const question of constraintFocusedQuestions) {
+      expect(
+        question.relatedConceptId,
+        `${question.subjectId} ${question.number} ${question.middleTopic} ${question.topic} ${question.parentQuestionId ?? ""}`
+      ).toBe("sql-constraints");
+    }
+  });
+
   it("prevents exact duplicates and semantic-template duplicates in the current published bank", () => {
     const signatures = objectiveQuestions.map(questionSignature);
     expect(new Set(signatures).size).toBe(signatures.length);

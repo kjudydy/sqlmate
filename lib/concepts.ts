@@ -2,9 +2,106 @@ import type { ConceptArticle, ConceptStudyBlock } from "@/lib/types";
 
 type ConceptSeed = Omit<ConceptArticle, "category" | "title">;
 
+const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
+  "sql-ddl": [
+    {
+      type: "section",
+      title: "DDL 핵심",
+      paragraphs: [
+        "DDL(Data Definition Language)은 테이블, 인덱스, 뷰, 제약조건 같은 데이터베이스 객체의 구조를 정의하거나 변경하는 명령어다. CREATE, ALTER, DROP, TRUNCATE, RENAME이 대표적이다.",
+        "SQLP 문제에서는 DDL을 단순 명령어 이름으로만 묻지 않고, DML/TCL/DCL과 목적이 어떻게 다른지, 실행 후 트랜잭션 처리와 데이터 상태가 어떻게 달라지는지를 함께 묻는 경우가 많다.",
+        "제약조건은 DDL 안에서 정의되는 핵심 요소다. PRIMARY KEY, FOREIGN KEY, UNIQUE, NOT NULL, CHECK는 각각 보장하는 무결성 범위가 다르므로 문제에서 어떤 데이터가 입력·수정·삭제될 수 있는지 판단해야 한다."
+      ]
+    },
+    {
+      type: "table",
+      title: "명령어 구분",
+      headers: ["구분", "주요 명령", "시험 판단 포인트"],
+      rows: [
+        ["DDL", "CREATE, ALTER, DROP, TRUNCATE, RENAME", "객체 구조를 정의·변경·삭제한다. Oracle에서는 DDL 수행 전후로 암시적 COMMIT이 발생한다."],
+        ["DML", "SELECT, INSERT, UPDATE, DELETE, MERGE", "테이블의 데이터를 조회하거나 변경한다. COMMIT 전에는 ROLLBACK 가능성을 함께 판단한다."],
+        ["TCL", "COMMIT, ROLLBACK, SAVEPOINT", "트랜잭션의 확정과 취소 범위를 제어한다."],
+        ["DCL", "GRANT, REVOKE", "객체 또는 시스템 권한을 부여하거나 회수한다."]
+      ]
+    },
+    {
+      type: "section",
+      title: "DDL과 제약조건",
+      paragraphs: [
+        "테이블 생성 또는 변경 DDL에서 제약조건을 함께 정의하면 DBMS가 데이터 무결성을 직접 검사한다. 애플리케이션에서만 검사하면 우회 입력, 배치 오류, 외부 인터페이스 오류를 막기 어렵다.",
+        "복합 PRIMARY KEY나 복합 UNIQUE는 보통 테이블 레벨 제약조건으로 선언한다. 컬럼 하나에만 적용되는 NOT NULL은 컬럼 레벨에서 선언되는 경우가 많다.",
+        "외래키는 부모 테이블의 키를 참조해 참조 무결성을 보장한다. 삭제 동작이 지정되지 않았는지, ON DELETE CASCADE인지, ON DELETE SET NULL인지에 따라 자식 행의 결과가 달라진다."
+      ]
+    }
+  ],
+  "sql-constraints": [
+    {
+      type: "section",
+      title: "무결성 제약조건 핵심",
+      paragraphs: [
+        "제약조건은 잘못된 데이터가 테이블에 저장되지 않도록 DBMS가 강제하는 규칙이다. SQLP 문제에서는 제약조건 이름을 외우는 것보다, 주어진 INSERT·UPDATE·DELETE가 성공하는지와 삭제 후 남는 데이터 상태를 판단하는 것이 중요하다.",
+        "PRIMARY KEY는 행을 식별하는 키이며 중복과 NULL을 허용하지 않는다. UNIQUE는 중복을 막지만 NULL 처리 방식은 DBMS별 차이가 있을 수 있으므로 문제의 DBMS 전제를 확인해야 한다.",
+        "FOREIGN KEY는 자식 테이블 값이 부모 테이블의 키를 참조하도록 보장한다. CHECK는 허용 가능한 값의 범위를 제한하고, NOT NULL은 해당 컬럼에 NULL 입력을 막는다."
+      ]
+    },
+    {
+      type: "table",
+      title: "제약조건별 판단 기준",
+      headers: ["제약조건", "보장하는 것", "문제에서 확인할 점"],
+      rows: [
+        ["PRIMARY KEY", "행 식별, 중복 금지, NULL 금지", "복합키인지, 자식 테이블이 참조하는 부모 키인지 확인한다."],
+        ["FOREIGN KEY", "참조 무결성", "부모 삭제 시 자식 행이 삭제되는지, NULL로 바뀌는지, 삭제가 거부되는지 확인한다."],
+        ["UNIQUE", "중복 값 방지", "NULL 허용 여부와 DBMS별 NULL 처리 차이를 확인한다."],
+        ["NOT NULL", "NULL 입력 방지", "기존 데이터에 NULL이 있으면 제약 추가가 가능한지 검토한다."],
+        ["CHECK", "허용값·범위 제한", "상태 코드, 금액 범위, 날짜 조건처럼 도메인 규칙을 DB에서 강제하는지 본다."]
+      ]
+    },
+    {
+      type: "section",
+      title: "ON DELETE 옵션",
+      paragraphs: [
+        "ON DELETE CASCADE는 부모 행이 삭제될 때 해당 부모를 참조하는 자식 행도 함께 삭제한다.",
+        "ON DELETE SET NULL은 부모 행이 삭제될 때 자식 행을 삭제하지 않고 외래키 컬럼을 NULL로 바꾼다. 따라서 자식 외래키 컬럼이 NOT NULL이면 이 옵션과 충돌할 수 있다.",
+        "삭제 옵션이 없으면 일반적으로 자식 행이 남아 있는 부모 행 삭제는 참조 무결성 위반으로 실패한다. 문제에서 부모-자식-손자 관계가 이어질 때는 삭제 전파 순서를 차례대로 따라가야 한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "시험 함정",
+      paragraphs: [
+        "PRIMARY KEY와 UNIQUE를 완전히 같다고 보면 틀릴 수 있다. PK는 식별 목적과 NOT NULL 성격을 함께 가지며, 한 테이블에 하나의 주 식별자로 설계된다.",
+        "외래키가 있다고 해서 자식 외래키 컬럼에 인덱스가 자동 생성되는 것은 아니다. 참조 무결성 제약과 성능용 인덱스는 역할이 다르다.",
+        "CASCADE와 SET NULL은 결과 행 수와 남는 값이 완전히 다르다. 특히 여러 단계로 연결된 참조 관계에서는 첫 번째 삭제가 다음 테이블의 삭제 또는 NULL 변경으로 어떻게 전파되는지 순서대로 계산한다."
+      ]
+    }
+  ],
+  "sql-ddl-constraints": [
+    {
+      type: "section",
+      title: "DDL로 제약조건 정의하기",
+      paragraphs: [
+        "제약조건은 CREATE TABLE 또는 ALTER TABLE에서 정의할 수 있다. 컬럼 하나에만 적용되는 제약은 컬럼 레벨로, 여러 컬럼이 함께 참여하는 제약은 테이블 레벨로 정의한다.",
+        "복합 PRIMARY KEY, 복합 UNIQUE, 복합 FOREIGN KEY는 테이블 레벨에서 컬럼 목록을 명확히 지정해야 한다. 컬럼 순서와 참조 대상 컬럼이 맞지 않으면 제약 생성 또는 데이터 입력에서 오류가 발생한다.",
+        "운영 테이블에 제약조건을 추가할 때는 기존 데이터가 제약을 만족하는지 먼저 확인해야 한다. 기존 NULL, 중복값, 부모가 없는 외래키 값이 있으면 제약 추가가 실패할 수 있다."
+      ]
+    },
+    {
+      type: "table",
+      title: "정의 위치와 예",
+      headers: ["정의 방식", "예", "사용 상황"],
+      rows: [
+        ["컬럼 레벨", "col1 NUMBER NOT NULL", "단일 컬럼 NOT NULL, 단순 CHECK처럼 컬럼 하나에 직접 적용할 때"],
+        ["테이블 레벨", "CONSTRAINT pk_t PRIMARY KEY (col1, col2)", "복합키처럼 여러 컬럼이 함께 제약을 구성할 때"],
+        ["참조 제약", "FOREIGN KEY (deptno) REFERENCES dept(deptno)", "자식 테이블 값이 부모 키에 존재해야 할 때"],
+        ["삭제 옵션", "ON DELETE CASCADE / ON DELETE SET NULL", "부모 삭제 시 자식 행 처리 방식을 문제 조건으로 제시할 때"]
+      ]
+    }
+  ]
+};
+
 function concept(seed: ConceptSeed): ConceptArticle {
   const defaultBlocks = buildDefaultStudyBlocks(seed);
-  const studyBlocks = seed.studyBlocks?.length ? seed.studyBlocks : defaultBlocks;
+  const studyBlocks = conceptStudyBlockOverrides[seed.id] ?? (seed.studyBlocks?.length ? seed.studyBlocks : defaultBlocks);
   return {
     ...seed,
     studyBlocks,

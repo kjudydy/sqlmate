@@ -5425,6 +5425,18 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-null" };
   }
 
+  const constraintLinkText = [question.middleTopic, question.topic, question.stem, question.code, question.parentQuestionId].filter(Boolean).join(" ");
+  const isConstraintQuestion =
+    question.subjectId === "sql-basic" &&
+    !/SELECT\s+목록\s+제약|GROUP BY.*SELECT/i.test(constraintLinkText) &&
+    /(제약조건|참조\s*무결성|CHECK|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|ON\s+DELETE|CASCADE|SET\s+NULL|외래키|기본키)/i.test(
+      constraintLinkText
+    );
+
+  if (isConstraintQuestion) {
+    question = { ...question, relatedConceptId: "sql-constraints" };
+  }
+
   if (question.id === "prod-tuning-010") {
     return {
       ...question,
