@@ -5437,6 +5437,10 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-constraints" };
   }
 
+  if (question.id === "prod-sql-basic-005" || question.id === "prod-sql-basic-008") {
+    question = { ...question, relatedConceptId: "sql-identifiers" };
+  }
+
   if (question.id === "prod-tuning-010") {
     return {
       ...question,

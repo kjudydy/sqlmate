@@ -258,6 +258,34 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("links SQL identifier rule questions to the identifier concept", () => {
+    const identifierConcept = conceptArticles.find((concept) => concept.id === "sql-identifiers");
+    const identifierConceptText = JSON.stringify(identifierConcept?.studyBlocks ?? []);
+    const identifierQuestions = objectiveQuestions.filter((question) =>
+      ["prod-sql-basic-005", "prod-sql-basic-008"].includes(question.id)
+    );
+
+    expect(identifierConcept).toBeTruthy();
+    expect(identifierConceptText).toContain("일반 식별자");
+    expect(identifierConceptText).toContain("인용 식별자");
+    expect(identifierConceptText).toContain("큰따옴표");
+    expect(identifierConceptText).toContain("예약어");
+    expect(identifierQuestions).toHaveLength(2);
+
+    for (const question of identifierQuestions) {
+      expect(question.relatedConceptId).toBe("sql-identifiers");
+    }
+  });
+
+  it("does not point published questions to missing concept articles", () => {
+    const conceptIds = new Set(conceptArticles.map((concept) => concept.id));
+    const missingLinks = objectiveQuestions
+      .filter((question) => question.relatedConceptId && !conceptIds.has(question.relatedConceptId))
+      .map((question) => `${question.subjectName} ${question.number} -> ${question.relatedConceptId}`);
+
+    expect(missingLinks).toEqual([]);
+  });
+
   it("prevents exact duplicates and semantic-template duplicates in the current published bank", () => {
     const signatures = objectiveQuestions.map(questionSignature);
     expect(new Set(signatures).size).toBe(signatures.length);

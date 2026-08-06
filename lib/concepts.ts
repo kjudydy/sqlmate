@@ -3,6 +3,36 @@ import type { ConceptArticle, ConceptStudyBlock } from "@/lib/types";
 type ConceptSeed = Omit<ConceptArticle, "category" | "title">;
 
 const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
+  "sql-identifiers": [
+    {
+      type: "section",
+      title: "SQL 식별자 규칙 핵심",
+      paragraphs: [
+        "식별자는 테이블명, 컬럼명, 인덱스명, 뷰명처럼 데이터베이스 객체를 구분하는 이름이다. 일반 식별자는 큰따옴표 없이 쓰는 이름이고, Oracle에서는 보통 문자로 시작하며 문자, 숫자, 밑줄(_), 달러($), 샵(#) 등을 사용할 수 있다.",
+        "공백, 하이픈(-), 특수문자, 예약어, 숫자로 시작하는 이름을 그대로 쓰려면 큰따옴표로 감싼 인용 식별자가 필요하다. 하지만 인용 식별자는 대소문자와 특수문자까지 이름의 일부가 되므로 SQL 작성과 유지보수가 불편해진다.",
+        "SQLP 문제에서는 보기 중 어떤 객체명이 일반 식별자로 안전한지, 어떤 이름이 인용 식별자를 필요로 하는지, 예약어와 대소문자 규칙 때문에 어떤 SQL이 오류가 되는지를 묻는다."
+      ]
+    },
+    {
+      type: "table",
+      title: "일반 식별자와 인용 식별자",
+      headers: ["구분", "예", "판단 기준"],
+      rows: [
+        ["일반 식별자", "EMP, EMP_10, ORDER_ITEM", "큰따옴표 없이 사용할 수 있고, 보통 대문자로 저장·비교된다."],
+        ["인용 식별자", "\"Order Detail\", \"2026_SALES\", \"SELECT\"", "공백, 숫자 시작, 예약어, 대소문자 구분이 필요한 이름이다."],
+        ["피해야 할 이름", "ORDER-ITEM, ORDER DETAIL, SELECT", "인용 없이 쓰면 연산자·공백·예약어로 해석되어 오류가 날 수 있다."]
+      ]
+    },
+    {
+      type: "section",
+      title: "시험에서 보는 함정",
+      paragraphs: [
+        "객체명이 숫자로 시작하면 일반 식별자로는 부적절하다. 예를 들어 2026_ORDER는 큰따옴표 없이 테이블명으로 쓰기 어렵다.",
+        "하이픈은 이름 문자가 아니라 뺄셈 연산자로 해석될 수 있다. ORDER-ITEM 같은 이름은 일반 식별자로 부적절하다.",
+        "큰따옴표로 만든 이름은 이후에도 같은 형태로 참조해야 한다. \"Emp\"로 만든 객체를 EMP로 조회하면 같은 이름으로 취급되지 않을 수 있다."
+      ]
+    }
+  ],
   "sql-ddl": [
     {
       type: "section",
@@ -1852,6 +1882,21 @@ const conceptSeeds: ConceptSeed[] = [
 ];
 
 const supplementalConceptSeeds: ConceptSeed[] = [
+  {
+    id: "sql-identifiers",
+    subjectId: "sql-basic",
+    subjectName: sqlSubject,
+    majorTopic: "SQL 기본 및 활용",
+    detailTopic: "식별자 규칙",
+    summary: "SQL 식별자는 테이블명, 컬럼명, 뷰명처럼 객체를 구분하는 이름이며 일반 식별자와 인용 식별자의 규칙을 구분해야 한다.",
+    keyPoints: [
+      "일반 식별자는 큰따옴표 없이 사용하는 객체명이며 보통 문자로 시작한다.",
+      "공백, 하이픈, 예약어, 숫자로 시작하는 이름은 인용 식별자가 필요할 수 있다.",
+      "인용 식별자는 대소문자와 특수문자까지 이름의 일부가 되므로 유지보수에 불리할 수 있다."
+    ],
+    examTrap: "큰따옴표를 쓰면 어떤 이름이든 편하다고 생각하면 틀리기 쉽다. 이후 SQL에서 같은 인용 형태와 대소문자를 계속 맞춰야 한다.",
+    oracleAngle: "Oracle 일반 식별자는 큰따옴표 없이 쓰면 대문자로 정규화된다. 인용 식별자는 대소문자를 보존하므로 참조 시 주의해야 한다."
+  },
   {
     id: "modeling-super-subtype",
     subjectId: "modeling",
