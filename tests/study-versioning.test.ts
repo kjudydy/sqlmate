@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { filterCurrentAnswers, filterCurrentAttempts, isCurrentAnswerForQuestion } from "@/lib/study-versioning";
+import {
+  filterCurrentAnswers,
+  filterCurrentAttempts,
+  findFirstUnansweredQuestionIndex,
+  isCurrentAnswerForQuestion
+} from "@/lib/study-versioning";
 import type { AnswerRecord, AttemptRecord, ObjectiveQuestion } from "@/lib/types";
 
 const question = {
@@ -62,5 +67,29 @@ describe("study versioning", () => {
     ];
 
     expect(filterCurrentAttempts(attempts, [question]).map((item) => item.id)).toEqual(["attempt-2"]);
+  });
+
+  it("finds the first unanswered current question for resume", () => {
+    const questions = [
+      question,
+      { id: "modeling-002", contentHash: "current-two" },
+      { id: "modeling-003", contentHash: "current-three" }
+    ] as ObjectiveQuestion[];
+    const answers = {
+      "modeling-001": answer({ questionContentHash: "current-hash" }),
+      "modeling-002": answer({ questionId: "modeling-002", questionContentHash: "old-two" })
+    };
+
+    expect(findFirstUnansweredQuestionIndex(questions, answers)).toBe(1);
+    expect(
+      findFirstUnansweredQuestionIndex(
+        questions,
+        {
+          ...answers,
+          "modeling-002": answer({ questionId: "modeling-002", questionContentHash: "current-two" }),
+          "modeling-003": answer({ questionId: "modeling-003", questionContentHash: "current-three" })
+        }
+      )
+    ).toBe(3);
   });
 });

@@ -30,7 +30,7 @@ import {
   officialSourceVersion,
   subjects
 } from "@/lib/problem-bank";
-import { filterCurrentAnswers, filterCurrentAttempts } from "@/lib/study-versioning";
+import { filterCurrentAnswers, filterCurrentAttempts, findFirstUnansweredQuestionIndex } from "@/lib/study-versioning";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { FormEvent, ReactNode } from "react";
 import type {
@@ -162,7 +162,7 @@ function usePersistentState<T>(key: string, initialValue: T) {
     window.localStorage.setItem(key, JSON.stringify(value));
   }, [hydrated, key, value]);
 
-  return [value, setValue] as const;
+  return [value, setValue, hydrated] as const;
 }
 
 function scoreLabel(percent: number) {
@@ -702,7 +702,7 @@ export default function Home() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedChoice, setSelectedChoice] = useState<ChoiceId | null>(null);
   const [hintVisible, setHintVisible] = useState(false);
-  const [answers, setAnswers] = usePersistentState<Record<string, AnswerRecord>>("sqlmate.answers", emptyState.answers);
+  const [answers, setAnswers, answersHydrated] = usePersistentState<Record<string, AnswerRecord>>("sqlmate.answers", emptyState.answers);
   const [labAnswers, setLabAnswers] = usePersistentState<StudyStatePayload["labAnswers"]>("sqlmate.labAnswers", emptyState.labAnswers);
   const [todoChecks, setTodoChecks] = usePersistentState<StudyStatePayload["todoChecks"]>("sqlmate.todoChecks", emptyState.todoChecks);
   const [todoItems, setTodoItems] = usePersistentState<StudyStatePayload["todoItems"]>("sqlmate.todoItems", emptyState.todoItems);
@@ -740,6 +740,7 @@ export default function Home() {
   const wrongMemoTimers = useRef<Record<string, number>>({});
   const personalNoteEditorRef = useRef<HTMLDivElement | null>(null);
   const personalNoteUndoStacks = useRef<Record<string, string[]>>({});
+  const practiceResumeKeyRef = useRef<string | null>(null);
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const allQuestions = useMemo(() => objectiveQuestions, []);
@@ -759,7 +760,7 @@ export default function Home() {
   const currentQuestionBase = getQuestionForRunIndex(questionIndex);
   const currentQuestion = currentQuestionBase ? { ...currentQuestionBase, number: questionIndex + 1 } : undefined;
   const currentQuestionRunKey = getQuestionRunKey(questionIndex, currentQuestionBase);
-  const currentAnswer = currentQuestion ? sessionAnswers[currentQuestionRunKey] : undefined;
+  const currentAnswer = currentQuestion ? (sessionAnswers[currentQuestionRunKey] ?? currentAnswers[currentQuestion.id]) : undefined;
   const conceptSubjectTabs = useMemo(
     () =>
       [
@@ -808,6 +809,7 @@ export default function Home() {
   const labPassed = Object.values(labAnswers).filter((answer) => answer.passed).length;
   const monthlyStudyDays = useMemo(() => buildStudyCalendar(today, currentAttempts, labAnswers), [currentAttempts, labAnswers, todayKey]);
   const subjectAnsweredCount = currentAttempts.filter((attempt) => attempt.subjectId === activeSubject).length;
+  const practiceResumeReady = answersHydrated && authChecked && (!cloudUser || cloudReady);
   const questionMarkerStart = Math.max(0, questionIndex - Math.floor(infiniteQuestionWindowSize / 2));
   const questionMarkers = Array.from({ length: infiniteQuestionWindowSize }, (_, offset) => questionMarkerStart + offset);
   const labMarkerStart = Math.max(0, activeLabIndex - Math.floor(infiniteLabWindowSize / 2));
@@ -831,10 +833,14 @@ export default function Home() {
   );
 
   useEffect(() => {
-    setQuestionIndex(0);
+    const resumeKey = `${cloudUser?.id ?? "local"}:${activeSubject}:${officialSourceVersion}`;
+    if (!practiceResumeReady || practiceResumeKeyRef.current === resumeKey) return;
+
+    setQuestionIndex(findFirstUnansweredQuestionIndex(subjectQuestions, currentAnswers));
     setHintVisible(false);
     setSelectedChoice(null);
-  }, [activeSubject]);
+    practiceResumeKeyRef.current = resumeKey;
+  }, [activeSubject, cloudUser?.id, currentAnswers, practiceResumeReady, subjectQuestions]);
 
   useEffect(() => {
     setSelectedChoice(currentAnswer?.selectedChoiceId ?? null);
@@ -1037,15 +1043,20 @@ export default function Home() {
   }
 
   function selectSubject(subjectId: SubjectId) {
+    const nextSubjectQuestions = objectiveQuestions
+      .filter((question) => question.subjectId === subjectId)
+      .map((question, index) => ({ ...question, number: index + 1 }));
+
     setActiveSubject(subjectId);
-    setQuestionIndex(0);
+    setQuestionIndex(findFirstUnansweredQuestionIndex(nextSubjectQuestions, currentAnswers));
     setSelectedChoice(null);
     setHintVisible(false);
+    practiceResumeKeyRef.current = `${cloudUser?.id ?? "local"}:${subjectId}:${officialSourceVersion}`;
   }
 
   function goToNextQuestion() {
-    const nextIndex = questionIndex + 1;
-    setQuestionIndex(Math.min(nextIndex, subjectQuestions.length));
+    const nextIndex = findFirstUnansweredQuestionIndex(subjectQuestions, currentAnswers, questionIndex + 1);
+    setQuestionIndex(nextIndex);
     setSelectedChoice(null);
     setHintVisible(false);
     if (nextIndex >= subjectQuestions.length) {
@@ -1771,7 +1782,9 @@ export default function Home() {
                 {questionMarkers.map((runIndex) => {
                   const markerQuestion = getQuestionForRunIndex(runIndex);
                   if (!markerQuestion) return null;
-                  const markerAnswer = markerQuestion ? sessionAnswers[getQuestionRunKey(runIndex, markerQuestion)] : undefined;
+                  const markerAnswer = markerQuestion
+                    ? (sessionAnswers[getQuestionRunKey(runIndex, markerQuestion)] ?? currentAnswers[markerQuestion.id])
+                    : undefined;
                   return (
                     <button
                       key={`${activeSubject}-run-${runIndex}`}

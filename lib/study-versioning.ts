@@ -30,3 +30,20 @@ export function filterCurrentAttempts(attempts: AttemptRecord[], questions: Vers
     return attempt.questionContentHash === question.contentHash;
   });
 }
+
+export function findFirstUnansweredQuestionIndex(
+  questions: VersionedQuestion[],
+  answers: Record<string, AnswerRecord>,
+  startIndex = 0
+) {
+  const safeStartIndex = Math.max(0, Math.min(startIndex, questions.length));
+
+  for (let index = safeStartIndex; index < questions.length; index += 1) {
+    const question = questions[index];
+    if (!isCurrentAnswerForQuestion(answers[question.id], question)) {
+      return index;
+    }
+  }
+
+  return questions.length;
+}
