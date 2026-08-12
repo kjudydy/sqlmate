@@ -964,6 +964,56 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("keeps subject-three questions 121 through 152 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { number: 121, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "Prefetch"] },
+      { number: 122, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "PSTART"] },
+      { number: 123, conceptId: "tuning-parallel", keywords: ["Parallel", "Granule"] },
+      { number: 124, conceptId: "tuning-optimizer", keywords: ["Density", "Histogram"] },
+      { number: 125, conceptId: "tuning-sql-rewrite", keywords: ["SQL Rewrite", "ROW_NUMBER"] },
+      { number: 126, conceptId: "tuning-explain-plan", keywords: ["Operation", "Rows"] },
+      { number: 127, conceptId: "tuning-query-transformation", keywords: ["PUSH_SUBQ", "Subquery Unnesting"] },
+      { number: 128, conceptId: "tuning-composite-index", keywords: ["Composite Index", "Access Predicate"] },
+      { number: 129, conceptId: "tuning-sort", keywords: ["Sort Operation", "SORT ORDER BY"] },
+      { number: 130, conceptId: "tuning-hash-join", keywords: ["Build Input", "Workarea"] },
+      { number: 131, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Skip Scan", "IN-List Iterator"] },
+      { number: 132, conceptId: "tuning-sql-trace", keywords: ["TKPROF", "Row Source"] },
+      { number: 133, conceptId: "tuning-architecture", keywords: ["Hot Block", "Latch"] },
+      { number: 134, conceptId: "tuning-sql-trace", keywords: ["Consistent Read", "Undo"] },
+      { number: 135, conceptId: "tuning-hash-join", keywords: ["Hash Join", "Workarea"] },
+      { number: 136, conceptId: "tuning-index-scan-efficiency", keywords: ["IN-List Iterator", "Index Skip Scan"] },
+      { number: 137, conceptId: "tuning-clustering-factor", keywords: ["Clustering Factor", "ROWID"] },
+      { number: 138, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "SARGable"] },
+      { number: 139, conceptId: "tuning-query-transformation", keywords: ["Subquery Unnesting", "Semi Join"] },
+      { number: 140, conceptId: "tuning-top-n", keywords: ["Top-N", "STOPKEY"] },
+      { number: 141, conceptId: "tuning-concurrency", keywords: ["MVCC", "SELECT FOR UPDATE"] },
+      { number: 142, conceptId: "tuning-dml", keywords: ["Direct Path Insert", "APPEND"] },
+      { number: 143, conceptId: "tuning-composite-index", keywords: ["Access Predicate", "Filter Predicate"] },
+      { number: 144, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "Outer"] },
+      { number: 145, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Full Scan", "Index Fast Full Scan"] },
+      { number: 146, conceptId: "tuning-cardinality", keywords: ["Selectivity", "Cardinality"] },
+      { number: 147, conceptId: "tuning-scalar-subquery", keywords: ["Scalar Subquery Caching", "Cache"] },
+      { number: 148, conceptId: "tuning-sort", keywords: ["Window Sort", "Sort Operation"] },
+      { number: 149, conceptId: "tuning-architecture", keywords: ["CBC Latch", "Hot Block"] },
+      { number: 150, conceptId: "tuning-sql-trace", keywords: ["Wait Event", "log file sync"] },
+      { number: 151, conceptId: "tuning-partitioning", keywords: ["Local index", "Global index"] },
+      { number: 152, conceptId: "tuning-sql-sharing", keywords: ["Adaptive Cursor Sharing", "Bind Peeking"] }
+    ];
+
+    for (const { number, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && item.number === number);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, `tuning question ${number}`).toBeTruthy();
+      expect(question?.relatedConceptId, `tuning question ${number}`).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `tuning question ${number} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
   it("links the second tuning concept batch to rewrite and partition concepts precisely", () => {
     const rewriteQuestion = objectiveQuestions.find(
       (question) => question.subjectId === "tuning" && /최신 이력|고객변경이력/.test([question.topic, question.stem].join(" "))

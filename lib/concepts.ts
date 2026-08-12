@@ -759,7 +759,8 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "SGA는 여러 프로세스가 공유하는 메모리 영역이다. Buffer Cache는 데이터 블록을 캐시하고, Shared Pool 안의 Library Cache는 SQL 커서와 실행계획을 재사용한다.",
         "PGA는 서버 프로세스별 작업 메모리다. 정렬, 해시 조인, 세션별 작업 영역이 PGA를 사용하며 부족하면 TEMP I/O가 발생할 수 있다.",
-        "SQL 튜닝에서는 실행계획만 보지 않고 Buffer Cache, Library Cache, PGA, redo/undo, Latch 경합까지 함께 판단해야 한다."
+        "SQL 튜닝에서는 실행계획만 보지 않고 Buffer Cache, Library Cache, PGA, redo/undo, Latch 경합까지 함께 판단해야 한다.",
+        "동일 인덱스 리프 블록이나 데이터 블록에 변경이 몰리면 Hot Block이 되고, Buffer Cache의 CBC Latch 경합이 증가할 수 있다. 순차 증가 PK, 우측 리프 블록 분할, 잦은 동시 INSERT 패턴을 함께 확인한다."
       ]
     }
   ],
@@ -861,7 +862,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "Library Cache에는 파싱된 SQL 커서와 실행계획이 저장된다. 같은 SQL을 공유하면 Hard Parse 비용을 줄일 수 있지만, Bind 값 분포가 크게 다르면 공유된 실행계획이 항상 최적이라는 보장은 없다.",
         "Bind Peeking은 최초 Hard Parse 시점의 Bind 값을 보고 실행계획을 만든다. 값 분포가 치우친 컬럼에서는 최초 Bind 값에 따라 이후 실행계획이 부적절해질 수 있다.",
-        "Histogram은 컬럼 값 분포가 균등하지 않을 때 선택도 추정을 보정하는 통계정보다. 인기 값과 비인기 값의 선택도가 크게 다르면 Histogram 유무가 실행계획에 영향을 준다.",
+        "Histogram은 컬럼 값 분포가 균등하지 않을 때 선택도 추정을 보정하는 통계정보다. Density는 값 하나가 선택될 기본 밀도 추정값으로 쓰이며, 인기 값과 비인기 값의 선택도가 크게 다르면 Histogram 유무가 실행계획에 영향을 준다.",
         "Adaptive Cursor Sharing은 Bind 값에 따라 성능 차이가 큰 SQL에 대해 여러 실행계획을 사용할 수 있게 하는 Oracle 기능이다."
       ]
     }
@@ -890,6 +891,7 @@ Object.assign(conceptStudyBlockOverrides, {
       title: "Index Skip Scan과 Index Fast Full Scan",
       paragraphs: [
         "Index Skip Scan은 결합 인덱스의 선두 컬럼 조건이 없어도 선두 컬럼의 NDV가 작을 때 내부적으로 여러 범위를 나누어 후행 컬럼 조건을 활용하는 방식이다.",
+        "IN-List Iterator는 IN 목록의 각 값을 반복적인 인덱스 탐색 단위로 처리하는 실행계획 형태다. IN 조건이 여러 등치 탐색으로 분해될 수 있는지와 반복 횟수를 함께 본다.",
         "Index Fast Full Scan은 인덱스 전체를 멀티블록 I/O로 읽어 필요한 컬럼을 인덱스만으로 처리하는 방식이다. 정렬 순서를 보장하는 일반 Index Full Scan과 다르다.",
         "시험에서는 Index Full Scan, Index Fast Full Scan, Index Skip Scan이 모두 인덱스를 읽지만 정렬 보장, 선두 컬럼 필요 여부, 테이블 액세스 여부가 다르다는 점을 구분한다."
       ]
@@ -900,7 +902,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "결합 인덱스 컬럼 순서",
       paragraphs: [
-        "결합 인덱스는 여러 컬럼을 하나의 키 순서로 묶은 인덱스다. 선두 컬럼 조건이 스캔 시작점을 만들고, 이후 컬럼은 등치·범위 조건의 위치에 따라 스캔 범위를 더 줄인다.",
+        "결합 인덱스(Composite Index)는 여러 컬럼을 하나의 키 순서로 묶은 인덱스다. 선두 컬럼 조건이 스캔 시작점을 만들고, 이후 컬럼은 등치·범위 조건의 위치에 따라 스캔 범위를 더 줄인다.",
         "일반적으로 등치 조건 컬럼을 앞쪽에 두고, 범위 조건 컬럼은 그 뒤에 배치하는 경우가 많다. 하지만 ORDER BY, GROUP BY, 조인 방식, 부분범위 처리까지 함께 고려해야 한다.",
         "선택도가 높다는 이유만으로 항상 첫 컬럼에 두지는 않는다. 실제 SQL 패턴에서 어떤 컬럼이 항상 조건에 들어오는지와 정렬 제거 가능성이 중요하다."
       ]
@@ -909,7 +911,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "결합 인덱스와 Access Predicate",
       paragraphs: [
-        "실행계획에서 결합 인덱스가 Index Range Scan으로 나타나도 모든 WHERE 조건이 Access Predicate가 되는 것은 아니다.",
+        "실행계획에서 결합 인덱스가 Index Range Scan으로 나타나도 모든 WHERE 조건이 Access Predicate가 되는 것은 아니다. 스캔 후 걸러지는 조건은 Filter Predicate로 남을 수 있다.",
         "인덱스에 포함된 컬럼만 Access Predicate 후보가 되며, 선두 컬럼부터 이어지는 조건 구조가 중요하다. 인덱스에 없는 컬럼은 해당 인덱스의 access 조건이 될 수 없다.",
         "문제에서 인덱스 구성과 SQL, Predicate Information이 함께 주어지면 어떤 조건이 인덱스 스캔 범위를 실제로 줄였는지 먼저 확인한다."
       ]
@@ -933,6 +935,22 @@ Object.assign(conceptStudyBlockOverrides, {
         "선행 집합이 작고 후행 테이블 조인 컬럼에 인덱스가 있으면 Nested Loop Semi Join이 자연스럽다. 반대로 대량 집합이면 Hash Semi Join이 더 유리할 수 있다.",
         "문제에서 EXISTS, NOT EXISTS, 인덱스 구성, 선행 조건의 선택도가 함께 주어지면 Semi/Anti 여부와 조인 방식(NL/Hash)을 분리해서 판단한다."
       ]
+    },
+    {
+      type: "section",
+      title: "Prefetch와 Batch I/O",
+      paragraphs: [
+        "Nested Loops Join에서 후행 테이블을 ROWID로 반복 방문하면 랜덤 액세스가 많아진다. Oracle은 경우에 따라 NL Join Prefetch 또는 Batch I/O로 여러 ROWID 방문을 묶어 I/O 효율을 높일 수 있다.",
+        "Prefetch가 보인다고 반복 액세스 비용 자체가 사라지는 것은 아니다. 선행 집합 크기, 후행 인덱스 선택도, 클러스터링 팩터, 테이블 랜덤 액세스 횟수를 함께 판단해야 한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Outer와 Inner 처리 순서",
+      paragraphs: [
+        "Nested Loops Join에서 Outer 입력은 반복의 기준이 되는 선행 집합이고, Inner 입력은 Outer의 각 행마다 조인 조건으로 탐색되는 후행 집합이다.",
+        "Outer 쪽 필터는 반복 횟수를 줄이고, Inner 쪽 Access Predicate는 반복마다 방문하는 범위를 줄인다. Inner 조건이 Filter Predicate로 남으면 반복 테이블 액세스 비용이 커질 수 있다."
+      ]
     }
   ],
   "tuning-hash-join": [
@@ -942,7 +960,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "Hash Join(해시 조인)은 한쪽 입력으로 해시 테이블을 만들고 다른 입력으로 탐색해 조인하는 방식이다. 대량 등가 조인에서 NL Join보다 랜덤 액세스가 적어 유리할 수 있다.",
         "Build Input은 해시 테이블을 만드는 입력이고, Probe Input은 만들어진 해시 테이블을 탐색하는 입력이다. 보통 필터 후 더 작은 집합이 Build Input이 되는 것이 유리하다.",
-        "메모리가 부족하면 해시 영역이 디스크로 spill되는 Disk Spill이 발생해 TEMP I/O가 커질 수 있다."
+        "Hash Join은 PGA Workarea에 해시 영역을 확보해 처리한다. 메모리가 부족하면 해시 영역이 디스크로 spill되는 Disk Spill이 발생해 TEMP I/O가 커질 수 있다."
       ]
     },
     {
@@ -961,7 +979,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "Sort가 발생하는 지점",
       paragraphs: [
-        "Sort 튜닝은 ORDER BY, GROUP BY, DISTINCT, UNION, 윈도우 함수에서 발생하는 정렬 비용을 줄이는 것이다.",
+        "Sort Operation 튜닝은 ORDER BY, GROUP BY, DISTINCT, UNION, Window Sort처럼 윈도우 함수에서 발생하는 정렬 비용을 줄이는 것이다.",
         "정렬 대상 행 수와 행 크기가 클수록 PGA 작업 메모리를 많이 사용한다. 메모리가 부족하면 TEMP 영역을 사용하면서 응답 시간이 급격히 늘 수 있다.",
         "GROUP BY는 실행계획에서 Sort Group By 또는 Hash Group By로 처리될 수 있다. Hash Group By는 해시 영역을 사용해 그룹을 만들고, 메모리가 부족하면 TEMP I/O가 커질 수 있다.",
         "인덱스 순서를 활용하면 SORT ORDER BY를 생략할 수 있고, 불필요한 DISTINCT나 UNION은 정렬 또는 해시 중복 제거 비용을 만든다."
@@ -1011,7 +1029,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "Scalar Subquery Caching과 Rewrite",
       paragraphs: [
-        "Scalar Subquery Caching은 같은 입력 값에 대해 같은 결과를 반복 계산하지 않도록 캐시하는 최적화다. 반복 입력 값이 많을수록 효과가 커진다.",
+        "Scalar Subquery Caching은 같은 입력 값에 대해 같은 결과를 반복 계산하지 않도록 Cache를 활용하는 최적화다. 반복 입력 값이 많을수록 효과가 커진다.",
         "대량 데이터에서 바깥 행마다 서브쿼리를 반복하면 비용이 커질 수 있다. 같은 결과를 조인과 GROUP BY로 미리 집계한 뒤 조인하는 방식이 더 안정적일 때가 많다.",
         "시험에서는 Scalar Subquery가 항상 느리거나 항상 빠르다고 단정하지 않고, 반복 횟수, NDV, 캐싱 가능성, 조인 변환 가능성을 함께 판단한다."
       ]
@@ -1051,7 +1069,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "선택도와 카디널리티",
       paragraphs: [
-        "선택도는 조건을 만족할 비율이고, 카디널리티(Cardinality)는 각 실행 단계에서 예상되는 행 수다. 선택도 추정이 틀리면 카디널리티가 틀리고, 조인 순서와 조인 방식도 잘못 선택될 수 있다.",
+        "선택도(Selectivity)는 조건을 만족할 비율이고, 카디널리티(Cardinality)는 각 실행 단계에서 예상되는 행 수다. 선택도 추정이 틀리면 카디널리티가 틀리고, 조인 순서와 조인 방식도 잘못 선택될 수 있다.",
         "옵티마이저는 통계정보, NDV, Histogram, 컬럼 상관관계 추정 등을 바탕으로 카디널리티를 계산한다.",
         "카디널리티 오류는 실제 Rows와 예상 Rows의 차이로 드러난다. 실행계획에서 A-Rows와 E-Rows를 비교할 수 있으면 오류 위치를 찾기 쉽다."
       ]
@@ -1073,7 +1091,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "Parallel Execution은 작업을 여러 병렬 서버 프로세스가 나누어 처리해 대량 처리 시간을 줄이는 방식이다. 실행계획에서는 PX COORDINATOR, PX SEND, PX RECEIVE, TQ 정보를 확인한다.",
         "Parallel Degree는 병렬도를 의미하며, 높을수록 항상 빠른 것은 아니다. CPU, I/O, 메모리, 동시 사용자와 자원 경합을 함께 고려해야 한다.",
-        "병렬 처리 문제에서는 작업을 나누는 기준, 데이터 재분배 방식, QC와 병렬 서버 간 통신 비용을 함께 본다."
+        "병렬 처리 문제에서는 작업을 나누는 기준인 Granule, 데이터 Redistribution 방식, QC와 병렬 서버 간 통신 비용을 함께 본다."
       ]
     },
     {
@@ -1112,6 +1130,28 @@ Object.assign(conceptStudyBlockOverrides, {
         "Result Cache는 동일 입력에 대한 쿼리 또는 함수 결과를 재사용해 반복 계산과 반복 I/O를 줄이는 기능이다.",
         "자주 변경되는 테이블, 세션별로 결과가 달라지는 표현식, 비결정적 함수가 포함된 경우에는 캐시 효과가 작거나 부적절할 수 있다.",
         "커서 공유와 Result Cache는 모두 재사용을 다루지만, 커서 공유는 실행계획 재사용이고 Result Cache는 결과 자체의 재사용이라는 차이가 있다."
+      ]
+    }
+  ],
+  "tuning-concurrency": [
+    {
+      type: "section",
+      title: "MVCC와 SELECT FOR UPDATE",
+      paragraphs: [
+        "MVCC는 읽기 작업이 변경 중인 행을 바로 막지 않고, 필요한 경우 이전 버전을 읽어 일관성을 유지하는 방식이다. 따라서 일반 SELECT와 UPDATE의 잠금 동작을 구분해야 한다.",
+        "SELECT FOR UPDATE는 조회한 행에 대해 이후 변경을 전제로 row lock을 요청한다. 다른 세션이 같은 행을 변경하려 하면 선행 트랜잭션이 COMMIT 또는 ROLLBACK할 때까지 대기할 수 있다.",
+        "동시성 문제에서는 읽기 일관성, row lock 대기, 트랜잭션 범위, 인덱스 경합, Hot Block 여부를 함께 판단한다."
+      ]
+    },
+    {
+      type: "table",
+      title: "동시성 판단 포인트",
+      headers: ["상황", "확인할 것", "시험 함정"],
+      rows: [
+        ["일반 SELECT", "MVCC로 과거 버전 읽기 가능", "읽기와 쓰기가 항상 서로 막는다고 단정하지 않는다."],
+        ["SELECT FOR UPDATE", "조회 행에 row lock 요청", "단순 조회가 아니라 변경 예정 행 잠금이다."],
+        ["동일 행 UPDATE", "TX row lock 대기", "대기 원인을 실행계획만으로 판단하지 않는다."],
+        ["핫 블록 변경 집중", "Latch, buffer busy waits", "SQL Rewrite만으로 풀리지 않을 수 있다."]
       ]
     }
   ]
@@ -2239,7 +2279,7 @@ const conceptSeeds: ConceptSeed[] = [
         paragraphs: [
           "예상 실행계획은 옵티마이저의 예측이고, SQL Trace/TKPROF는 실제 수행 중 어느 call에서 CPU, elapsed time, logical read, physical read가 발생했는지 보여준다. SQLP 실습형에서는 실행계획 모양만 보고 답하지 말고 실제 통계와 함께 병목을 말해야 한다.",
           "TKPROF의 call 표는 Parse, Execute, Fetch로 나뉜다. SELECT는 Fetch 단계에 읽기 비용이 몰리는 경우가 많고, DML은 Execute 단계가 커질 수 있다. parse count가 작다고 전체 SQL이 빠르다는 뜻은 아니다.",
-        "query는 consistent get, current는 current get, disk는 physical read로 이해한다. rows 대비 query가 과도하면 인덱스 스캔 효율, 조인 반복, 테이블 랜덤 액세스, fetch call 크기와 Array Processing 효율을 의심한다."
+        "query는 consistent get, current는 current get, disk는 physical read로 이해한다. Row Source Operation의 rows 대비 query가 과도하면 인덱스 스캔 효율, 조인 반복, 테이블 랜덤 액세스, fetch call 크기와 Array Processing 효율을 의심한다."
         ]
       },
       {
@@ -2283,7 +2323,7 @@ const conceptSeeds: ConceptSeed[] = [
       title: "Wait Event와 Consistent Read",
       paragraphs: [
         "log file sync는 Commit 요청 후 LGWR가 redo를 기록하기를 기다리는 대표적인 대기 이벤트다. Commit이 지나치게 잦거나 redo 쓰기 지연이 있으면 응답 시간이 늘 수 있다.",
-        "Consistent Read는 쿼리가 읽기 일관성을 맞추기 위해 필요한 버전의 블록을 읽는 과정이다. TKPROF의 query 수치가 크면 논리적 읽기와 CR 부담을 함께 본다.",
+        "Consistent Read는 쿼리가 읽기 일관성을 맞추기 위해 필요한 버전의 블록을 읽는 과정이다. 필요한 경우 Undo 정보를 이용해 과거 버전의 블록을 재구성하므로 TKPROF의 query 수치가 크면 논리적 읽기와 CR 부담을 함께 본다.",
         "SQL Trace 문제에서는 CPU/elapsed만 보지 말고 wait event, query/current/disk, rows, starts를 함께 묶어 병목 원인을 판단한다."
       ]
     },

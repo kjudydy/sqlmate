@@ -5642,6 +5642,8 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
   if (question.subjectId === "tuning") {
     if (question.id === "prod-ext-tuning-041" || question.id === "prod-ext-tuning-042") {
       question = { ...question, relatedConceptId: "tuning-partitioning" };
+    } else if (question.id === "prod-ext-tuning-307") {
+      question = { ...question, relatedConceptId: "tuning-sql-rewrite" };
     } else if (question.id === "prod-ext-tuning-048") {
       question = { ...question, relatedConceptId: "tuning-sql-sharing" };
     } else if (question.id === "prod-ext-tuning-201" || question.id === "prod-ext-tuning-202") {

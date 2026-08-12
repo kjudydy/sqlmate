@@ -101,6 +101,10 @@ Avoid running the full audit script unless explicitly requested.
   - index break-even questions -> `tuning-index-break-even`
 - Strengthened readable concept bodies for Clustering Factor, index break-even, DML Lock wording, DBMS_XPLAN `ALLSTATS LAST`, Cardinality, OR Expansion / `USE_CONCAT`, Partition Pruning with function-wrapped keys, and Latch contention.
 - Added a focused regression test for subject 3 questions 91-120.
+- 2026-08-12 follow-up: audited subject 3 questions 121-152 by visible question number.
+- Corrected the point-in-time history SQL question from generic index design to `tuning-sql-rewrite`.
+- Strengthened concept bodies for NL Join Prefetch / Batch I/O, Parallel Granule / Redistribution, CBO Density, Composite Index, Sort Operation / Window Sort, Hash Join Workarea, IN-List Iterator, Row Source Operation, Undo-backed Consistent Read, Hot Block / CBC Latch, MVCC, SELECT FOR UPDATE, Access/Filter Predicate, Selectivity, and Scalar Subquery Cache.
+- Added a focused regression test for subject 3 questions 121-152.
 - Added a representative problem-screen destination test for concept buttons users are likely to click:
   - NULL questions -> `sql-null`
   - constraint questions -> `sql-constraints`
@@ -123,6 +127,6 @@ Avoid running the full audit script unless explicitly requested.
 - Corrected additional outer join, DATE arithmetic, latest-history join, HAVING, and GROUPING SETS/CUBE questions to their more precise concept destinations.
 - Replaced the related concept bodies for `sql-where`, `sql-dcl`, and `sql-date` with readable Korean study blocks that cover LIKE/ESCAPE, tuple IN, ROLE/object privileges, DATE time arithmetic, and half-open date ranges.
 - Continue with the next manual batch only when needed:
-  - subject 3 questions 121-152
   - visible concept destinations from solved/wrong-note flows
+  - any newly imported PDF questions before publication
   - avoid full-bank audit unless explicitly requested
