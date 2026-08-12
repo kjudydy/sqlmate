@@ -741,6 +741,7 @@ export default function Home() {
   const wrongMemoTimers = useRef<Record<string, number>>({});
   const personalNoteEditorRef = useRef<HTMLDivElement | null>(null);
   const personalNoteUndoStacks = useRef<Record<string, string[]>>({});
+  const personalNoteSaveTimer = useRef<number | null>(null);
   const practiceResumeKeyRef = useRef<string | null>(null);
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -957,6 +958,7 @@ export default function Home() {
   useEffect(() => {
     return () => {
       Object.values(wrongMemoTimers.current).forEach((timer) => window.clearTimeout(timer));
+      if (personalNoteSaveTimer.current) window.clearTimeout(personalNoteSaveTimer.current);
     };
   }, []);
 
@@ -1324,12 +1326,27 @@ export default function Home() {
     }
   }
 
-  function updatePersonalNoteFromEditor(trackUndo = true) {
+  function updatePersonalNoteFromEditor(trackUndo = true, immediate = false) {
     if (!selectedPersonalNote || !personalNoteEditorRef.current) return;
     const nextBody = sanitizePersonalNoteHtml(personalNoteEditorRef.current.innerHTML);
     if (nextBody === selectedPersonalNote.body) return;
     if (trackUndo) pushPersonalNoteUndo(selectedPersonalNote);
-    updatePersonalNote(selectedPersonalNote.id, { body: nextBody });
+
+    if (personalNoteSaveTimer.current) {
+      window.clearTimeout(personalNoteSaveTimer.current);
+      personalNoteSaveTimer.current = null;
+    }
+
+    const noteId = selectedPersonalNote.id;
+    if (immediate) {
+      updatePersonalNote(noteId, { body: nextBody });
+      return;
+    }
+
+    personalNoteSaveTimer.current = window.setTimeout(() => {
+      updatePersonalNote(noteId, { body: nextBody });
+      personalNoteSaveTimer.current = null;
+    }, 600);
   }
 
   function applyPersonalNoteFormat(format: "heading" | "bullet" | "indent" | "outdent" | "highlight") {
@@ -1344,7 +1361,7 @@ export default function Home() {
     if (format === "outdent") document.execCommand("outdent");
     if (format === "highlight") document.execCommand("backColor", false, "#ffec8b");
 
-    updatePersonalNoteFromEditor(false);
+    updatePersonalNoteFromEditor(false, true);
   }
 
   function undoPersonalNote() {
@@ -2621,6 +2638,7 @@ export default function Home() {
                           className={note.id === selectedPersonalNote.id ? "note-list-item active" : "note-list-item"}
                           key={note.id}
                           onClick={() => {
+                            updatePersonalNoteFromEditor(false, true);
                             setSelectedPersonalNoteId(note.id);
                             setNoteListCollapsed(false);
                           }}
@@ -2680,11 +2698,11 @@ export default function Home() {
                     aria-label="노트 본문"
                     data-placeholder="헷갈리는 개념, 쿼리 패턴, 실행계획 해석을 적어두세요."
                     onInput={() => updatePersonalNoteFromEditor(true)}
-                    onBlur={() => updatePersonalNoteFromEditor(false)}
+                    onBlur={() => updatePersonalNoteFromEditor(false, true)}
                     onPaste={(event) => {
                       event.preventDefault();
                       document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
-                      updatePersonalNoteFromEditor(true);
+                      updatePersonalNoteFromEditor(true, true);
                     }}
                   />
                   <div className="note-footer">

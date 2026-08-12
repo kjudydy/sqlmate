@@ -2319,6 +2319,15 @@ body {
   color: #98a2b3;
 }
 
+.rich-note-editor div,
+.rich-note-editor p {
+  margin: 0 0 8px;
+}
+
+.rich-note-editor > :first-child {
+  margin-top: 0;
+}
+
 .rich-note-editor h1,
 .rich-note-editor h2,
 .rich-note-editor h3 {
