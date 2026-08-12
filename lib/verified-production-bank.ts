@@ -5420,6 +5420,32 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
 
   question = withPatchedWhyWrong;
 
+  const modelingConceptLinkPatches: Record<string, string> = {
+    "prod-modeling-001": "modeling-entity",
+    "prod-modeling-002": "modeling-entity",
+    "prod-modeling-003": "modeling-entity",
+    "prod-modeling-005": "modeling-attribute",
+    "prod-modeling-006": "modeling-entity",
+    "prod-modeling-008": "modeling-attribute",
+    "prod-ext-modeling-024": "modeling-history",
+    "prod-ext-modeling-026": "modeling-super-subtype",
+    "prod-ext-modeling-030": "modeling-distributed",
+    "prod-ext-modeling-051": "modeling-entity",
+    "prod-ext-modeling-053": "modeling-relationship",
+    "prod-ext-modeling-070": "modeling-distributed",
+    "prod-ext-modeling-086": "modeling-history",
+    "prod-ext-modeling-088": "modeling-super-subtype",
+    "prod-ext-modeling-089": "modeling-distributed",
+    "prod-ext-modeling-109": "modeling-history",
+    "prod-ext-modeling-110": "modeling-super-subtype",
+    "prod-ext-modeling-112": "modeling-distributed",
+    "prod-ext-modeling-118": "modeling-transaction-model"
+  };
+  const patchedModelingConceptId = modelingConceptLinkPatches[question.id];
+  if (patchedModelingConceptId) {
+    question = { ...question, relatedConceptId: patchedModelingConceptId };
+  }
+
   const nullLinkText = [question.middleTopic, question.topic, question.stem, question.parentQuestionId].filter(Boolean).join(" ");
   if (question.subjectId === "sql-basic" && /\bNULL\b/i.test(nullLinkText) && !/SET NULL/i.test(nullLinkText)) {
     question = { ...question, relatedConceptId: "sql-null" };
@@ -5487,6 +5513,64 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     )
   ) {
     question = { ...question, relatedConceptId: "sql-window-functions" };
+  }
+
+  if (question.id === "prod-ext-sql-basic-070" || question.id === "prod-ext-sql-basic-207") {
+    question = { ...question, relatedConceptId: "sql-join" };
+  }
+
+  if (question.subjectId === "sql-basic") {
+    if (question.relatedConceptId === "sql-hierarchical") {
+      question = { ...question, relatedConceptId: "sql-hierarchical-self-join" };
+    } else if (question.relatedConceptId === "sql-pivot") {
+      question = { ...question, relatedConceptId: "sql-pivot-unpivot" };
+    } else if (question.relatedConceptId === "sql-transaction") {
+      question = { ...question, relatedConceptId: "sql-tcl" };
+    } else if (question.relatedConceptId === "sql-joins") {
+      question = { ...question, relatedConceptId: "sql-standard-join" };
+    } else if (question.relatedConceptId === "sql-group-by") {
+      const groupTopicText = [question.middleTopic, question.topic, question.stem, question.code].filter(Boolean).join(" ");
+      question = {
+        ...question,
+        relatedConceptId: /ROLLUP|CUBE|GROUPING|GROUPING_ID/i.test(groupTopicText) ? "sql-group-functions" : "sql-group-having"
+      };
+    }
+
+    if (question.parentQuestionId === "sql-date-arithmetic" || question.parentQuestionId === "sql-service-period-condition") {
+      question = { ...question, relatedConceptId: "sql-date" };
+    } else if (question.parentQuestionId === "sqld-q31-regexp-instr") {
+      question = { ...question, relatedConceptId: "sql-regexp" };
+    }
+  }
+
+  if (question.subjectId === "tuning") {
+    const tuningTopicText = [question.middleTopic, question.topic, question.stem, question.parentQuestionId].filter(Boolean).join(" ");
+    const tuningHeaderText = [question.middleTopic, question.topic, question.parentQuestionId].filter(Boolean).join(" ");
+    if (/SQL Rewrite|최신 이력|이력 조회/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-sql-rewrite" };
+    } else if (/(DB\s*Buffer|Buffer Cache|CBC Latch|Hot Block|SGA|Latch|버퍼 캐시|래치)/i.test(tuningHeaderText)) {
+      question = { ...question, relatedConceptId: "tuning-architecture" };
+    } else if (/(결합 인덱스|Composite\s+Index|composite\s+index)/i.test(tuningHeaderText)) {
+      question = { ...question, relatedConceptId: "tuning-composite-index" };
+    } else if (/(Index Full Scan|Fast Full Scan|Index Skip Scan|Skip Scan|IN-List Iterator)/i.test(tuningHeaderText)) {
+      question = { ...question, relatedConceptId: "tuning-index-scan-efficiency" };
+    } else if (/(Top-N|STOPKEY|COUNT STOPKEY)/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-top-n" };
+    } else if (/(SQL Trace|TKPROF|Wait Event|Consistent Read|Undo 재구성|대기 이벤트)/i.test(tuningHeaderText)) {
+      question = { ...question, relatedConceptId: "tuning-sql-trace" };
+    } else if (/(Sort Operation|Sort 제거|SORT ORDER BY|SORT GROUP BY|SORT UNIQUE|Window Sort|Sort 튜닝|분석 함수 튜닝|정렬)/i.test(tuningHeaderText)) {
+      question = { ...question, relatedConceptId: "tuning-sort" };
+    } else if (/Partition Pruning|파티션\s*Pruning/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-partition-pruning" };
+    } else if (/Adaptive Cursor Sharing/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-sql-sharing" };
+    } else if (/Bind Peeking|바인드/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-optimizer" };
+    } else if (/Hash Join Build Input|Build Input|해시\s*조인/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-hash-join" };
+    } else if (/NL Join 반복 비용|Nested Loops Join|NL Join/i.test(tuningTopicText)) {
+      question = { ...question, relatedConceptId: "tuning-nl-join" };
+    }
   }
 
   if (question.id === "prod-tuning-010") {
@@ -5966,6 +6050,7 @@ EXEC :v_주식선물구분 := '선물';
         { id: "D", text: "LEFT 6건, FULL 6건, RIGHT 6건" }
       ],
       answer: "B",
+      relatedConceptId: "sql-standard-join",
       hint:
         "1단계: EMP의 C=w 두 행과 DEPT의 C=w 두 행이 조인되면 2×2로 4건이 됩니다.\n2단계: EMP의 C=y와 C=NULL은 LEFT/FULL에서 보존되고, DEPT의 C=z는 RIGHT/FULL에서 보존됩니다.\n3단계: FULL OUTER JOIN은 LEFT 결과에 오른쪽 미매칭 행을 추가합니다.",
       explanation:
@@ -6103,6 +6188,7 @@ EXEC :v_주식선물구분 := '선물';
       { id: "D", text: "LEFT 3건, FULL 5건, RIGHT 3건" }
     ],
     answer: "A",
+    relatedConceptId: "sql-standard-join",
     hint: "1단계: EMP의 C=w 두 행은 DEPT의 C=w 한 행과 각각 매칭된다.\n2단계: EMP의 C=y는 LEFT/FULL에서만 보존되고, DEPT의 C=z, C=v는 RIGHT/FULL에서 보존된다.\n3단계: FULL OUTER JOIN은 양쪽 미매칭 행을 모두 포함하므로 LEFT 결과에 DEPT 미매칭 두 행을 더한다.",
     explanation: "EMP 기준 LEFT OUTER JOIN은 EMP의 3행을 보존한다. C=w 두 행은 DEPT의 C=w와 매칭되고, C=y 한 행은 DEPT 쪽 NULL로 남으므로 3건이다. FULL OUTER JOIN은 LEFT 결과 3건에 DEPT에서 매칭되지 않은 C=z, C=v 두 행을 더해 5건이다. RIGHT OUTER JOIN은 DEPT 기준으로 C=w 매칭 2건과 C=z, C=v 미매칭 2건을 포함하므로 4건이다.",
     whyWrong: {

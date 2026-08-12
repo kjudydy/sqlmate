@@ -229,6 +229,148 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("links SQL join result and history-join questions to join concepts", () => {
+    const joinConceptText = JSON.stringify(
+      [
+        conceptArticles.find((concept) => concept.id === "sql-join")?.studyBlocks ?? [],
+        conceptArticles.find((concept) => concept.id === "sql-standard-join")?.studyBlocks ?? []
+      ]
+    );
+    const expectedJoinLinks = new Map([
+      ["prod-ext-sql-basic-022", "sql-standard-join"],
+      ["prod-ext-sql-basic-053", "sql-standard-join"],
+      ["prod-ext-sql-basic-070", "sql-join"],
+      ["prod-ext-sql-basic-207", "sql-join"]
+    ]);
+
+    expect(joinConceptText).toContain("OUTER JOIN");
+    expect(joinConceptText).toContain("LEFT OUTER JOIN");
+    expect(joinConceptText).toContain("FULL OUTER JOIN");
+    expect(joinConceptText).toContain("COUNT(*)");
+    expect(joinConceptText).toContain("이력 조인");
+
+    for (const [questionId, conceptId] of expectedJoinLinks) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("keeps COUNT/NULL, NOT IN/NULL, and referential DELETE questions on their most useful concepts", () => {
+    const expectedLinks = new Map([
+      ["prod-ext-sql-basic-068", "sql-null"],
+      ["prod-ext-sql-basic-082", "sql-null"],
+      ["prod-ext-sql-basic-083", "sql-null"],
+      ["prod-ext-sql-basic-106", "sql-null"],
+      ["prod-ext-sql-basic-117", "sql-null"],
+      ["prod-ext-sql-basic-212", "sql-null"],
+      ["prod-ext-sql-basic-218", "sql-constraints"]
+    ]);
+    const nullConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "sql-null")?.studyBlocks ?? []);
+    const constraintConceptText = JSON.stringify(
+      conceptArticles.find((concept) => concept.id === "sql-constraints")?.studyBlocks ?? []
+    );
+
+    expect(nullConceptText).toContain("COUNT(*)");
+    expect(nullConceptText).toContain("COUNT(컬럼)");
+    expect(nullConceptText).toContain("NOT IN");
+    expect(nullConceptText).toContain("UNKNOWN");
+    expect(constraintConceptText).toContain("ON DELETE CASCADE");
+    expect(constraintConceptText).toContain("ON DELETE SET NULL");
+
+    for (const [questionId, conceptId] of expectedLinks) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("links the first modeling audit batch to the concepts that actually explain each question", () => {
+    const expectedLinks = new Map([
+      ["prod-modeling-001", "modeling-entity"],
+      ["prod-modeling-002", "modeling-entity"],
+      ["prod-modeling-003", "modeling-entity"],
+      ["prod-modeling-005", "modeling-attribute"],
+      ["prod-modeling-006", "modeling-entity"],
+      ["prod-modeling-008", "modeling-attribute"],
+      ["prod-ext-modeling-024", "modeling-history"],
+      ["prod-ext-modeling-026", "modeling-super-subtype"],
+      ["prod-ext-modeling-030", "modeling-distributed"],
+      ["prod-ext-modeling-035", "modeling-normalization"]
+    ]);
+    const conceptTextById = new Map(
+      ["modeling-entity", "modeling-attribute", "modeling-history", "modeling-super-subtype", "modeling-distributed", "modeling-normalization"].map(
+        (conceptId) => [
+          conceptId,
+          JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? [])
+        ]
+      )
+    );
+
+    expect(conceptTextById.get("modeling-entity")).toContain("엔터티 성립 조건");
+    expect(conceptTextById.get("modeling-attribute")).toContain("도메인");
+    expect(conceptTextById.get("modeling-history")).toContain("선분 이력");
+    expect(conceptTextById.get("modeling-super-subtype")).toContain("슈퍼타입");
+    expect(conceptTextById.get("modeling-distributed")).toContain("위치 투명성");
+    expect(conceptTextById.get("modeling-normalization")).toContain("중복 관계 반정규화");
+
+    for (const [questionId, conceptId] of expectedLinks) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("links the second modeling audit batch without flattening specific concepts", () => {
+    const expectedLinks = new Map([
+      ["prod-ext-modeling-051", "modeling-entity"],
+      ["prod-ext-modeling-053", "modeling-relationship"],
+      ["prod-ext-modeling-063", "modeling-natural-surrogate"],
+      ["prod-ext-modeling-070", "modeling-distributed"],
+      ["prod-ext-modeling-086", "modeling-history"],
+      ["prod-ext-modeling-088", "modeling-super-subtype"],
+      ["prod-ext-modeling-089", "modeling-distributed"]
+    ]);
+    const naturalKeyConceptText = JSON.stringify(
+      conceptArticles.find((concept) => concept.id === "modeling-natural-surrogate")?.studyBlocks ?? []
+    );
+
+    expect(naturalKeyConceptText).toContain("본질식별자");
+    expect(naturalKeyConceptText).toContain("인조식별자");
+
+    for (const [questionId, conceptId] of expectedLinks) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("links the final modeling audit batch to subject-one concepts", () => {
+    const expectedLinks = new Map([
+      ["prod-ext-modeling-109", "modeling-history"],
+      ["prod-ext-modeling-110", "modeling-super-subtype"],
+      ["prod-ext-modeling-112", "modeling-distributed"],
+      ["prod-ext-modeling-117", "modeling-relationship"],
+      ["prod-ext-modeling-118", "modeling-transaction-model"],
+      ["prod-ext-modeling-119", "modeling-null"]
+    ]);
+    const transactionConceptText = JSON.stringify(
+      conceptArticles.find((concept) => concept.id === "modeling-transaction-model")?.studyBlocks ?? []
+    );
+
+    expect(transactionConceptText).toContain("ACID");
+    expect(transactionConceptText).toContain("원자성");
+    expect(transactionConceptText).toContain("일관성");
+    expect(transactionConceptText).toContain("고립성");
+    expect(transactionConceptText).toContain("지속성");
+
+    for (const [questionId, conceptId] of expectedLinks) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
   it("links constraint-focused SQL questions to the detailed constraint concept", () => {
     const constraintConcept = conceptArticles.find((concept) => concept.id === "sql-constraints");
     const constraintConceptText = JSON.stringify(constraintConcept?.studyBlocks ?? []);
@@ -303,6 +445,254 @@ describe("SQLMate verified production problem bank", () => {
     expect(mergeQuestion?.relatedConceptId).toBe("sql-dml");
   });
 
+  it("keeps the first SQL-basic concept batch connected to useful concept content", () => {
+    const expectedLinks = new Map([
+      ["prod-sql-basic-001", "sql-dcl"],
+      ["prod-sql-basic-002", "sql-ddl"],
+      ["prod-sql-basic-003", "sql-null"],
+      ["prod-sql-basic-004", "sql-constraints"],
+      ["prod-sql-basic-005", "sql-identifiers"],
+      ["prod-sql-basic-006", "sql-null"],
+      ["prod-sql-basic-007", "sql-constraints"],
+      ["prod-sql-basic-008", "sql-identifiers"],
+      ["prod-sql-basic-009", "sql-join"],
+      ["prod-sql-basic-010", "sql-window-functions"],
+      ["prod-ext-sql-basic-011", "sql-tcl"],
+      ["prod-ext-sql-basic-012", "sql-date"],
+      ["prod-ext-sql-basic-013", "sql-null"],
+      ["prod-ext-sql-basic-014", "sql-join"],
+      ["prod-ext-sql-basic-015", "sql-group-functions"],
+      ["prod-ext-sql-basic-016", "sql-group-functions"],
+      ["prod-ext-sql-basic-017", "sql-window-functions"],
+      ["prod-ext-sql-basic-018", "sql-set-operators"],
+      ["prod-ext-sql-basic-019", "sql-dml"],
+      ["prod-ext-sql-basic-020", "sql-select"],
+      ["prod-ext-sql-basic-021", "sql-set-operators"],
+      ["prod-ext-sql-basic-022", "sql-standard-join"],
+      ["prod-ext-sql-basic-023", "sql-constraints"],
+      ["prod-ext-sql-basic-024", "sql-null"],
+      ["prod-ext-sql-basic-025", "sql-window-functions"],
+      ["prod-ext-sql-basic-026", "sql-group-functions"],
+      ["prod-ext-sql-basic-027", "sql-dml"],
+      ["prod-ext-sql-basic-028", "sql-top-n"],
+      ["prod-ext-sql-basic-029", "sql-standard-join"],
+      ["prod-ext-sql-basic-030", "sql-group-having"],
+      ["prod-ext-sql-basic-031", "sql-null"],
+      ["prod-ext-sql-basic-032", "sql-standard-join"],
+      ["prod-ext-sql-basic-033", "sql-hierarchical-self-join"],
+      ["prod-ext-sql-basic-034", "sql-subquery"],
+      ["prod-ext-sql-basic-035", "sql-pivot-unpivot"],
+      ["prod-ext-sql-basic-036", "sql-set-operators"],
+      ["prod-ext-sql-basic-037", "sql-window-functions"],
+      ["prod-ext-sql-basic-038", "sql-group-functions"],
+      ["prod-ext-sql-basic-039", "sql-standard-join"],
+      ["prod-ext-sql-basic-040", "sql-dml"]
+    ]);
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+
+    expect(conceptText("sql-select")).toContain("FROM");
+    expect(conceptText("sql-select")).toContain("WHERE");
+    expect(conceptText("sql-select")).toContain("ORDER BY");
+    expect(conceptText("sql-group-functions")).toContain("ROLLUP");
+    expect(conceptText("sql-group-functions")).toContain("CUBE");
+    expect(conceptText("sql-group-functions")).toContain("GROUPING_ID");
+    expect(conceptText("sql-group-having")).toContain("HAVING");
+    expect(conceptText("sql-group-having")).toContain("COUNT(*)");
+    expect(conceptText("sql-hierarchical-self-join")).toContain("CONNECT BY");
+    expect(conceptText("sql-hierarchical-self-join")).toContain("PRIOR");
+    expect(conceptText("sql-pivot-unpivot")).toContain("PIVOT");
+    expect(conceptText("sql-pivot-unpivot")).toContain("UNPIVOT");
+
+    for (const [questionId, conceptId] of expectedLinks) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("normalizes the second SQL-basic concept batch away from broad legacy concept aliases", () => {
+    const expectedLinksBySource = new Map([
+      ["pdf-v-2-group-having", "sql-group-having"],
+      ["pdf-v-2-rollup", "sql-group-functions"],
+      ["pdf-s-2-connect-by", "sql-hierarchical-self-join"],
+      ["pdf-o-2-customer-history", "sql-join"],
+      ["pdf-v-2-group-select", "sql-group-having"],
+      ["pdf-v-2-pivot", "sql-pivot-unpivot"],
+      ["pdf-v-2-tcl", "sql-tcl"]
+    ]);
+    const legacyConceptIds = new Set(["sql-group-by", "sql-hierarchical", "sql-pivot", "sql-transaction", "sql-joins"]);
+
+    for (const [parentQuestionId, conceptId] of expectedLinksBySource) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.parentQuestionId === parentQuestionId);
+      expect(question, parentQuestionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+
+    const secondSqlBatch = objectiveQuestions.filter(
+      (question) => question.subjectId === "sql-basic" && expectedLinksBySource.has(question.parentQuestionId ?? "")
+    );
+    expect(secondSqlBatch.length).toBeGreaterThanOrEqual(expectedLinksBySource.size);
+    expect(secondSqlBatch.filter((question) => legacyConceptIds.has(question.relatedConceptId ?? ""))).toEqual([]);
+  });
+
+  it("links the final SQL-basic concept batch to specific function, date, regexp, and join concepts", () => {
+    const expectedLinksBySource = new Map([
+      ["sqlp60-q5-outer-join-on-where", "sql-standard-join"],
+      ["sql-date-arithmetic", "sql-date"],
+      ["sql-service-period-condition", "sql-date"],
+      ["sqld-q31-regexp-instr", "sql-regexp"],
+      ["sql-string-count-character", "sql-functions"],
+      ["sqld-q5-multicolumn-in", "sql-where"]
+    ]);
+    const functionConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "sql-functions")?.studyBlocks ?? []);
+    const regexpConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "sql-regexp")?.studyBlocks ?? []);
+    const dateConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "sql-date")?.studyBlocks ?? []);
+
+    expect(functionConceptText).toContain("LENGTH");
+    expect(functionConceptText).toContain("REPLACE");
+    expect(functionConceptText).toContain("CASE");
+    expect(regexpConceptText).toContain("REGEXP_INSTR");
+    expect(regexpConceptText).toContain("REGEXP_REPLACE");
+    expect(dateConceptText).toContain("반개구간");
+
+    for (const [parentQuestionId, conceptId] of expectedLinksBySource) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.parentQuestionId === parentQuestionId);
+      expect(question, parentQuestionId).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("links the first tuning concept batch to the performance concept that explains the question", () => {
+    const expectTuningLink = (predicate: (question: ObjectiveQuestion) => boolean, conceptId: string, label: string) => {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && predicate(item));
+      expect(question, label).toBeTruthy();
+      expect(question?.relatedConceptId).toBe(conceptId);
+    };
+
+    expectTuningLink((question) => question.parentQuestionId === "pdf-lab-topn" && /Top-N|STOPKEY/.test(question.topic), "tuning-top-n", "Top-N/STOPKEY");
+    expectTuningLink((question) => /파티션/.test(question.middleTopic) && /Partition Pruning/.test(question.topic), "tuning-partition-pruning", "Partition Pruning");
+    expectTuningLink((question) => question.parentQuestionId === "pdf-s-3-bind-peeking", "tuning-optimizer", "Bind Peeking");
+    expectTuningLink((question) => question.parentQuestionId === "pdf-s-3-hash-build", "tuning-hash-join", "Hash Join Build Input");
+    expectTuningLink((question) => question.parentQuestionId === "pdf-s-3-nl-trace", "tuning-nl-join", "NL Join 반복 비용");
+    expectTuningLink((question) => question.parentQuestionId === "pdf-v-3-partition-pruning", "tuning-partition-pruning", "Partition Pruning variant");
+  });
+
+  it("links the second tuning concept batch to rewrite and partition concepts precisely", () => {
+    const rewriteQuestion = objectiveQuestions.find(
+      (question) => question.subjectId === "tuning" && /최신 이력|고객변경이력/.test([question.topic, question.stem].join(" "))
+    );
+    const localPrefixedQuestion = objectiveQuestions.find(
+      (question) => question.subjectId === "tuning" && question.parentQuestionId === "sql-cert-q78-local-prefixed"
+    );
+    const partitionExchangeQuestion = objectiveQuestions.find(
+      (question) => question.subjectId === "tuning" && question.parentQuestionId === "practice-partition-exchange"
+    );
+    const rewriteConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "tuning-sql-rewrite")?.studyBlocks ?? []);
+    const partitionConceptText = JSON.stringify(conceptArticles.find((concept) => concept.id === "tuning-partitioning")?.studyBlocks ?? []);
+
+    expect(rewriteQuestion).toBeTruthy();
+    expect(rewriteQuestion?.relatedConceptId).toBe("tuning-sql-rewrite");
+    expect(rewriteConceptText).toContain("최신 이력");
+    expect(rewriteConceptText).toContain("결과를 보존");
+
+    expect(localPrefixedQuestion).toBeTruthy();
+    expect(localPrefixedQuestion?.relatedConceptId).toBe("tuning-partitioning");
+    expect(partitionExchangeQuestion).toBeTruthy();
+    expect(partitionExchangeQuestion?.relatedConceptId).toBe("tuning-partitioning");
+    expect(partitionConceptText).toContain("Local index");
+    expect(partitionConceptText).toContain("Global index");
+  });
+
+  it("links imported tuning expansion questions to architecture, trace, sort, and top-n concepts", () => {
+    const expectedLinks = [
+      {
+        label: "buffer cache latch",
+        conceptId: "tuning-architecture",
+        question: objectiveQuestions.find(
+          (item) =>
+            item.subjectId === "tuning" &&
+            item.sourceDocument === "sqlp_advanced_exam.pdf" &&
+            item.sourceQuestionNumber === 1 &&
+            /Latch|Buffer|버퍼 캐시/.test([item.middleTopic, item.topic, item.stem].join(" "))
+        )
+      },
+      {
+        label: "TKPROF NLJ batching",
+        conceptId: "tuning-sql-trace",
+        question: objectiveQuestions.find(
+          (item) =>
+            item.subjectId === "tuning" && item.sourceDocument === "sqlmate_sqlp_advanced_exam.pdf" && /TKPROF/.test([item.middleTopic, item.topic].join(" "))
+        )
+      },
+      {
+        label: "sort operation removal",
+        conceptId: "tuning-sort",
+        question: objectiveQuestions.find(
+          (item) => item.subjectId === "tuning" && /Sort Operation|Sort 제거/.test([item.middleTopic, item.topic].join(" "))
+        )
+      },
+      {
+        label: "top-n stopkey",
+        conceptId: "tuning-top-n",
+        question: objectiveQuestions.find((item) => item.subjectId === "tuning" && item.parentQuestionId === "sqlmate-advanced-20q-08")
+      }
+    ];
+
+    for (const { label, conceptId, question } of expectedLinks) {
+      expect(question, label).toBeTruthy();
+      expect(question?.relatedConceptId, label).toBe(conceptId);
+      expect(conceptArticles.find((concept) => concept.id === conceptId), conceptId).toBeTruthy();
+    }
+  });
+
+  it("links imported tuning index questions to composite-index and scan-efficiency concepts", () => {
+    const compositeColumnOrderQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "tuning" && /결합 인덱스 컬럼 순서/.test([item.middleTopic, item.topic].join(" "))
+    );
+    const compositePredicateQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "tuning" && item.parentQuestionId === "sqlmate-advanced-20q-11"
+    );
+    const fullFastScanQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "tuning" && item.parentQuestionId === "sqlmate-advanced-20q-13"
+    );
+    const skipScanQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "tuning" && item.sourceDocument === "sqlmate_sqlp_advanced_exam.pdf" && /IN-List Iterator/.test(item.topic)
+    );
+
+    expect(compositeColumnOrderQuestion).toBeTruthy();
+    expect(compositeColumnOrderQuestion?.relatedConceptId).toBe("tuning-composite-index");
+    expect(compositePredicateQuestion).toBeTruthy();
+    expect(compositePredicateQuestion?.relatedConceptId).toBe("tuning-composite-index");
+    expect(fullFastScanQuestion).toBeTruthy();
+    expect(fullFastScanQuestion?.relatedConceptId).toBe("tuning-index-scan-efficiency");
+    expect(skipScanQuestion).toBeTruthy();
+    expect(skipScanQuestion?.relatedConceptId).toBe("tuning-index-scan-efficiency");
+  });
+
+  it("keeps imported tuning join, concurrency, optimizer, and transformation links specific", () => {
+    const expectedLinksBySource = new Map([
+      ["sqlmate-advanced-20q-03", "tuning-hash-join"],
+      ["sqlmate-advanced-20q-07", "tuning-query-transformation"],
+      ["sqlmate-advanced-20q-09", "tuning-concurrency"],
+      ["sqlmate-advanced-20q-12", "tuning-nl-join"],
+      ["sqlmate-advanced-20q-14", "tuning-cardinality"],
+      ["sqlmate-advanced-20q-15", "tuning-scalar-subquery"],
+      ["sqlmate-advanced-20q-19", "tuning-partitioning"],
+      ["sqlmate-advanced-20q-20", "tuning-sql-sharing"]
+    ]);
+
+    for (const [parentQuestionId, conceptId] of expectedLinksBySource) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && item.parentQuestionId === parentQuestionId);
+      expect(question, parentQuestionId).toBeTruthy();
+      expect(question?.relatedConceptId, parentQuestionId).toBe(conceptId);
+    }
+
+    const pushSubqQuestion = objectiveQuestions.find((item) => item.subjectId === "tuning" && /PUSH_SUBQ/.test(item.topic));
+    expect(pushSubqQuestion).toBeTruthy();
+    expect(pushSubqQuestion?.relatedConceptId).toBe("tuning-query-transformation");
+  });
+
   it("links row-number and ranking SQL questions to the window function concept", () => {
     const windowConcept = conceptArticles.find((concept) => concept.id === "sql-window-functions");
     const windowConceptText = JSON.stringify(windowConcept?.studyBlocks ?? []);
@@ -350,6 +740,53 @@ describe("SQLMate verified production problem bank", () => {
       .map((question) => `${question.subjectName} ${question.number} -> ${question.relatedConceptId}`);
 
     expect(missingLinks).toEqual([]);
+  });
+
+  it("opens useful concept destinations for representative problem-screen related concept buttons", () => {
+    const conceptText = (conceptId: string) => JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const representativeDestinations = [
+      {
+        questionId: "prod-sql-basic-003",
+        conceptId: "sql-null",
+        keywords: ["UNKNOWN", "NOT IN", "COUNT(*)"]
+      },
+      {
+        questionId: "prod-sql-basic-007",
+        conceptId: "sql-constraints",
+        keywords: ["PRIMARY KEY", "FOREIGN KEY", "CHECK"]
+      },
+      {
+        questionId: "prod-sql-basic-008",
+        conceptId: "sql-identifiers",
+        keywords: ["일반 식별자", "인용 식별자"]
+      },
+      {
+        questionId: "prod-ext-sql-basic-011",
+        conceptId: "sql-tcl",
+        keywords: ["COMMIT", "ROLLBACK", "SAVEPOINT"]
+      },
+      {
+        questionId: "prod-ext-sql-basic-019",
+        conceptId: "sql-dml",
+        keywords: ["INSERT", "UPDATE", "MERGE"]
+      },
+      {
+        questionId: "prod-sql-basic-010",
+        conceptId: "sql-window-functions",
+        keywords: ["ROW_NUMBER", "RANK", "ORDER BY"]
+      }
+    ];
+
+    for (const { questionId, conceptId, keywords } of representativeDestinations) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId, questionId).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `${questionId} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
   });
 
   it("prevents exact duplicates and semantic-template duplicates in the current published bank", () => {
