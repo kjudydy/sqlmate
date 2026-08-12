@@ -79,7 +79,10 @@ Avoid running the full audit script unless explicitly requested.
 - 2026-08-12 follow-up: audited subject 2 questions 31-60 with a narrow regression test.
 - Confirmed the range covers NULL/NVL, outer join counts, hierarchical queries, scalar subqueries, PIVOT, set operators, window functions, grouping, DML, date arithmetic, Top-N, CASE, and history joins.
 - Strengthened `sql-subquery` so scalar subquery and EXISTS/NOT EXISTS questions land on a concept page that actually explains the tested behavior.
+- 2026-08-12 follow-up: audited subject 2 questions 61-90 with a narrow regression test.
+- Corrected NATURAL JOIN, outer join count, and DATE arithmetic questions to more precise concept destinations.
+- Strengthened `sql-subquery`, `sql-where`, and `sql-window-functions` for inline views, tuple IN comparisons, LAG/LEAD, FIRST_VALUE, and NTILE.
 - Continue with the next manual batch only when needed:
-  - subject 2 questions 61-90
+  - subject 2 questions 91-121
   - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested

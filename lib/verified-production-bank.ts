@@ -5499,6 +5499,18 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-ddl-constraints" };
   }
 
+  if (
+    question.id === "prod-ext-sql-basic-073" ||
+    question.id === "prod-ext-sql-basic-080" ||
+    question.id === "prod-ext-sql-basic-103"
+  ) {
+    question = { ...question, relatedConceptId: "sql-standard-join" };
+  }
+
+  if (question.id === "prod-ext-sql-basic-104") {
+    question = { ...question, relatedConceptId: "sql-date" };
+  }
+
   const windowFunctionLinkText = [
     question.middleTopic,
     question.topic,

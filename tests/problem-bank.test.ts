@@ -607,6 +607,54 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("keeps subject-two questions 61 through 90 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { questionId: "prod-ext-sql-basic-072", conceptId: "sql-group-having", keywords: ["SELECT 목록", "GROUP BY"] },
+      { questionId: "prod-ext-sql-basic-073", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-074", conceptId: "sql-pivot-unpivot", keywords: ["PIVOT", "그룹"] },
+      { questionId: "prod-ext-sql-basic-075", conceptId: "sql-subquery", keywords: ["인라인 뷰", "FROM"] },
+      { questionId: "prod-ext-sql-basic-076", conceptId: "sql-tcl", keywords: ["COMMIT", "ROLLBACK"] },
+      { questionId: "prod-ext-sql-basic-077", conceptId: "sql-constraints", keywords: ["CHECK", "제약조건"] },
+      { questionId: "prod-ext-sql-basic-078", conceptId: "sql-null", keywords: ["NVL", "NULL"] },
+      { questionId: "prod-ext-sql-basic-079", conceptId: "sql-set-operators", keywords: ["컬럼 개수", "UNION"] },
+      { questionId: "prod-ext-sql-basic-080", conceptId: "sql-standard-join", keywords: ["NATURAL JOIN", "USING"] },
+      { questionId: "prod-ext-sql-basic-081", conceptId: "sql-window-functions", keywords: ["LAG", "LEAD"] },
+      { questionId: "prod-ext-sql-basic-082", conceptId: "sql-null", keywords: ["COUNT(*)", "NULL"] },
+      { questionId: "prod-ext-sql-basic-083", conceptId: "sql-null", keywords: ["COUNT(", "NULL"] },
+      { questionId: "prod-ext-sql-basic-084", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-086", conceptId: "sql-functions", keywords: ["LENGTH", "REPLACE"] },
+      { questionId: "prod-ext-sql-basic-087", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-088", conceptId: "sql-window-functions", keywords: ["NTILE", "구간"] },
+      { questionId: "prod-ext-sql-basic-089", conceptId: "sql-where", keywords: ["다중 컬럼", "튜플"] },
+      { questionId: "prod-ext-sql-basic-090", conceptId: "sql-date", keywords: ["DATE", "ADD_MONTHS"] },
+      { questionId: "prod-ext-sql-basic-091", conceptId: "sql-date", keywords: ["반개구간", "ADD_MONTHS"] },
+      { questionId: "prod-ext-sql-basic-092", conceptId: "sql-regexp", keywords: ["REGEXP_INSTR", "REGEXP_REPLACE"] },
+      { questionId: "prod-ext-sql-basic-101", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-102", conceptId: "sql-null", keywords: ["LENGTH", "NULL"] },
+      { questionId: "prod-ext-sql-basic-103", conceptId: "sql-standard-join", keywords: ["FULL OUTER JOIN", "RIGHT"] },
+      { questionId: "prod-ext-sql-basic-104", conceptId: "sql-date", keywords: ["DATE", "시간"] },
+      { questionId: "prod-ext-sql-basic-105", conceptId: "sql-dcl", keywords: ["GRANT", "REVOKE"] },
+      { questionId: "prod-ext-sql-basic-106", conceptId: "sql-null", keywords: ["NOT IN", "NULL"] },
+      { questionId: "prod-ext-sql-basic-107", conceptId: "sql-window-functions", keywords: ["FIRST_VALUE", "ORDER BY"] },
+      { questionId: "prod-ext-sql-basic-108", conceptId: "sql-window-functions", keywords: ["NTILE", "구간"] },
+      { questionId: "prod-ext-sql-basic-109", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-110", conceptId: "sql-group-functions", keywords: ["GROUPING SETS", "ROLLUP"] }
+    ];
+
+    for (const { questionId, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId, questionId).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `${questionId} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
   it("normalizes the second SQL-basic concept batch away from broad legacy concept aliases", () => {
     const expectedLinksBySource = new Map([
       ["pdf-v-2-group-having", "sql-group-having"],

@@ -142,11 +142,40 @@ const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
     },
     {
       type: "section",
+      title: "인라인 뷰",
+      paragraphs: [
+        "인라인 뷰는 FROM 절에 놓는 서브쿼리다. 먼저 행을 줄이거나, 집계 결과를 만든 뒤 바깥 쿼리와 조인하거나, 정렬 후 Top-N을 적용해야 할 때 자주 사용한다.",
+        "인라인 뷰 안의 GROUP BY, DISTINCT, ORDER BY, ROWNUM 조건이 의미를 갖는지 확인해야 한다. 불필요한 인라인 뷰는 옵티마이저가 병합할 수 있지만, 처리 순서를 보존해야 하는 경우도 있다.",
+        "문제에서 '먼저 계산한 결과를 대상으로 다시 조건을 적용한다'는 흐름이 보이면 인라인 뷰가 필요한지 검토한다."
+      ]
+    },
+    {
+      type: "section",
       title: "EXISTS와 NOT EXISTS",
       paragraphs: [
         "EXISTS는 서브쿼리 결과가 한 행이라도 존재하면 TRUE가 된다. SELECT 목록의 값 자체는 판단 대상이 아니므로 SELECT 1, SELECT * 모두 존재 여부 관점에서는 같다.",
         "NOT EXISTS는 매칭되는 행이 없을 때 TRUE가 되며, NULL이 포함된 NOT IN보다 안전한 안티 조인 표현이 될 수 있다.",
         "다만 NOT EXISTS와 NOT IN이 항상 같은 것은 아니다. 비교 컬럼에 NULL이 섞이면 NOT IN은 UNKNOWN 때문에 결과가 달라질 수 있으므로 문제 조건의 NULL 가능성을 반드시 확인한다."
+      ]
+    }
+  ],
+  "sql-where": [
+    {
+      type: "section",
+      title: "WHERE 조건 판단",
+      paragraphs: [
+        "WHERE 절은 FROM/JOIN으로 만들어진 행 집합에서 TRUE인 행만 남긴다. FALSE뿐 아니라 UNKNOWN도 결과에서 제외되므로 NULL 가능성을 함께 확인해야 한다.",
+        "BETWEEN은 양 끝 값을 포함하고, IN은 목록 또는 서브쿼리 결과 중 하나와 일치하는지 판단한다. LIKE, IS NULL, AND/OR 우선순위도 결과 행 수를 바꾸는 핵심 조건이다.",
+        "여러 조건이 섞이면 괄호가 있는지 먼저 보고, 괄호가 없으면 NOT, AND, OR 순서로 판단한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "다중 컬럼 IN과 튜플 비교",
+      paragraphs: [
+        "다중 컬럼 IN은 `(a, b) IN ((10005, 2003), (10006, 2004))`처럼 여러 컬럼의 조합을 하나의 튜플로 비교한다.",
+        "`(a, b) IN ((10005, 2003))`은 `a = 10005 AND b = 2003`과 같은 의미로 볼 수 있다. 컬럼별로 따로 IN을 적용하면 서로 다른 조합까지 허용될 수 있으므로 결과가 달라진다.",
+        "문제에서 여러 컬럼을 묶어 비교하는 조건이 나오면 각 컬럼 값의 개별 포함 여부가 아니라 행 단위 조합이 일치하는지를 확인한다."
       ]
     }
   ],
@@ -195,6 +224,15 @@ const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
         "SUM(금액) OVER (PARTITION BY 지점 ORDER BY 판매월 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)는 지점별 판매월 순서로 현재 행까지의 누적 합계를 계산한다.",
         "ROWS는 물리적인 행 수 기준이고 RANGE는 정렬 값의 범위 기준이다. 같은 정렬 값이 여러 행이면 RANGE 누적 결과가 ROWS와 달라질 수 있다.",
         "시험에서는 누적 기준이 전체인지 파티션별인지, 동점 정렬 값이 있는지, 현재 행까지 누적인지 전체 합계인지가 자주 출제된다."
+      ]
+    },
+    {
+      type: "section",
+      title: "값 참조와 분배 함수",
+      paragraphs: [
+        "LAG와 LEAD는 같은 파티션 안에서 현재 행의 이전 행 또는 다음 행 값을 참조한다. 월별 매출의 전월 값, 직전 상태, 다음 상태를 한 행에 함께 보여주는 문제에서 자주 사용한다.",
+        "FIRST_VALUE와 LAST_VALUE는 윈도우 프레임 안의 첫 번째 또는 마지막 값을 가져온다. ORDER BY와 ROWS/RANGE 프레임 범위가 결과를 바꿀 수 있으므로 정렬 기준과 프레임을 함께 확인해야 한다.",
+        "NTILE(n)은 정렬된 행을 n개 구간으로 나누어 구간 번호를 부여한다. 행 수가 균등하게 나누어지지 않으면 앞 구간부터 한 행씩 더 배정되는 방식이 시험 함정이다."
       ]
     }
   ],
