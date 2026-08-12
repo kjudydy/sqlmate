@@ -93,6 +93,14 @@ Avoid running the full audit script unless explicitly requested.
   - `tuning-sql-sharing`: Result Cache
   - `tuning-dml`: APPEND / Direct Path Insert
 - Added a focused regression test for subject 3 questions 61-90.
+- 2026-08-12 follow-up: audited subject 3 questions 91-120 by visible question number.
+- Corrected specific links:
+  - Local/Global Prefixed partition index questions -> `tuning-partitioning`
+  - Result Cache questions -> `tuning-sql-sharing`
+  - execution-plan operation/order questions -> `tuning-explain-plan`
+  - index break-even questions -> `tuning-index-break-even`
+- Strengthened readable concept bodies for Clustering Factor, index break-even, DML Lock wording, DBMS_XPLAN `ALLSTATS LAST`, Cardinality, OR Expansion / `USE_CONCAT`, Partition Pruning with function-wrapped keys, and Latch contention.
+- Added a focused regression test for subject 3 questions 91-120.
 - Added a representative problem-screen destination test for concept buttons users are likely to click:
   - NULL questions -> `sql-null`
   - constraint questions -> `sql-constraints`
@@ -115,6 +123,6 @@ Avoid running the full audit script unless explicitly requested.
 - Corrected additional outer join, DATE arithmetic, latest-history join, HAVING, and GROUPING SETS/CUBE questions to their more precise concept destinations.
 - Replaced the related concept bodies for `sql-where`, `sql-dcl`, and `sql-date` with readable Korean study blocks that cover LIKE/ESCAPE, tuple IN, ROLE/object privileges, DATE time arithmetic, and half-open date ranges.
 - Continue with the next manual batch only when needed:
-  - subject 3 questions 91-120
+  - subject 3 questions 121-152
   - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested

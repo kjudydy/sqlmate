@@ -479,6 +479,15 @@ const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
         "효율적인 방식은 기준일 조건을 먼저 적용하고, 고객별 최신 변경순번이나 변경일자를 구한 뒤 그 축소 결과를 고객과 조인하는 것이다.",
         "ROW_NUMBER()로 고객별 최신 행을 고르거나, 고객별 MAX(변경순번)를 구해 다시 조인하는 방식 모두 가능하지만 기준일 이후 이력이 섞이지 않도록 조건 위치를 확인해야 한다."
       ]
+    },
+    {
+      type: "section",
+      title: "DML Rewrite와 OR Expansion",
+      paragraphs: [
+        "UPDATE와 MERGE는 같은 변경 결과를 만들 수 있어도 반복 조회 횟수, 조인 방식, INSERT 가능성, 제약조건 검사 비용이 달라질 수 있다. MERGE는 매칭 조건을 기준으로 UPDATE와 INSERT 분기를 함께 표현할 때 적합하다.",
+        "OR Expansion은 OR 조건을 UNION ALL 분기로 나누어 각 분기에서 서로 다른 인덱스나 조건을 효율적으로 사용할 수 있게 하는 변환이다.",
+        "USE_CONCAT 힌트는 OR Expansion 계열 변환을 유도할 때 사용한다. 단, UNION ALL 분기에서 중복 행이 생기지 않는지, 각 분기의 조건이 원래 OR 의미를 보존하는지 검증해야 한다."
+      ]
     }
   ],
   "sql-ddl": [
@@ -750,7 +759,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "SGA는 여러 프로세스가 공유하는 메모리 영역이다. Buffer Cache는 데이터 블록을 캐시하고, Shared Pool 안의 Library Cache는 SQL 커서와 실행계획을 재사용한다.",
         "PGA는 서버 프로세스별 작업 메모리다. 정렬, 해시 조인, 세션별 작업 영역이 PGA를 사용하며 부족하면 TEMP I/O가 발생할 수 있다.",
-        "SQL 튜닝에서는 실행계획만 보지 않고 Buffer Cache, Library Cache, PGA, redo/undo, latch 경합까지 함께 판단해야 한다."
+        "SQL 튜닝에서는 실행계획만 보지 않고 Buffer Cache, Library Cache, PGA, redo/undo, Latch 경합까지 함께 판단해야 한다."
       ]
     }
   ],
@@ -770,6 +779,49 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "인덱스 스캔 후 ROWID로 테이블을 방문하는 과정은 랜덤 액세스를 만든다. 조건 선택도가 낮아도 테이블 방문 횟수가 많으면 전체 비용이 커질 수 있다.",
         "클러스터링 팩터가 좋으면 인덱스 순서와 테이블 저장 순서가 비슷해 블록 재방문이 줄어든다. 반대로 클러스터링 팩터가 나쁘면 같은 범위를 읽어도 테이블 I/O가 크게 증가한다."
+      ]
+    }
+  ],
+  "tuning-clustering-factor": [
+    {
+      type: "section",
+      title: "Clustering Factor",
+      paragraphs: [
+        "Clustering Factor는 인덱스 키 순서와 테이블 블록 저장 순서가 얼마나 비슷한지를 나타내는 지표다. 값이 테이블 블록 수에 가까울수록 같은 키 범위가 물리적으로 모여 있고, 값이 행 수에 가까울수록 테이블 블록 이동이 많다.",
+        "같은 선택도라도 Clustering Factor가 나쁘면 INDEX RANGE SCAN 후 TABLE ACCESS BY INDEX ROWID가 많은 블록 방문을 만들 수 있다.",
+        "시험에서는 선택도만 보고 인덱스 사용 여부를 판단하지 말고, ROWID 기반 테이블 랜덤 액세스와 Clustering Factor를 함께 판단해야 한다."
+      ]
+    },
+    {
+      type: "table",
+      title: "판단 기준",
+      headers: ["상황", "해석", "튜닝 관점"],
+      rows: [
+        ["Clustering Factor가 테이블 블록 수에 가까움", "인덱스 순서와 테이블 저장 순서가 유사하다.", "범위 스캔 후 테이블 액세스 비용이 상대적으로 작다."],
+        ["Clustering Factor가 행 수에 가까움", "인덱스 순서로 읽으면 테이블 블록을 자주 오간다.", "대량 범위 조회에서는 Full Scan이나 재구성 대안을 검토한다."],
+        ["Rows는 적어 보이나 CR이 큼", "ROWID 방문이 반복되어 논리 읽기가 커질 수 있다.", "커버링 인덱스, 조건 재배치, 데이터 적재 순서를 함께 본다."]
+      ]
+    }
+  ],
+  "tuning-index-break-even": [
+    {
+      type: "section",
+      title: "인덱스 손익분기점",
+      paragraphs: [
+        "인덱스 손익분기점은 인덱스 경유 랜덤 액세스 비용이 테이블 전체 스캔 비용보다 커지는 지점이다. 반환 비율이 높고 Clustering Factor가 나쁘면 인덱스가 불리해진다.",
+        "인덱스 스캔 자체가 빠르더라도 TABLE ACCESS BY INDEX ROWID가 많이 반복되면 CR과 테이블 블록 방문 수가 커진다.",
+        "SQLP 문제에서는 선택도, Clustering Factor, 테이블 랜덤 액세스, 인덱스 Only 처리 가능성, 부분범위 처리 가능성을 함께 판단해야 한다."
+      ]
+    },
+    {
+      type: "table",
+      title: "판단 포인트",
+      headers: ["요소", "인덱스에 유리", "Full Scan 검토"],
+      rows: [
+        ["반환 비율", "소량 행 반환", "대량 행 반환"],
+        ["Clustering Factor", "테이블 블록 수에 가까움", "행 수에 가까움"],
+        ["테이블 액세스", "인덱스만으로 처리 가능", "ROWID 방문이 과도함"],
+        ["응답 방식", "부분범위 처리, 빠른 첫 응답", "전체 범위 일괄 처리"]
       ]
     }
   ],
@@ -999,7 +1051,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "선택도와 카디널리티",
       paragraphs: [
-        "선택도는 조건을 만족할 비율이고, 카디널리티는 각 실행 단계에서 예상되는 행 수다. 선택도 추정이 틀리면 카디널리티가 틀리고, 조인 순서와 조인 방식도 잘못 선택될 수 있다.",
+        "선택도는 조건을 만족할 비율이고, 카디널리티(Cardinality)는 각 실행 단계에서 예상되는 행 수다. 선택도 추정이 틀리면 카디널리티가 틀리고, 조인 순서와 조인 방식도 잘못 선택될 수 있다.",
         "옵티마이저는 통계정보, NDV, Histogram, 컬럼 상관관계 추정 등을 바탕으로 카디널리티를 계산한다.",
         "카디널리티 오류는 실제 Rows와 예상 Rows의 차이로 드러난다. 실행계획에서 A-Rows와 E-Rows를 비교할 수 있으면 오류 위치를 찾기 쉽다."
       ]
@@ -2161,7 +2213,7 @@ const conceptSeeds: ConceptSeed[] = [
     summary:
       "예상 실행계획은 옵티마이저가 선택할 것으로 예상한 접근 경로와 조인 방법을 보여준다. 실제 수행 통계와 다를 수 있다는 점이 중요하다.",
     keyPoints: [
-      "실행계획은 위에서 아래로만 읽지 않고, 들여쓰기와 자식 연산 관계를 보며 로우 소스 흐름을 해석한다.",
+      "실행계획은 위에서 아래로만 읽지 않고, Operation 들여쓰기와 자식 연산 관계를 보며 실제 실행 순서와 로우 소스 흐름을 해석한다.",
       "ACCESS PREDICATE(Access Predicate)는 인덱스 탐색 조건, FILTER PREDICATE(Filter Predicate)는 읽은 뒤 걸러내는 조건으로 이해한다.",
       "Rows, Cost, Bytes는 통계 기반 추정치이므로 실제 건수와 차이가 날 수 있다.",
       "인덱스 스캔, 테이블 액세스, 조인 방식, 정렬 작업 유무를 우선 확인한다.",
@@ -2170,7 +2222,7 @@ const conceptSeeds: ConceptSeed[] = [
     examTrap:
       "Cost가 낮다고 항상 빠르다고 단정하면 안 된다. 통계 오류, 바인드 값, 실제 반환 건수 차이를 고려한다.",
     oracleAngle:
-      "Oracle에서는 DBMS_XPLAN.DISPLAY_CURSOR로 실제 실행 통계를 포함한 계획을 보는 것이 실무 분석에 더 유용하다."
+      "Oracle에서는 DBMS_XPLAN.DISPLAY_CURSOR(format => 'ALLSTATS LAST')로 실제 실행 통계를 포함한 계획을 보는 것이 실무 분석에 더 유용하다."
   },
   {
     id: "tuning-sql-trace",
@@ -2606,6 +2658,7 @@ const conceptSeeds: ConceptSeed[] = [
           ["UNNEST HASH_SJ", "EXISTS/IN 서브쿼리를 해시 세미 조인으로 변환한다.", "NULL 의미, 중복, 상관 조건이 결과를 바꾸지 않는지 검증한다."],
           ["NO_MERGE", "인라인 뷰를 바깥 쿼리와 병합하지 못하게 한다.", "집계 후 조인, Top-N 후 조인처럼 뷰 내부 처리 순서가 성능 의도인 경우 사용한다."],
           ["PUSH_PRED", "바깥 조건을 뷰 내부 또는 조인 입력으로 밀어 넣는다.", "Outer Join 보존 행이 사라지지 않는지 확인해야 한다."],
+          ["USE_CONCAT", "OR 조건을 UNION ALL 분기로 나누는 OR Expansion을 유도한다.", "분기별 조건이 원래 OR 의미를 보존하고 중복 행이 생기지 않는지 확인한다."],
           ["SWAP_JOIN_INPUTS(table)", "Hash Join의 Build/Probe 입력을 바꾸도록 유도한다.", "작은 집합이 Build Input이 되는지, 메모리 사용량과 spill 가능성을 함께 본다."]
         ]
       },
@@ -2677,10 +2730,10 @@ const conceptSeeds: ConceptSeed[] = [
       "UPDATE/DELETE는 대상 행을 찾는 조건 인덱스와 변경 대상 인덱스 유지 비용을 함께 본다.",
       "인덱스가 많으면 DML마다 인덱스 갱신 비용이 증가한다.",
       "트리거와 외래키 제약은 DML 성능에 영향을 줄 수 있다.",
-      "커밋을 너무 자주 하면 로그 동기화 비용이 커지고, 너무 드물면 undo와 lock 부담이 커진다."
+      "커밋을 너무 자주 하면 로그 동기화 비용이 커지고, 너무 드물면 undo와 Lock 부담이 커진다."
     ],
     examTrap:
-      "대량 DELETE를 무조건 한 문장으로 끝내는 것이 정답은 아니다. 업무 일관성, undo, lock, 배치 시간 창을 고려한다.",
+      "대량 DELETE를 무조건 한 문장으로 끝내는 것이 정답은 아니다. 업무 일관성, undo, Lock, 배치 시간 창을 고려한다.",
     oracleAngle:
       "Oracle에서는 array processing, bulk bind, Direct Path Insert, partition exchange 같은 기법이 대량 DML 튜닝의 핵심이다."
   },
@@ -3142,7 +3195,7 @@ const supplementalConceptSeeds: ConceptSeed[] = [
     majorTopic: "파티션 튜닝",
     detailTopic: "Partition Pruning",
     summary: "Partition Pruning은 조건에 맞지 않는 파티션을 읽지 않도록 제외하는 최적화다.",
-    keyPoints: ["파티션 키 컬럼을 가공하면 Pruning이 어려워질 수 있다.", "PSTART/PSTOP이 좁혀졌는지 실행계획에서 확인한다.", "LOCAL/GLOBAL 인덱스 선택은 파티션 키와 인덱스 키 관계에 따라 달라진다."],
+    keyPoints: ["파티션 키 컬럼에 함수를 적용하거나 컬럼을 가공하면 Pruning이 어려워질 수 있다.", "PSTART/PSTOP이 좁혀졌는지 실행계획에서 확인한다.", "LOCAL/GLOBAL 인덱스 선택은 파티션 키와 인덱스 키 관계에 따라 달라진다."],
     examTrap: "파티션 테이블이라고 항상 일부 파티션만 읽는 것은 아니다. 조건이 파티션 키에 SARGable하게 걸려야 한다.",
     oracleAngle: "월 단위 Range 파티션은 날짜 반개구간 조건으로 Pruning을 안정적으로 유도한다."
   },

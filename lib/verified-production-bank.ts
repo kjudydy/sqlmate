@@ -5573,6 +5573,18 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "tuning-cardinality" };
   }
 
+  if (question.id === "prod-ext-tuning-041" || question.id === "prod-ext-tuning-042") {
+    question = { ...question, relatedConceptId: "tuning-partitioning" };
+  }
+
+  if (question.id === "prod-ext-tuning-048") {
+    question = { ...question, relatedConceptId: "tuning-sql-sharing" };
+  }
+
+  if (question.id === "prod-ext-tuning-201" || question.id === "prod-ext-tuning-202") {
+    question = { ...question, relatedConceptId: "tuning-explain-plan" };
+  }
+
   if (question.subjectId === "sql-basic") {
     if (question.relatedConceptId === "sql-hierarchical") {
       question = { ...question, relatedConceptId: "sql-hierarchical-self-join" };
@@ -5624,6 +5636,16 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
       question = { ...question, relatedConceptId: "tuning-hash-join" };
     } else if (/NL Join 반복 비용|Nested Loops Join|NL Join/i.test(tuningTopicText)) {
       question = { ...question, relatedConceptId: "tuning-nl-join" };
+    }
+  }
+
+  if (question.subjectId === "tuning") {
+    if (question.id === "prod-ext-tuning-041" || question.id === "prod-ext-tuning-042") {
+      question = { ...question, relatedConceptId: "tuning-partitioning" };
+    } else if (question.id === "prod-ext-tuning-048") {
+      question = { ...question, relatedConceptId: "tuning-sql-sharing" };
+    } else if (question.id === "prod-ext-tuning-201" || question.id === "prod-ext-tuning-202") {
+      question = { ...question, relatedConceptId: "tuning-explain-plan" };
     }
   }
 
@@ -5885,7 +5907,7 @@ PARTITION BY RANGE (거래일시) (
         { id: "D", text: "CREATE INDEX 거래_N4 ON 거래(종목코드, 거래일시) LOCAL" }
       ],
       answer: "A",
-      relatedConceptId: "tuning-partition-pruning",
+      relatedConceptId: "tuning-partitioning",
       hint:
         "1단계: 테이블 파티션 키가 무엇인지 먼저 확인합니다.\n2단계: LOCAL 여부와 Prefixed 여부는 서로 다른 기준입니다.\n3단계: 파티션 키가 인덱스 선두 컬럼이면 Local Prefixed입니다.",
       explanation:

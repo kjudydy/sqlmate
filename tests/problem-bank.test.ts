@@ -916,6 +916,54 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("keeps subject-three questions 91 through 120 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { number: 91, conceptId: "tuning-partitioning", keywords: ["Local index", "Prefixed"] },
+      { number: 92, conceptId: "tuning-partitioning", keywords: ["Global index", "Local index"] },
+      { number: 93, conceptId: "tuning-sql-rewrite", keywords: ["SQL Rewrite", "최신 이력"] },
+      { number: 94, conceptId: "tuning-parallel", keywords: ["Parallel", "PX"] },
+      { number: 95, conceptId: "tuning-dml", keywords: ["Direct Path Insert", "Lock"] },
+      { number: 96, conceptId: "tuning-sql-trace", keywords: ["Wait Event", "log file sync"] },
+      { number: 97, conceptId: "tuning-query-transformation", keywords: ["PUSH_PRED", "Predicate Pushing"] },
+      { number: 98, conceptId: "tuning-sql-sharing", keywords: ["Result Cache", "Cursor"] },
+      { number: 99, conceptId: "tuning-index-scan-efficiency", keywords: ["SARGable", "Index Range Scan"] },
+      { number: 100, conceptId: "tuning-query-transformation", keywords: ["Anti Join", "Subquery Unnesting"] },
+      { number: 101, conceptId: "tuning-explain-plan", keywords: ["Rows", "Cost"] },
+      { number: 102, conceptId: "tuning-explain-plan", keywords: ["Operation", "실행 순서"] },
+      { number: 103, conceptId: "tuning-index-break-even", keywords: ["손익분기점", "Clustering Factor"] },
+      { number: 104, conceptId: "tuning-composite-index", keywords: ["선두", "범위"] },
+      { number: 105, conceptId: "tuning-partitioning", keywords: ["Local index", "Prefixed"] },
+      { number: 106, conceptId: "tuning-partitioning", keywords: ["Global index", "Local index"] },
+      { number: 107, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "SARGable"] },
+      { number: 108, conceptId: "tuning-lock", keywords: ["TX", "Lock"] },
+      { number: 109, conceptId: "tuning-lock", keywords: ["Blocking", "Lock"] },
+      { number: 110, conceptId: "tuning-sql-rewrite", keywords: ["MERGE", "UPDATE"] },
+      { number: 111, conceptId: "tuning-sql-rewrite", keywords: ["UNION ALL", "OR Expansion"] },
+      { number: 112, conceptId: "tuning-cardinality", keywords: ["Cardinality", "Histogram"] },
+      { number: 113, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "후행"] },
+      { number: 114, conceptId: "tuning-hash-join", keywords: ["Build Input", "Probe Input"] },
+      { number: 115, conceptId: "tuning-clustering-factor", keywords: ["Clustering Factor", "ROWID"] },
+      { number: 116, conceptId: "tuning-query-transformation", keywords: ["USE_CONCAT", "OR Expansion"] },
+      { number: 117, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "함수"] },
+      { number: 118, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Skip Scan", "NDV"] },
+      { number: 119, conceptId: "tuning-architecture", keywords: ["Buffer Cache", "Latch"] },
+      { number: 120, conceptId: "tuning-explain-plan", keywords: ["DBMS_XPLAN", "ALLSTATS LAST"] }
+    ];
+
+    for (const { number, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && item.number === number);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, `tuning question ${number}`).toBeTruthy();
+      expect(question?.relatedConceptId, `tuning question ${number}`).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `tuning question ${number} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
   it("links the second tuning concept batch to rewrite and partition concepts precisely", () => {
     const rewriteQuestion = objectiveQuestions.find(
       (question) => question.subjectId === "tuning" && /최신 이력|고객변경이력/.test([question.topic, question.stem].join(" "))
