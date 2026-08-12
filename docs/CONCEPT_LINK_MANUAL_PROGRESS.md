@@ -82,7 +82,10 @@ Avoid running the full audit script unless explicitly requested.
 - 2026-08-12 follow-up: audited subject 2 questions 61-90 with a narrow regression test.
 - Corrected NATURAL JOIN, outer join count, and DATE arithmetic questions to more precise concept destinations.
 - Strengthened `sql-subquery`, `sql-where`, and `sql-window-functions` for inline views, tuple IN comparisons, LAG/LEAD, FIRST_VALUE, and NTILE.
+- 2026-08-12 follow-up: audited subject 2 questions 91-121 with a narrow regression test.
+- Corrected additional outer join, DATE arithmetic, latest-history join, HAVING, and GROUPING SETS/CUBE questions to their more precise concept destinations.
+- Replaced the related concept bodies for `sql-where`, `sql-dcl`, and `sql-date` with readable Korean study blocks that cover LIKE/ESCAPE, tuple IN, ROLE/object privileges, DATE time arithmetic, and half-open date ranges.
 - Continue with the next manual batch only when needed:
-  - subject 2 questions 91-121
+  - subject 3 follow-up batches
   - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested

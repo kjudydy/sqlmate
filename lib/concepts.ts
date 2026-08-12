@@ -652,6 +652,87 @@ const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
   ]
 };
 
+Object.assign(conceptStudyBlockOverrides, {
+  "sql-where": [
+    {
+      type: "section",
+      title: "WHERE 조건 판단",
+      paragraphs: [
+        "WHERE 절은 FROM과 JOIN으로 만들어진 행 집합에서 TRUE가 되는 행만 남긴다. FALSE뿐 아니라 UNKNOWN도 결과에서 제외되므로 NULL 가능성을 먼저 확인해야 한다.",
+        "BETWEEN은 양 끝 값을 모두 포함하고, IN은 목록 또는 서브쿼리 결과 중 하나와 일치하는지 판단한다. LIKE는 패턴 매칭 조건이며 `%`는 여러 문자, `_`는 한 문자를 의미한다.",
+        "패턴 문자 자체를 비교해야 할 때는 ESCAPE를 사용한다. 예를 들어 `LIKE 'A\\_%' ESCAPE '\\'`는 밑줄을 와일드카드가 아니라 문자 `_`로 해석하게 한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "다중 컬럼 IN과 튜플 비교",
+      paragraphs: [
+        "다중 컬럼 IN은 `(a, b) IN ((10005, 2003), (10006, 2004))`처럼 여러 컬럼의 조합을 하나의 튜플로 비교한다.",
+        "`(a, b) IN ((10005, 2003))`는 `a = 10005 AND b = 2003`과 같은 의미다. 컬럼별로 따로 IN을 적용하면 서로 다른 조합까지 허용될 수 있으므로 결과가 달라진다.",
+        "문제에서 여러 컬럼을 묶어 비교하는 조건이 나오면 각 컬럼 값의 개별 포함 여부가 아니라 행 단위 조합이 일치하는지 확인해야 한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "논리 연산자 우선순위",
+      paragraphs: [
+        "여러 조건이 섞이면 괄호가 있는지 먼저 보고, 괄호가 없으면 NOT, AND, OR 순서로 판단한다.",
+        "OR 조건이 넓게 적용되면 의도하지 않은 행이 포함될 수 있다. 시험에서는 괄호 위치와 NULL 비교, LIKE/ESCAPE 조건을 함께 묶어 결과를 묻는 경우가 많다."
+      ]
+    }
+  ],
+  "sql-dcl": [
+    {
+      type: "section",
+      title: "DCL과 권한",
+      paragraphs: [
+        "DCL(Data Control Language)은 데이터베이스 권한을 부여하거나 회수하는 명령이다. GRANT는 권한 부여, REVOKE는 권한 회수에 사용한다.",
+        "권한은 특정 객체에 대한 SELECT, INSERT, UPDATE, DELETE 같은 객체 권한과 사용자 생성, 테이블 생성 같은 시스템 권한으로 나눌 수 있다.",
+        "INSERT, RENAME, COMMIT처럼 목적이 다른 명령과 섞어 묻는 문제에서는 명령어 이름보다 권한 부여와 회수라는 목적을 기준으로 DCL을 구분해야 한다."
+      ]
+    },
+    {
+      type: "table",
+      title: "DCL 판단 기준",
+      headers: ["명령", "역할", "헷갈리기 쉬운 명령"],
+      rows: [
+        ["GRANT", "사용자나 ROLE에 권한을 부여한다.", "INSERT는 데이터를 입력하는 DML이다."],
+        ["REVOKE", "사용자나 ROLE에서 권한을 회수한다.", "COMMIT은 트랜잭션을 확정하는 TCL이다."],
+        ["ROLE", "여러 권한을 묶어서 부여하거나 회수하는 권한 묶음이다.", "RENAME은 객체 이름을 바꾸는 DDL 성격의 명령이다."]
+      ]
+    },
+    {
+      type: "section",
+      title: "ROLE과 객체 권한",
+      paragraphs: [
+        "객체 권한은 테이블, 뷰, 시퀀스 같은 특정 객체에 대한 접근 권한이다. 예를 들어 특정 테이블 조회 권한을 회수하려면 해당 객체 권한을 REVOKE해야 한다.",
+        "ROLE은 여러 권한을 묶어 관리하기 위한 단위다. 사용자에게 ROLE을 부여하면 ROLE에 포함된 권한을 간접적으로 사용할 수 있지만, 문제에서는 ROLE을 통한 권한인지 직접 부여된 객체 권한인지 구분해야 한다.",
+        "권한 회수 문제에서는 원본 객체, 권한을 받은 사용자, ROLE 경유 여부, WITH GRANT OPTION 여부를 함께 확인해야 정답을 안정적으로 판단할 수 있다."
+      ]
+    }
+  ],
+  "sql-date": [
+    {
+      type: "section",
+      title: "Oracle DATE와 시간",
+      paragraphs: [
+        "Oracle DATE는 날짜뿐 아니라 시각 정보까지 함께 가진다. `DATE '2015-01-10'`처럼 날짜 리터럴만 쓰면 시각은 00:00:00으로 해석된다.",
+        "DATE 값에 숫자 1을 더하면 하루가 더해진다. 따라서 `1/24`는 한 시간, `1/24/6`은 10분을 의미한다.",
+        "날짜 연산 문제에서는 하루 단위인지, 시간 단위인지, 문자 변환 후 다시 날짜로 바꾸는지에 따라 결과가 달라진다."
+      ]
+    },
+    {
+      type: "section",
+      title: "반개구간 날짜 조건",
+      paragraphs: [
+        "월 단위 조건은 `col >= DATE 'YYYY-MM-01' AND col < ADD_MONTHS(DATE 'YYYY-MM-01', 1)`처럼 시작일 이상, 다음 시작일 미만의 반개구간으로 쓰는 것이 안전하다.",
+        "`BETWEEN DATE '2015-01-01' AND DATE '2015-01-31'`은 1월 31일 00:00:00까지만 포함하므로 1월 31일 오후 데이터가 빠질 수 있다.",
+        "컬럼에 TO_CHAR, TRUNC 같은 함수를 씌우면 일반 인덱스 접근이 어려워질 수 있다. 날짜 조건 문제에서는 결과 정확성과 인덱스 사용 가능성을 함께 판단한다."
+      ]
+    }
+  ]
+} satisfies Record<string, ConceptStudyBlock[]>);
+
 function concept(seed: ConceptSeed): ConceptArticle {
   const defaultBlocks = buildDefaultStudyBlocks(seed);
   const studyBlocks = conceptStudyBlockOverrides[seed.id] ?? (seed.studyBlocks?.length ? seed.studyBlocks : defaultBlocks);

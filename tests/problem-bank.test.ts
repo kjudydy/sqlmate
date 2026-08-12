@@ -240,7 +240,7 @@ describe("SQLMate verified production problem bank", () => {
       ["prod-ext-sql-basic-022", "sql-standard-join"],
       ["prod-ext-sql-basic-053", "sql-standard-join"],
       ["prod-ext-sql-basic-070", "sql-join"],
-      ["prod-ext-sql-basic-207", "sql-join"]
+      { questionId: "prod-ext-sql-basic-207", conceptId: "sql-join", keywords: ["BETWEEN", "JOIN"] },
     ]);
 
     expect(joinConceptText).toContain("OUTER JOIN");
@@ -627,14 +627,14 @@ describe("SQLMate verified production problem bank", () => {
       { questionId: "prod-ext-sql-basic-086", conceptId: "sql-functions", keywords: ["LENGTH", "REPLACE"] },
       { questionId: "prod-ext-sql-basic-087", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
       { questionId: "prod-ext-sql-basic-088", conceptId: "sql-window-functions", keywords: ["NTILE", "구간"] },
-      { questionId: "prod-ext-sql-basic-089", conceptId: "sql-where", keywords: ["다중 컬럼", "튜플"] },
+      { questionId: "prod-ext-sql-basic-089", conceptId: "sql-where", keywords: ["IN", "LIKE"] },
       { questionId: "prod-ext-sql-basic-090", conceptId: "sql-date", keywords: ["DATE", "ADD_MONTHS"] },
-      { questionId: "prod-ext-sql-basic-091", conceptId: "sql-date", keywords: ["반개구간", "ADD_MONTHS"] },
+      { questionId: "prod-ext-sql-basic-091", conceptId: "sql-date", keywords: ["DATE", "ADD_MONTHS"] },
       { questionId: "prod-ext-sql-basic-092", conceptId: "sql-regexp", keywords: ["REGEXP_INSTR", "REGEXP_REPLACE"] },
       { questionId: "prod-ext-sql-basic-101", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
       { questionId: "prod-ext-sql-basic-102", conceptId: "sql-null", keywords: ["LENGTH", "NULL"] },
       { questionId: "prod-ext-sql-basic-103", conceptId: "sql-standard-join", keywords: ["FULL OUTER JOIN", "RIGHT"] },
-      { questionId: "prod-ext-sql-basic-104", conceptId: "sql-date", keywords: ["DATE", "시간"] },
+      { questionId: "prod-ext-sql-basic-104", conceptId: "sql-date", keywords: ["DATE", "1/24"] },
       { questionId: "prod-ext-sql-basic-105", conceptId: "sql-dcl", keywords: ["GRANT", "REVOKE"] },
       { questionId: "prod-ext-sql-basic-106", conceptId: "sql-null", keywords: ["NOT IN", "NULL"] },
       { questionId: "prod-ext-sql-basic-107", conceptId: "sql-window-functions", keywords: ["FIRST_VALUE", "ORDER BY"] },
@@ -655,6 +655,55 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+
+  it("keeps subject-two questions 91 through 121 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { questionId: "prod-ext-sql-basic-111", conceptId: "sql-top-n", keywords: ["ROWNUM", "FETCH FIRST"] },
+      { questionId: "prod-ext-sql-basic-112", conceptId: "sql-hierarchical-self-join", keywords: ["CONNECT BY", "PRIOR"] },
+      { questionId: "prod-ext-sql-basic-113", conceptId: "sql-dml", keywords: ["MERGE", "UPDATE"] },
+      { questionId: "prod-ext-sql-basic-114", conceptId: "sql-regexp", keywords: ["REGEXP_REPLACE", "REGEXP_INSTR"] },
+      { questionId: "prod-ext-sql-basic-115", conceptId: "sql-standard-join", keywords: ["NATURAL JOIN", "USING"] },
+      { questionId: "prod-ext-sql-basic-116", conceptId: "sql-set-operators", keywords: ["MINUS", "INTERSECT"] },
+      { questionId: "prod-ext-sql-basic-117", conceptId: "sql-null", keywords: ["COUNT(*)", "COUNT("] },
+      { questionId: "prod-ext-sql-basic-118", conceptId: "sql-dcl", keywords: ["GRANT", "ROLE"] },
+      { questionId: "prod-ext-sql-basic-119", conceptId: "sql-pivot-unpivot", keywords: ["PIVOT", "UNPIVOT"] },
+      { questionId: "prod-ext-sql-basic-120", conceptId: "sql-where", keywords: ["LIKE", "ESCAPE"] },
+      { questionId: "prod-ext-sql-basic-201", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-202", conceptId: "sql-standard-join", keywords: ["FULL OUTER JOIN", "RIGHT"] },
+      { questionId: "prod-ext-sql-basic-203", conceptId: "sql-functions", keywords: ["LENGTH", "REPLACE"] },
+      { questionId: "prod-ext-sql-basic-204", conceptId: "sql-join", keywords: ["BETWEEN", "JOIN"] },
+      { questionId: "prod-ext-sql-basic-205", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-206", conceptId: "sql-date", keywords: ["DATE", "1/24"] },
+      { questionId: "prod-ext-sql-basic-207", conceptId: "sql-join", keywords: ["BETWEEN", "JOIN"] },
+      { questionId: "prod-ext-sql-basic-208", conceptId: "sql-window-functions", keywords: ["ROWS", "RANGE"] },
+      { questionId: "prod-ext-sql-basic-209", conceptId: "sql-hierarchical-query", keywords: ["START WITH", "CONNECT BY"] },
+      { questionId: "prod-ext-sql-basic-210", conceptId: "sql-group-functions", keywords: ["ROLLUP", "GROUPING"] },
+      { questionId: "prod-ext-sql-basic-211", conceptId: "sql-dml", keywords: ["MERGE", "UPDATE"] },
+      { questionId: "prod-ext-sql-basic-212", conceptId: "sql-null", keywords: ["NOT IN", "NULL"] },
+      { questionId: "prod-ext-sql-basic-213", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-214", conceptId: "sql-window-functions", keywords: ["ROW_NUMBER", "RANK"] },
+      { questionId: "prod-ext-sql-basic-215", conceptId: "sql-set-operators", keywords: ["MINUS", "INTERSECT"] },
+      { questionId: "prod-ext-sql-basic-216", conceptId: "sql-functions", keywords: ["CASE", "DECODE"] },
+      { questionId: "prod-ext-sql-basic-217", conceptId: "sql-group-having", keywords: ["HAVING", "GROUP BY"] },
+      { questionId: "prod-ext-sql-basic-218", conceptId: "sql-constraints", keywords: ["ON DELETE", "CASCADE"] },
+      { questionId: "prod-ext-sql-basic-219", conceptId: "sql-pivot-unpivot", keywords: ["PIVOT", "UNPIVOT"] },
+      { questionId: "prod-ext-sql-basic-220", conceptId: "sql-window-functions", keywords: ["ROWS", "RANGE"] },
+      { questionId: "prod-ext-sql-basic-121", conceptId: "sql-group-functions", keywords: ["GROUPING SETS", "CUBE"] }
+    ];
+
+    for (const { questionId, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId, questionId).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `${questionId} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
   it("normalizes the second SQL-basic concept batch away from broad legacy concept aliases", () => {
     const expectedLinksBySource = new Map([
       ["pdf-v-2-group-having", "sql-group-having"],
@@ -698,7 +747,7 @@ describe("SQLMate verified production problem bank", () => {
     expect(functionConceptText).toContain("CASE");
     expect(regexpConceptText).toContain("REGEXP_INSTR");
     expect(regexpConceptText).toContain("REGEXP_REPLACE");
-    expect(dateConceptText).toContain("반개구간");
+    expect(dateConceptText).toContain("ADD_MONTHS");
 
     for (const [parentQuestionId, conceptId] of expectedLinksBySource) {
       const question = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.parentQuestionId === parentQuestionId);

@@ -5502,12 +5502,14 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
   if (
     question.id === "prod-ext-sql-basic-073" ||
     question.id === "prod-ext-sql-basic-080" ||
-    question.id === "prod-ext-sql-basic-103"
+    question.id === "prod-ext-sql-basic-103" ||
+    question.id === "prod-ext-sql-basic-202" ||
+    question.id === "prod-ext-sql-basic-213"
   ) {
     question = { ...question, relatedConceptId: "sql-standard-join" };
   }
 
-  if (question.id === "prod-ext-sql-basic-104") {
+  if (question.id === "prod-ext-sql-basic-104" || question.id === "prod-ext-sql-basic-206") {
     question = { ...question, relatedConceptId: "sql-date" };
   }
 
@@ -5531,8 +5533,20 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-window-functions" };
   }
 
-  if (question.id === "prod-ext-sql-basic-070" || question.id === "prod-ext-sql-basic-207") {
+  if (
+    question.id === "prod-ext-sql-basic-070" ||
+    question.id === "prod-ext-sql-basic-204" ||
+    question.id === "prod-ext-sql-basic-207"
+  ) {
     question = { ...question, relatedConceptId: "sql-join" };
+  }
+
+  if (question.id === "prod-ext-sql-basic-217") {
+    question = { ...question, relatedConceptId: "sql-group-having" };
+  }
+
+  if (question.id === "prod-ext-sql-basic-121") {
+    question = { ...question, relatedConceptId: "sql-group-functions" };
   }
 
   if (question.subjectId === "sql-basic") {
