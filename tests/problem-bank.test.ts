@@ -771,6 +771,54 @@ describe("SQLMate verified production problem bank", () => {
     expectTuningLink((question) => question.parentQuestionId === "pdf-v-3-partition-pruning", "tuning-partition-pruning", "Partition Pruning variant");
   });
 
+  it("keeps subject-three questions 1 through 30 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { number: 1, conceptId: "tuning-architecture", keywords: ["Connection", "SGA"] },
+      { number: 2, conceptId: "tuning-io", keywords: ["Full Table Scan", "ROWID"] },
+      { number: 3, conceptId: "tuning-architecture", keywords: ["SGA", "PGA"] },
+      { number: 4, conceptId: "tuning-optimizer", keywords: ["Bind", "Histogram"] },
+      { number: 5, conceptId: "tuning-sql-processing", keywords: ["Static SQL", "Dynamic SQL"] },
+      { number: 6, conceptId: "tuning-architecture", keywords: ["Connection Pool", "Server Process"] },
+      { number: 7, conceptId: "tuning-architecture", keywords: ["Buffer Cache", "Library Cache"] },
+      { number: 8, conceptId: "tuning-optimizer", keywords: ["Bind", "Histogram"] },
+      { number: 9, conceptId: "tuning-index-scan-efficiency", keywords: ["Access Predicate", "Filter Predicate"] },
+      { number: 10, conceptId: "tuning-composite-index", keywords: ["결합 인덱스", "Access Predicate"] },
+      { number: 11, conceptId: "tuning-index-scan-efficiency", keywords: ["B-Tree", "Index Range Scan"] },
+      { number: 12, conceptId: "tuning-index-scan-efficiency", keywords: ["Access Predicate", "Filter Predicate"] },
+      { number: 13, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
+      { number: 14, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "Semi Join"] },
+      { number: 15, conceptId: "tuning-hash-join", keywords: ["해시 조인", "build input"] },
+      { number: 16, conceptId: "tuning-sql-trace", keywords: ["SQL Trace", "TKPROF"] },
+      { number: 17, conceptId: "tuning-query-transformation", keywords: ["Subquery Unnesting", "세미 조인"] },
+      { number: 18, conceptId: "tuning-query-transformation", keywords: ["Predicate Pushing", "View"] },
+      { number: 19, conceptId: "tuning-top-n", keywords: ["Top-N", "STOPKEY"] },
+      { number: 20, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "Partition"] },
+      { number: 21, conceptId: "tuning-index-scan-efficiency", keywords: ["Access Predicate", "Filter Predicate"] },
+      { number: 22, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "후행"] },
+      { number: 23, conceptId: "tuning-composite-index", keywords: ["결합 인덱스", "선두"] },
+      { number: 24, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
+      { number: 25, conceptId: "tuning-hash-join", keywords: ["build input", "probe input"] },
+      { number: 26, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "Partition"] },
+      { number: 27, conceptId: "tuning-query-transformation", keywords: ["OR Expansion", "UNION ALL"] },
+      { number: 28, conceptId: "tuning-optimizer", keywords: ["Bind Peeking", "선택도"] },
+      { number: 29, conceptId: "tuning-sort", keywords: ["One-pass", "Multi-pass"] },
+      { number: 30, conceptId: "tuning-lock", keywords: ["TM", "Lock"] }
+    ];
+
+    for (const { number, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && item.number === number);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, `tuning question ${number}`).toBeTruthy();
+      expect(question?.relatedConceptId, `tuning question ${number}`).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `tuning question ${number} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
   it("links the second tuning concept batch to rewrite and partition concepts precisely", () => {
     const rewriteQuestion = objectiveQuestions.find(
       (question) => question.subjectId === "tuning" && /최신 이력|고객변경이력/.test([question.topic, question.stem].join(" "))

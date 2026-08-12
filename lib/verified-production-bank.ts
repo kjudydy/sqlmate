@@ -5549,6 +5549,18 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-group-functions" };
   }
 
+  if (question.id === "prod-tuning-001" || question.id === "prod-tuning-003" || question.id === "prod-tuning-006") {
+    question = { ...question, relatedConceptId: "tuning-architecture" };
+  }
+
+  if (question.id === "prod-tuning-002") {
+    question = { ...question, relatedConceptId: "tuning-io" };
+  }
+
+  if (question.id === "prod-tuning-005") {
+    question = { ...question, relatedConceptId: "tuning-sql-processing" };
+  }
+
   if (question.subjectId === "sql-basic") {
     if (question.relatedConceptId === "sql-hierarchical") {
       question = { ...question, relatedConceptId: "sql-hierarchical-self-join" };
@@ -5641,7 +5653,7 @@ AND    o.상품코드 = 'A123';`,
         }
       ],
       answer: "C",
-      relatedConceptId: "tuning-index-design",
+      relatedConceptId: "tuning-composite-index",
       hint:
         "1단계: 주문_IDX의 컬럼 순서를 먼저 확인한다.\n2단계: 인덱스에 포함된 컬럼만 액세스 조건 후보가 될 수 있다.\n3단계: 선두 컬럼 주문일자와 두 번째 컬럼 고객번호는 모두 조건에 있고, 상품코드는 인덱스 컬럼이 아니다.",
       explanation:
@@ -5813,6 +5825,7 @@ AND    EXISTS (
       sourceQuestionNumber: 51,
       sourceType: "owner_pdf_similar",
       generationMode: "generated_similar",
+      relatedConceptId: "tuning-index-scan-efficiency",
       duplicationCheck:
         "manual PDF recheck: SQL-자격검정 실전문제 51번은 Trace를 보고 2개를 고르는 원문 문제다. 현재 문항은 Access/Filter Predicate 유사형이므로 원문형으로 표시하지 않는다."
     };

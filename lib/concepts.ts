@@ -733,6 +733,188 @@ Object.assign(conceptStudyBlockOverrides, {
   ]
 } satisfies Record<string, ConceptStudyBlock[]>);
 
+Object.assign(conceptStudyBlockOverrides, {
+  "tuning-architecture": [
+    {
+      type: "section",
+      title: "Connection과 Oracle 처리 구조",
+      paragraphs: [
+        "사용자가 DB에 접속하면 클라이언트 연결은 서버 프로세스 또는 공유 서버 구조를 통해 SQL을 처리한다. Connection 수가 과도하면 서버 프로세스, 세션 메모리, 라이브러리 캐시 경합까지 함께 증가할 수 있다.",
+        "Connection Pool은 애플리케이션에서 DB 연결을 매번 새로 만들지 않고 재사용하는 구조다. 접속 비용을 줄일 수 있지만 풀 크기가 과도하면 DB 서버 동시 세션 부하가 커진다.",
+        "아키텍처 문제에서는 Connection, Session, Server Process, Background Process가 각각 무엇을 담당하는지 구분한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "SGA, PGA, Library Cache",
+      paragraphs: [
+        "SGA는 여러 프로세스가 공유하는 메모리 영역이다. Buffer Cache는 데이터 블록을 캐시하고, Shared Pool 안의 Library Cache는 SQL 커서와 실행계획을 재사용한다.",
+        "PGA는 서버 프로세스별 작업 메모리다. 정렬, 해시 조인, 세션별 작업 영역이 PGA를 사용하며 부족하면 TEMP I/O가 발생할 수 있다.",
+        "SQL 튜닝에서는 실행계획만 보지 않고 Buffer Cache, Library Cache, PGA, redo/undo, latch 경합까지 함께 판단해야 한다."
+      ]
+    }
+  ],
+  "tuning-io": [
+    {
+      type: "section",
+      title: "블록 단위 I/O",
+      paragraphs: [
+        "DBMS는 행 단위가 아니라 블록 단위로 데이터를 읽는다. 한 행만 필요해도 해당 행이 들어 있는 블록을 읽어야 하며, 읽은 블록 수가 논리 I/O와 물리 I/O 비용을 좌우한다.",
+        "논리 I/O는 Buffer Cache에서 블록을 읽는 작업이고, 물리 I/O는 디스크에서 블록을 읽는 작업이다. 캐시에 있더라도 논리 I/O가 많으면 CPU와 latch 비용이 커질 수 있다.",
+        "Full Table Scan은 항상 나쁜 것이 아니다. 조회 범위가 넓거나 인덱스 랜덤 액세스가 과도하면 순차 I/O 기반 Full Scan이 더 유리할 수 있다."
+      ]
+    },
+    {
+      type: "section",
+      title: "인덱스 경유 테이블 액세스",
+      paragraphs: [
+        "인덱스 스캔 후 ROWID로 테이블을 방문하는 과정은 랜덤 액세스를 만든다. 조건 선택도가 낮아도 테이블 방문 횟수가 많으면 전체 비용이 커질 수 있다.",
+        "클러스터링 팩터가 좋으면 인덱스 순서와 테이블 저장 순서가 비슷해 블록 재방문이 줄어든다. 반대로 클러스터링 팩터가 나쁘면 같은 범위를 읽어도 테이블 I/O가 크게 증가한다."
+      ]
+    }
+  ],
+  "tuning-sql-processing": [
+    {
+      type: "section",
+      title: "SQL 처리와 파싱",
+      paragraphs: [
+        "SQL 처리는 Parse, Optimize, Execute, Fetch 단계로 이해한다. Parse 단계에서는 문법, 객체, 권한을 확인하고 공유 가능한 커서가 있는지 Library Cache에서 찾는다.",
+        "Hard Parse는 최적화와 실행계획 생성을 포함하므로 비용이 크다. Soft Parse는 기존 커서를 재사용하지만 Library Cache 탐색과 권한 확인 비용은 남는다.",
+        "바인드 변수를 사용하면 SQL 텍스트가 안정되어 커서 공유 가능성이 높아지고 파싱 부하와 Library Cache 경합을 줄일 수 있다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Static SQL과 Dynamic SQL",
+      paragraphs: [
+        "Static SQL은 SQL 구조가 프로그램 작성 시점에 고정되어 있고 값만 바인드로 바뀌는 형태에 가깝다. 커서 공유와 권한 검증, 실행계획 관리가 상대적으로 안정적이다.",
+        "Dynamic SQL은 실행 시점에 SQL 문자열을 조립한다. 조건절이나 객체명이 유연하게 바뀔 수 있지만, 문자열 조립 방식이 나쁘면 SQL 텍스트가 계속 달라져 Hard Parse가 증가한다.",
+        "시험에서는 Dynamic SQL 자체가 항상 나쁜 것이 아니라, 리터럴 결합과 조건 조립 때문에 커서 공유가 깨지는지 판단해야 한다."
+      ]
+    }
+  ],
+  "tuning-optimizer": [
+    {
+      type: "section",
+      title: "CBO 판단 기준",
+      paragraphs: [
+        "Cost Based Optimizer(CBO)는 통계정보, 조건 선택도, 카디널리티, I/O와 CPU 비용을 바탕으로 접근 경로와 조인 순서를 선택한다.",
+        "선택도는 조건을 만족할 비율이고, 카디널리티는 조건 적용 후 예상 행 수다. 둘 중 하나를 잘못 추정하면 인덱스 선택, 조인 방식, 조인 순서가 모두 흔들릴 수 있다.",
+        "시험에서는 비용이 낮게 보인다는 이유만으로 실제 최적이라고 단정하지 않는다. 통계정보와 데이터 분포, 바인드 값 분포를 함께 확인한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Bind Peeking, Histogram, Adaptive Cursor Sharing",
+      paragraphs: [
+        "Bind Peeking은 최초 Hard Parse 시점의 Bind 값을 보고 실행계획을 만든다. 값 분포가 치우친 컬럼에서는 최초 Bind 값에 따라 이후 실행계획이 부적절해질 수 있다.",
+        "Histogram은 컬럼 값 분포가 균등하지 않을 때 선택도 추정을 보정하는 통계정보다. 인기 값과 비인기 값의 선택도가 크게 다르면 Histogram 유무가 실행계획에 영향을 준다.",
+        "Adaptive Cursor Sharing은 Bind 값에 따라 성능 차이가 큰 SQL에 대해 여러 실행계획을 사용할 수 있게 하는 Oracle 기능이다."
+      ]
+    }
+  ],
+  "tuning-index-scan-efficiency": [
+    {
+      type: "section",
+      title: "B-Tree 인덱스와 스캔 효율",
+      paragraphs: [
+        "B-Tree 인덱스는 루트, 브랜치, 리프 블록을 거쳐 키 범위를 찾는다. Index Range Scan은 선두 컬럼 조건과 범위 시작·종료 지점을 얼마나 좁히는지가 핵심이다.",
+        "선두 컬럼이 조건에 없거나 컬럼에 함수를 적용하면 일반적인 Range Scan 시작점을 잡기 어려워진다. 반대로 `LIKE 'ABC%'`나 반개구간 날짜 조건처럼 시작과 끝을 만들 수 있으면 인덱스 접근이 가능하다.",
+        "인덱스 스캔 효율은 단순히 인덱스를 탔는지가 아니라 얼마나 좁은 범위를 스캔했고, 이후 테이블 랜덤 액세스가 얼마나 발생했는지로 판단한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Access Predicate와 Filter Predicate",
+      paragraphs: [
+        "Access Predicate는 인덱스에서 탐색 범위를 줄이는 조건이다. 인덱스 컬럼의 선두 조건, 등치 조건, 범위 조건이 어떤 순서로 쓰였는지 확인해야 한다.",
+        "Filter Predicate는 읽어 온 행을 나중에 걸러내는 조건이다. 조건이 Filter로 밀리면 인덱스를 사용해도 불필요한 스캔이나 테이블 방문이 많아질 수 있다.",
+        "실행계획 문제에서는 Predicate Information을 보고 어떤 조건이 access인지 filter인지 구분한 뒤, 인덱스 컬럼 순서나 SQL Rewrite로 access 조건을 늘릴 수 있는지 판단한다."
+      ]
+    }
+  ],
+  "tuning-composite-index": [
+    {
+      type: "section",
+      title: "결합 인덱스 컬럼 순서",
+      paragraphs: [
+        "결합 인덱스는 여러 컬럼을 하나의 키 순서로 묶은 인덱스다. 선두 컬럼 조건이 스캔 시작점을 만들고, 이후 컬럼은 등치·범위 조건의 위치에 따라 스캔 범위를 더 줄인다.",
+        "일반적으로 등치 조건 컬럼을 앞쪽에 두고, 범위 조건 컬럼은 그 뒤에 배치하는 경우가 많다. 하지만 ORDER BY, GROUP BY, 조인 방식, 부분범위 처리까지 함께 고려해야 한다.",
+        "선택도가 높다는 이유만으로 항상 첫 컬럼에 두지는 않는다. 실제 SQL 패턴에서 어떤 컬럼이 항상 조건에 들어오는지와 정렬 제거 가능성이 중요하다."
+      ]
+    },
+    {
+      type: "section",
+      title: "결합 인덱스와 Access Predicate",
+      paragraphs: [
+        "실행계획에서 결합 인덱스가 Index Range Scan으로 나타나도 모든 WHERE 조건이 Access Predicate가 되는 것은 아니다.",
+        "인덱스에 포함된 컬럼만 Access Predicate 후보가 되며, 선두 컬럼부터 이어지는 조건 구조가 중요하다. 인덱스에 없는 컬럼은 해당 인덱스의 access 조건이 될 수 없다.",
+        "문제에서 인덱스 구성과 SQL, Predicate Information이 함께 주어지면 어떤 조건이 인덱스 스캔 범위를 실제로 줄였는지 먼저 확인한다."
+      ]
+    }
+  ],
+  "tuning-nl-join": [
+    {
+      type: "section",
+      title: "Nested Loops Join 원리",
+      paragraphs: [
+        "Nested Loops Join은 선행 집합의 각 행마다 후행 집합을 반복 탐색하는 방식이다. 선행 집합이 작고 후행 테이블의 조인 컬럼 인덱스가 좋을 때 효율적이다.",
+        "후행 테이블 인덱스가 없거나 선행 집합이 커지면 반복 Full Scan 또는 반복 랜덤 액세스가 발생해 비용이 급격히 증가한다.",
+        "부분범위 처리와 빠른 응답 시간이 중요한 OLTP성 조회에서는 NL Join이 유리한 경우가 많다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Semi Join과 NL 방식",
+      paragraphs: [
+        "EXISTS 조건은 결과 중복을 만들지 않고 존재 여부만 확인하므로 Semi Join으로 변환될 수 있다. NOT EXISTS 계열은 Anti Join으로 변환될 수 있다.",
+        "선행 집합이 작고 후행 테이블 조인 컬럼에 인덱스가 있으면 Nested Loop Semi Join이 자연스럽다. 반대로 대량 집합이면 Hash Semi Join이 더 유리할 수 있다.",
+        "문제에서 EXISTS, NOT EXISTS, 인덱스 구성, 선행 조건의 선택도가 함께 주어지면 Semi/Anti 여부와 조인 방식(NL/Hash)을 분리해서 판단한다."
+      ]
+    }
+  ],
+  "tuning-sort": [
+    {
+      type: "section",
+      title: "Sort가 발생하는 지점",
+      paragraphs: [
+        "Sort 튜닝은 ORDER BY, GROUP BY, DISTINCT, UNION, 윈도우 함수에서 발생하는 정렬 비용을 줄이는 것이다.",
+        "정렬 대상 행 수와 행 크기가 클수록 PGA 작업 메모리를 많이 사용한다. 메모리가 부족하면 TEMP 영역을 사용하면서 응답 시간이 급격히 늘 수 있다.",
+        "인덱스 순서를 활용하면 SORT ORDER BY를 생략할 수 있고, 불필요한 DISTINCT나 UNION은 정렬 또는 해시 중복 제거 비용을 만든다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Optimal, One-pass, Multi-pass Sort",
+      paragraphs: [
+        "Optimal Sort는 정렬 작업이 메모리 안에서 끝나는 경우다. TEMP I/O가 발생하지 않아 가장 유리하다.",
+        "One-pass Sort는 정렬 데이터 일부를 TEMP에 기록한 뒤 한 번의 병합 과정으로 끝나는 경우다. Optimal보다 느리지만 Multi-pass보다는 부담이 작다.",
+        "Multi-pass Sort는 TEMP에 여러 번 쓰고 읽으며 반복 병합이 필요한 경우다. SQL Trace나 실행 통계에서 TEMP 사용과 elapsed time 증가를 함께 확인해야 한다."
+      ]
+    }
+  ],
+  "tuning-lock": [
+    {
+      type: "section",
+      title: "Lock 기본",
+      paragraphs: [
+        "Lock은 동시 트랜잭션 사이 데이터 일관성을 보장하기 위한 잠금이다. DML은 변경 대상 행에 배타적 잠금을 걸어 다른 트랜잭션의 동시 변경을 막는다.",
+        "트랜잭션이 길거나 잠금 범위가 커지면 Lock Wait와 Blocking이 길어질 수 있다. Deadlock은 서로가 가진 자원을 기다리는 순환 대기 상황이다.",
+        "일반 SELECT는 Oracle의 read consistency 덕분에 DML과 직접 충돌하지 않는 경우가 많지만, SELECT FOR UPDATE는 변경 목적의 잠금을 요청한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "TM Lock과 TX Lock",
+      paragraphs: [
+        "TX Lock은 행 변경과 트랜잭션 충돌에 관련된 잠금이다. 같은 행을 동시에 UPDATE하거나 DELETE하려 할 때 대표적으로 대기가 발생한다.",
+        "TM Lock은 테이블 수준 DML 잠금이다. 테이블 구조와 참조 무결성 유지에 필요한 범위에서 DML 사이의 충돌을 제어한다.",
+        "외래키 컬럼에 인덱스가 없으면 부모 테이블 DELETE 또는 부모 키 UPDATE 시 자식 테이블 확인 범위가 커져 TM Lock 대기와 성능 문제가 커질 수 있다."
+      ]
+    }
+  ]
+} satisfies Record<string, ConceptStudyBlock[]>);
+
 function concept(seed: ConceptSeed): ConceptArticle {
   const defaultBlocks = buildDefaultStudyBlocks(seed);
   const studyBlocks = conceptStudyBlockOverrides[seed.id] ?? (seed.studyBlocks?.length ? seed.studyBlocks : defaultBlocks);

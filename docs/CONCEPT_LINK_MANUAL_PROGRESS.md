@@ -64,6 +64,15 @@ Avoid running the full audit script unless explicitly requested.
   - Adaptive Cursor Sharing -> `tuning-sql-sharing`
   - Bind Peeking remains -> `tuning-optimizer`
 - Added a focused regression test for imported tuning join/concurrency/transformation links.
+- 2026-08-12 follow-up: audited subject 3 questions 1-30 by visible question number.
+- Corrected broad early links:
+  - Connection / memory structure / Connection Pooling -> `tuning-architecture`
+  - storage and I/O basics -> `tuning-io`
+  - Static SQL / Dynamic SQL -> `tuning-sql-processing`
+  - Access Predicate / Filter Predicate -> `tuning-index-scan-efficiency`
+  - composite-index access predicates -> `tuning-composite-index`
+- Strengthened readable concept bodies for architecture, I/O, SQL processing, optimizer, index scan efficiency, composite indexes, NL/Semi Join, sort, and lock/TM/TX behavior.
+- Added a focused regression test for subject 3 questions 1-30.
 - Added a representative problem-screen destination test for concept buttons users are likely to click:
   - NULL questions -> `sql-null`
   - constraint questions -> `sql-constraints`
@@ -86,6 +95,6 @@ Avoid running the full audit script unless explicitly requested.
 - Corrected additional outer join, DATE arithmetic, latest-history join, HAVING, and GROUPING SETS/CUBE questions to their more precise concept destinations.
 - Replaced the related concept bodies for `sql-where`, `sql-dcl`, and `sql-date` with readable Korean study blocks that cover LIKE/ESCAPE, tuple IN, ROLE/object privileges, DATE time arithmetic, and half-open date ranges.
 - Continue with the next manual batch only when needed:
-  - subject 3 follow-up batches
+  - subject 3 questions 31-60
   - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested
