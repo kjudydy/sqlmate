@@ -111,6 +111,9 @@ Avoid running the full audit script unless explicitly requested.
   - identifier questions -> `sql-identifiers`
   - TCL and MERGE questions -> `sql-tcl` / `sql-dml`
   - window-function questions -> `sql-window-functions`
+- 2026-08-12 follow-up: verified related-concept navigation from solved explanations and wrong-note snapshots.
+- Extracted the shared related-concept destination resolver so both screens use the same concept subject, major topic, and selected concept id.
+- Added a focused regression test for representative solved/wrong-note navigation paths, including NULL, constraints, latest-history SQL, SQL Trace, SQL Rewrite, concurrency, and SQL sharing questions.
 
 ## Next Batch
 

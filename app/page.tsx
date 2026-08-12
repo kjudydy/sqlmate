@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { containsUnsafeSql, gradeSqlSubmission, isChoiceCorrect, isStaticDesignSql } from "@/lib/grading";
+import { resolveRelatedConceptNavigation } from "@/lib/concept-navigation";
 import {
   conceptArticles,
   labQuestions,
@@ -1279,13 +1280,13 @@ export default function Home() {
   }
 
   function openRelatedConcept(conceptId: string) {
-    const concept = conceptArticles.find((article) => article.id === conceptId);
-    if (!concept) return;
+    const navigation = resolveRelatedConceptNavigation(conceptId, conceptArticles);
+    if (!navigation) return;
 
-    setSection("concepts");
-    setActiveConceptSubject(concept.subjectId);
-    setActiveConceptMajor(concept.majorTopic);
-    setSelectedConceptId(concept.id);
+    setSection(navigation.section);
+    setActiveConceptSubject(navigation.activeConceptSubject);
+    setActiveConceptMajor(navigation.activeConceptMajor);
+    setSelectedConceptId(navigation.selectedConceptId);
     setConceptNavCollapsed(false);
   }
 

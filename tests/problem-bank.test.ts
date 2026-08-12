@@ -397,7 +397,7 @@ describe("SQLMate verified production problem bank", () => {
 
     for (const question of constraintFocusedQuestions) {
       expect(
-        allowedConstraintConceptIds.has(question.relatedConceptId),
+        allowedConstraintConceptIds.has(question.relatedConceptId ?? ""),
         `${question.subjectId} ${question.number} ${question.middleTopic} ${question.topic} ${question.parentQuestionId ?? ""}`
       ).toBe(true);
     }
@@ -758,8 +758,10 @@ describe("SQLMate verified production problem bank", () => {
   });
 
   it("links the first tuning concept batch to the performance concept that explains the question", () => {
-    const expectTuningLink = (predicate: (question: ObjectiveQuestion) => boolean, conceptId: string, label: string) => {
-      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && predicate(item));
+    const expectTuningLink = (predicate: (question: ObjectiveQuestion & { middleTopic: string }) => boolean, conceptId: string, label: string) => {
+      const question = objectiveQuestions.find(
+        (item) => item.subjectId === "tuning" && predicate({ ...item, middleTopic: item.middleTopic ?? "" })
+      );
       expect(question, label).toBeTruthy();
       expect(question?.relatedConceptId).toBe(conceptId);
     };
