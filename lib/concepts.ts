@@ -819,7 +819,7 @@ Object.assign(conceptStudyBlockOverrides, {
       title: "B-Tree 인덱스와 스캔 효율",
       paragraphs: [
         "B-Tree 인덱스는 루트, 브랜치, 리프 블록을 거쳐 키 범위를 찾는다. Index Range Scan은 선두 컬럼 조건과 범위 시작·종료 지점을 얼마나 좁히는지가 핵심이다.",
-        "선두 컬럼이 조건에 없거나 컬럼에 함수를 적용하면 일반적인 Range Scan 시작점을 잡기 어려워진다. 반대로 `LIKE 'ABC%'`나 반개구간 날짜 조건처럼 시작과 끝을 만들 수 있으면 인덱스 접근이 가능하다.",
+        "선두 컬럼이 조건에 없거나 컬럼에 함수를 적용하면 일반적인 Range Scan 시작점을 잡기 어려워진다. 반대로 `LIKE 'ABC%'`나 반개구간 날짜 조건처럼 시작과 끝을 만들 수 있는 SARGable 조건이면 인덱스 접근이 가능하다.",
         "인덱스 스캔 효율은 단순히 인덱스를 탔는지가 아니라 얼마나 좁은 범위를 스캔했고, 이후 테이블 랜덤 액세스가 얼마나 발생했는지로 판단한다."
       ]
     },
@@ -830,6 +830,15 @@ Object.assign(conceptStudyBlockOverrides, {
         "Access Predicate는 인덱스에서 탐색 범위를 줄이는 조건이다. 인덱스 컬럼의 선두 조건, 등치 조건, 범위 조건이 어떤 순서로 쓰였는지 확인해야 한다.",
         "Filter Predicate는 읽어 온 행을 나중에 걸러내는 조건이다. 조건이 Filter로 밀리면 인덱스를 사용해도 불필요한 스캔이나 테이블 방문이 많아질 수 있다.",
         "실행계획 문제에서는 Predicate Information을 보고 어떤 조건이 access인지 filter인지 구분한 뒤, 인덱스 컬럼 순서나 SQL Rewrite로 access 조건을 늘릴 수 있는지 판단한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Index Skip Scan과 Index Fast Full Scan",
+      paragraphs: [
+        "Index Skip Scan은 결합 인덱스의 선두 컬럼 조건이 없어도 선두 컬럼의 NDV가 작을 때 내부적으로 여러 범위를 나누어 후행 컬럼 조건을 활용하는 방식이다.",
+        "Index Fast Full Scan은 인덱스 전체를 멀티블록 I/O로 읽어 필요한 컬럼을 인덱스만으로 처리하는 방식이다. 정렬 순서를 보장하는 일반 Index Full Scan과 다르다.",
+        "시험에서는 Index Full Scan, Index Fast Full Scan, Index Skip Scan이 모두 인덱스를 읽지만 정렬 보장, 선두 컬럼 필요 여부, 테이블 액세스 여부가 다르다는 점을 구분한다."
       ]
     }
   ],
@@ -873,6 +882,26 @@ Object.assign(conceptStudyBlockOverrides, {
       ]
     }
   ],
+  "tuning-hash-join": [
+    {
+      type: "section",
+      title: "Hash Join 원리",
+      paragraphs: [
+        "Hash Join(해시 조인)은 한쪽 입력으로 해시 테이블을 만들고 다른 입력으로 탐색해 조인하는 방식이다. 대량 등가 조인에서 NL Join보다 랜덤 액세스가 적어 유리할 수 있다.",
+        "Build Input은 해시 테이블을 만드는 입력이고, Probe Input은 만들어진 해시 테이블을 탐색하는 입력이다. 보통 필터 후 더 작은 집합이 Build Input이 되는 것이 유리하다.",
+        "메모리가 부족하면 해시 영역이 디스크로 spill되어 TEMP I/O가 발생할 수 있다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Hash Join 선택 기준",
+      paragraphs: [
+        "조인 컬럼에 적절한 인덱스가 없거나 대량 집합을 조인해야 하면 Hash Join이 후보가 된다.",
+        "작은 테이블이 항상 Build Input이라고 단정하지 않는다. 조건 적용 후 예상 카디널리티와 통계정보 기준으로 판단한다.",
+        "실기 답안에서는 USE_HASH, LEADING, SWAP_JOIN_INPUTS 같은 힌트와 함께 어떤 집합을 Build Input으로 둘지 설명해야 한다."
+      ]
+    }
+  ],
   "tuning-sort": [
     {
       type: "section",
@@ -910,6 +939,106 @@ Object.assign(conceptStudyBlockOverrides, {
         "TX Lock은 행 변경과 트랜잭션 충돌에 관련된 잠금이다. 같은 행을 동시에 UPDATE하거나 DELETE하려 할 때 대표적으로 대기가 발생한다.",
         "TM Lock은 테이블 수준 DML 잠금이다. 테이블 구조와 참조 무결성 유지에 필요한 범위에서 DML 사이의 충돌을 제어한다.",
         "외래키 컬럼에 인덱스가 없으면 부모 테이블 DELETE 또는 부모 키 UPDATE 시 자식 테이블 확인 범위가 커져 TM Lock 대기와 성능 문제가 커질 수 있다."
+      ]
+    }
+  ],
+  "tuning-scalar-subquery": [
+    {
+      type: "section",
+      title: "Scalar Subquery 원리",
+      paragraphs: [
+        "Scalar Subquery는 한 행에 대해 하나의 값을 반환해야 하는 서브쿼리다. SELECT 목록에서 코드명, 집계 값, 최신 상태 값을 가져올 때 자주 사용한다.",
+        "상관 Scalar Subquery는 바깥 행마다 반복 수행될 수 있다. 입력 행 수가 많고 반복 값이 적으면 캐싱 효과를 볼 수 있지만, 입력 값 종류가 많으면 캐싱 이점이 줄어든다.",
+        "서브쿼리가 두 행 이상을 반환하면 오류가 발생하므로, 집계 함수나 유일 조건으로 한 값만 반환되도록 보장해야 한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Scalar Subquery Caching과 Rewrite",
+      paragraphs: [
+        "Scalar Subquery Caching은 같은 입력 값에 대해 같은 결과를 반복 계산하지 않도록 캐시하는 최적화다. 반복 입력 값이 많을수록 효과가 커진다.",
+        "대량 데이터에서 바깥 행마다 서브쿼리를 반복하면 비용이 커질 수 있다. 같은 결과를 조인과 GROUP BY로 미리 집계한 뒤 조인하는 방식이 더 안정적일 때가 많다.",
+        "시험에서는 Scalar Subquery가 항상 느리거나 항상 빠르다고 단정하지 않고, 반복 횟수, NDV, 캐싱 가능성, 조인 변환 가능성을 함께 판단한다."
+      ]
+    }
+  ],
+  "tuning-partitioning": [
+    {
+      type: "section",
+      title: "Partitioning 기본",
+      paragraphs: [
+        "Partitioning은 큰 테이블이나 인덱스를 논리적으로 나누어 관리성과 성능을 높이는 구조다. Range, List, Hash, Composite 파티션 방식이 대표적이다.",
+        "파티션 키 조건이 SARGable하게 주어지면 필요한 파티션만 읽는 Partition Pruning이 가능하다. 컬럼을 함수로 가공하거나 데이터 타입이 맞지 않으면 Pruning이 어려워질 수 있다.",
+        "실행계획에서는 PSTART, PSTOP을 확인해 실제로 읽는 파티션 범위가 줄었는지 판단한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Local index, Global index, Prefixed index",
+      paragraphs: [
+        "Local index는 테이블 파티션과 같은 단위로 나뉘어 관리되는 인덱스다. 파티션 단위 관리와 파티션 교체 작업에 유리하다.",
+        "Global index는 전체 테이블 데이터를 하나의 인덱스 구조로 관리하거나, 테이블 파티션과 다른 기준으로 파티션될 수 있다. 전역 검색에는 유리하지만 파티션 유지보수 영향이 커질 수 있다.",
+        "Local Prefixed index는 인덱스 선두 컬럼이 파티션 키를 포함하는 Local index다. Local Nonprefixed index는 Local index지만 인덱스 선두 컬럼이 파티션 키가 아닌 경우다."
+      ]
+    }
+  ],
+  "tuning-cardinality": [
+    {
+      type: "section",
+      title: "선택도와 카디널리티",
+      paragraphs: [
+        "선택도는 조건을 만족할 비율이고, 카디널리티는 각 실행 단계에서 예상되는 행 수다. 선택도 추정이 틀리면 카디널리티가 틀리고, 조인 순서와 조인 방식도 잘못 선택될 수 있다.",
+        "옵티마이저는 통계정보, NDV, Histogram, 컬럼 상관관계 추정 등을 바탕으로 카디널리티를 계산한다.",
+        "카디널리티 오류는 실제 Rows와 예상 Rows의 차이로 드러난다. 실행계획에서 A-Rows와 E-Rows를 비교할 수 있으면 오류 위치를 찾기 쉽다."
+      ]
+    },
+    {
+      type: "section",
+      title: "카디널리티 오류가 만드는 실행계획 문제",
+      paragraphs: [
+        "실제보다 적게 추정하면 NL Join이나 인덱스 반복 액세스를 과도하게 선택할 수 있다. 실제보다 크게 추정하면 불필요한 Hash Join, Full Scan, Sort가 선택될 수 있다.",
+        "복합 조건에서 컬럼 간 상관관계를 독립으로 가정하면 선택도 계산이 크게 빗나갈 수 있다. 필요하면 확장 통계나 Histogram을 고려한다.",
+        "시험에서는 카디널리티 오류의 원인을 통계정보 부재, Histogram 부재, Bind Peeking, 컬럼 상관관계, 데이터 분포 왜곡 중 무엇으로 볼지 판단한다."
+      ]
+    }
+  ],
+  "tuning-parallel": [
+    {
+      type: "section",
+      title: "Parallel Execution",
+      paragraphs: [
+        "Parallel Execution은 작업을 여러 병렬 서버 프로세스가 나누어 처리해 대량 처리 시간을 줄이는 방식이다. 실행계획에서는 PX COORDINATOR, PX SEND, PX RECEIVE, TQ 정보를 확인한다.",
+        "Parallel Degree는 병렬도를 의미하며, 높을수록 항상 빠른 것은 아니다. CPU, I/O, 메모리, 동시 사용자와 자원 경합을 함께 고려해야 한다.",
+        "병렬 처리 문제에서는 작업을 나누는 기준, 데이터 재분배 방식, QC와 병렬 서버 간 통신 비용을 함께 본다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Parallel DML과 APPEND",
+      paragraphs: [
+        "Parallel DML을 사용하려면 세션에서 병렬 DML을 활성화해야 하는 경우가 있다. APPEND 힌트는 Direct Path Insert를 유도하지만 모든 INSERT가 항상 Direct Path가 되는 것은 아니다.",
+        "Direct Path Insert는 버퍼 캐시를 경유하는 일반 insert와 다르게 동작할 수 있으며, 인덱스 유지, 제약조건, 트리거, Lock 모드까지 함께 검토해야 한다.",
+        "SQLP 실기에서는 Parallel, APPEND, NOLOGGING, 인덱스 유지 비용, 파티션 단위 처리 가능성을 묶어 튜닝 방안을 설명하는 경우가 많다."
+      ]
+    }
+  ],
+  "tuning-sql-sharing": [
+    {
+      type: "section",
+      title: "SQL 공유와 커서 재사용",
+      paragraphs: [
+        "SQL 공유는 동일 SQL이 기존 커서와 실행계획을 재사용하는 것이다. Hard Parse를 줄이고 Library Cache 부하를 낮추는 것이 목적이다.",
+        "SQL 텍스트, 스키마, 권한, 옵티마이저 환경이 맞아야 커서를 공유할 수 있다. 바인드 변수는 리터럴 차이로 생기는 하드 파싱을 줄이는 대표적인 방법이다.",
+        "Soft Parse도 완전히 공짜는 아니므로 애플리케이션에서 커서를 재사용하고, 불필요하게 SQL 문자열을 매번 다르게 만들지 않도록 주의한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Bind Peeking과 Adaptive Cursor Sharing",
+      paragraphs: [
+        "Bind Peeking은 최초 Hard Parse 시점의 Bind 값을 보고 실행계획을 선택하는 동작이다. 데이터 분포가 치우친 컬럼에서는 최초 값에 따라 이후 실행계획이 부적절할 수 있다.",
+        "Adaptive Cursor Sharing은 Bind 값의 선택도 차이가 큰 SQL에 대해 여러 커서와 실행계획을 사용할 수 있게 하는 기능이다.",
+        "시험에서는 바인드 변수가 공유에는 유리하지만 값별 데이터 분포가 크게 다르면 실행계획 안정성 문제가 생길 수 있다는 점을 구분한다."
       ]
     }
   ]

@@ -5561,6 +5561,18 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "tuning-sql-processing" };
   }
 
+  if (question.id === "prod-ext-tuning-035") {
+    question = { ...question, relatedConceptId: "tuning-scalar-subquery" };
+  }
+
+  if (question.id === "prod-ext-tuning-052" || question.id === "prod-ext-tuning-053") {
+    question = { ...question, relatedConceptId: "tuning-partitioning" };
+  }
+
+  if (question.id === "prod-ext-tuning-066") {
+    question = { ...question, relatedConceptId: "tuning-cardinality" };
+  }
+
   if (question.subjectId === "sql-basic") {
     if (question.relatedConceptId === "sql-hierarchical") {
       question = { ...question, relatedConceptId: "sql-hierarchical-self-join" };

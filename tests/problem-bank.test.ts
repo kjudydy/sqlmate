@@ -789,7 +789,7 @@ describe("SQLMate verified production problem bank", () => {
       { number: 12, conceptId: "tuning-index-scan-efficiency", keywords: ["Access Predicate", "Filter Predicate"] },
       { number: 13, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
       { number: 14, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "Semi Join"] },
-      { number: 15, conceptId: "tuning-hash-join", keywords: ["해시 조인", "build input"] },
+      { number: 15, conceptId: "tuning-hash-join", keywords: ["해시 조인", "Build Input"] },
       { number: 16, conceptId: "tuning-sql-trace", keywords: ["SQL Trace", "TKPROF"] },
       { number: 17, conceptId: "tuning-query-transformation", keywords: ["Subquery Unnesting", "세미 조인"] },
       { number: 18, conceptId: "tuning-query-transformation", keywords: ["Predicate Pushing", "View"] },
@@ -799,12 +799,60 @@ describe("SQLMate verified production problem bank", () => {
       { number: 22, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "후행"] },
       { number: 23, conceptId: "tuning-composite-index", keywords: ["결합 인덱스", "선두"] },
       { number: 24, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
-      { number: 25, conceptId: "tuning-hash-join", keywords: ["build input", "probe input"] },
+      { number: 25, conceptId: "tuning-hash-join", keywords: ["Build Input", "Probe Input"] },
       { number: 26, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "Partition"] },
       { number: 27, conceptId: "tuning-query-transformation", keywords: ["OR Expansion", "UNION ALL"] },
       { number: 28, conceptId: "tuning-optimizer", keywords: ["Bind Peeking", "선택도"] },
       { number: 29, conceptId: "tuning-sort", keywords: ["One-pass", "Multi-pass"] },
       { number: 30, conceptId: "tuning-lock", keywords: ["TM", "Lock"] }
+    ];
+
+    for (const { number, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && item.number === number);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, `tuning question ${number}`).toBeTruthy();
+      expect(question?.relatedConceptId, `tuning question ${number}`).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `tuning question ${number} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
+  it("keeps subject-three questions 31 through 60 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { number: 31, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Skip Scan", "NDV"] },
+      { number: 32, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Fast Full Scan", "Index Full Scan"] },
+      { number: 33, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
+      { number: 34, conceptId: "tuning-query-transformation", keywords: ["View Merging", "NO_MERGE"] },
+      { number: 35, conceptId: "tuning-scalar-subquery", keywords: ["Scalar Subquery", "Caching"] },
+      { number: 36, conceptId: "tuning-composite-index", keywords: ["결합 인덱스", "선두"] },
+      { number: 37, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
+      { number: 38, conceptId: "tuning-hash-join", keywords: ["Build Input", "Probe Input"] },
+      { number: 39, conceptId: "tuning-query-transformation", keywords: ["Predicate Pushing", "View"] },
+      { number: 40, conceptId: "tuning-sql-sharing", keywords: ["Adaptive Cursor Sharing", "Bind"] },
+      { number: 41, conceptId: "tuning-sql-trace", keywords: ["SQL Trace", "TKPROF"] },
+      { number: 42, conceptId: "tuning-partitioning", keywords: ["Local index", "Prefixed"] },
+      { number: 43, conceptId: "tuning-partitioning", keywords: ["Global index", "Local index"] },
+      { number: 44, conceptId: "tuning-index-scan-efficiency", keywords: ["SARGable", "LIKE"] },
+      { number: 45, conceptId: "tuning-table-access", keywords: ["ROWID", "클러스터링"] },
+      { number: 46, conceptId: "tuning-index-scan-efficiency", keywords: ["Access Predicate", "Filter Predicate"] },
+      { number: 47, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "후행"] },
+      { number: 48, conceptId: "tuning-hash-join", keywords: ["Build Input", "Probe"] },
+      { number: 49, conceptId: "tuning-sort", keywords: ["ORDER BY", "인덱스"] },
+      { number: 50, conceptId: "tuning-query-transformation", keywords: ["OR Expansion", "UNION ALL"] },
+      { number: 51, conceptId: "tuning-query-transformation", keywords: ["View Merging", "NO_MERGE"] },
+      { number: 52, conceptId: "tuning-query-transformation", keywords: ["Subquery Unnesting", "UNNEST"] },
+      { number: 53, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "SARGable"] },
+      { number: 54, conceptId: "tuning-parallel", keywords: ["Parallel", "APPEND"] },
+      { number: 55, conceptId: "tuning-sql-trace", keywords: ["Application Cursor Caching", "Execute Count"] },
+      { number: 56, conceptId: "tuning-cardinality", keywords: ["카디널리티", "Histogram"] },
+      { number: 57, conceptId: "tuning-optimizer", keywords: ["Bind Peeking", "Histogram"] },
+      { number: 58, conceptId: "tuning-lock", keywords: ["Lock", "Blocking"] },
+      { number: 59, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Fast Full Scan", "Index Full Scan"] },
+      { number: 60, conceptId: "tuning-top-n", keywords: ["STOPKEY", "Top-N"] }
     ];
 
     for (const { number, conceptId, keywords } of auditedDestinations) {
