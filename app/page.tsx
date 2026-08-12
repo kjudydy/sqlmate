@@ -31,7 +31,7 @@ import {
   officialSourceVersion,
   subjects
 } from "@/lib/problem-bank";
-import { filterCurrentAnswers, filterCurrentAttempts, findFirstUnansweredQuestionIndex } from "@/lib/study-versioning";
+import { filterCurrentAttempts, findFirstUnansweredQuestionIndex, mergeCurrentAnswerRecords } from "@/lib/study-versioning";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { FormEvent, ReactNode } from "react";
 import type {
@@ -746,7 +746,10 @@ export default function Home() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const allQuestions = useMemo(() => objectiveQuestions, []);
   const allLabQuestions = useMemo(() => labQuestions, []);
-  const currentAnswers = useMemo(() => filterCurrentAnswers(answers, allQuestions), [answers, allQuestions]);
+  const currentAnswers = useMemo(
+    () => mergeCurrentAnswerRecords(answers, sessionAnswers, allQuestions),
+    [answers, sessionAnswers, allQuestions]
+  );
   const currentAttempts = useMemo(() => filterCurrentAttempts(attempts, allQuestions), [attempts, allQuestions]);
   const baseSubjectQuestions = useMemo(
     () => objectiveQuestions.filter((question) => question.subjectId === activeSubject),

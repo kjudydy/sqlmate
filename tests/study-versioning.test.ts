@@ -3,7 +3,8 @@ import {
   filterCurrentAnswers,
   filterCurrentAttempts,
   findFirstUnansweredQuestionIndex,
-  isCurrentAnswerForQuestion
+  isCurrentAnswerForQuestion,
+  mergeCurrentAnswerRecords
 } from "@/lib/study-versioning";
 import type { AnswerRecord, AttemptRecord, ObjectiveQuestion } from "@/lib/types";
 
@@ -28,11 +29,11 @@ function attempt(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
     id: "attempt-1",
     questionId: "modeling-001",
     subjectId: "modeling",
-    topic: "데이터 모델링",
+    topic: "data modeling",
     selectedChoiceId: "A",
     correct: true,
     answeredAt: "2026-07-23T00:00:00.000Z",
-    stem: "문제",
+    stem: "question",
     ...overrides
   };
 }
@@ -91,5 +92,47 @@ describe("study versioning", () => {
         }
       )
     ).toBe(3);
+  });
+
+  it("treats just-submitted session answers as solved when moving to the next question", () => {
+    const questions = [
+      question,
+      { id: "modeling-002", contentHash: "current-two" },
+      { id: "modeling-003", contentHash: "current-three" }
+    ] as ObjectiveQuestion[];
+    const persistedAnswers = {
+      "modeling-001": answer({ questionContentHash: "current-hash" })
+    };
+    const sessionAnswers = {
+      "modeling:1:modeling-002": answer({
+        questionId: "modeling-002",
+        selectedChoiceId: "B",
+        questionContentHash: "current-two"
+      })
+    };
+
+    const mergedAnswers = mergeCurrentAnswerRecords(persistedAnswers, sessionAnswers, questions);
+
+    expect(Object.keys(mergedAnswers)).toEqual(["modeling-001", "modeling-002"]);
+    expect(findFirstUnansweredQuestionIndex(questions, mergedAnswers, 1)).toBe(2);
+  });
+
+  it("ignores stale session answers from an older question version", () => {
+    const questions = [
+      question,
+      { id: "modeling-002", contentHash: "current-two" }
+    ] as ObjectiveQuestion[];
+    const sessionAnswers = {
+      "modeling:1:modeling-002": answer({
+        questionId: "modeling-002",
+        selectedChoiceId: "B",
+        questionContentHash: "old-two"
+      })
+    };
+
+    const mergedAnswers = mergeCurrentAnswerRecords({}, sessionAnswers, questions);
+
+    expect(mergedAnswers).toEqual({});
+    expect(findFirstUnansweredQuestionIndex(questions, mergedAnswers)).toBe(0);
   });
 });

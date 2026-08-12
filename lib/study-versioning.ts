@@ -20,6 +20,24 @@ export function filterCurrentAnswers(answers: Record<string, AnswerRecord>, ques
   );
 }
 
+export function mergeCurrentAnswerRecords(
+  persistedAnswers: Record<string, AnswerRecord>,
+  sessionAnswers: Record<string, AnswerRecord>,
+  questions: VersionedQuestion[]
+) {
+  const questionsById = questionMap(questions);
+  const merged = filterCurrentAnswers(persistedAnswers, questions);
+
+  for (const answer of Object.values(sessionAnswers)) {
+    const question = questionsById.get(answer.questionId);
+    if (isCurrentAnswerForQuestion(answer, question)) {
+      merged[answer.questionId] = answer;
+    }
+  }
+
+  return merged;
+}
+
 export function filterCurrentAttempts(attempts: AttemptRecord[], questions: VersionedQuestion[]) {
   const questionsById = questionMap(questions);
 
