@@ -121,6 +121,35 @@ const conceptStudyBlockOverrides: Record<string, ConceptStudyBlock[]> = {
       ]
     }
   ],
+  "sql-subquery": [
+    {
+      type: "section",
+      title: "서브쿼리 판단 기준",
+      paragraphs: [
+        "서브쿼리는 SQL 안에 포함된 SELECT다. 문제에서는 서브쿼리의 위치보다 반환 행 수와 비교 연산자가 서로 맞는지를 먼저 확인한다.",
+        "단일행 비교 연산자(=, <, > 등)는 서브쿼리가 한 값만 반환한다는 전제가 필요하다. 두 행 이상을 반환하면 Oracle에서는 단일행 서브쿼리가 2개 이상의 행을 반환했다는 오류가 발생한다.",
+        "다중행 서브쿼리는 IN, ANY, ALL, EXISTS와 함께 사용한다. EXISTS는 반환 컬럼값보다 행의 존재 여부가 중요하며, SELECT 목록에는 보통 1을 두어도 의미가 같다."
+      ]
+    },
+    {
+      type: "section",
+      title: "스칼라 서브쿼리",
+      paragraphs: [
+        "스칼라 서브쿼리는 한 행에 대해 하나의 값을 반환해야 하는 서브쿼리다. SELECT 목록에서 코드명, 최신 값, 집계 값을 가져올 때 자주 사용한다.",
+        "외부 행 하나에 대해 스칼라 서브쿼리 결과가 두 건 이상이면 값 하나로 확정할 수 없으므로 오류가 난다. 이 경우 집계로 한 값으로 줄이거나, 조인 전에 기준을 명확히 해야 한다.",
+        "상관 스칼라 서브쿼리는 바깥 쿼리의 각 행마다 반복 평가될 수 있다. 대량 데이터에서는 반복 횟수, 캐싱 가능성, 조인 또는 사전 집계로의 재작성 가능성을 함께 판단한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "EXISTS와 NOT EXISTS",
+      paragraphs: [
+        "EXISTS는 서브쿼리 결과가 한 행이라도 존재하면 TRUE가 된다. SELECT 목록의 값 자체는 판단 대상이 아니므로 SELECT 1, SELECT * 모두 존재 여부 관점에서는 같다.",
+        "NOT EXISTS는 매칭되는 행이 없을 때 TRUE가 되며, NULL이 포함된 NOT IN보다 안전한 안티 조인 표현이 될 수 있다.",
+        "다만 NOT EXISTS와 NOT IN이 항상 같은 것은 아니다. 비교 컬럼에 NULL이 섞이면 NOT IN은 UNKNOWN 때문에 결과가 달라질 수 있으므로 문제 조건의 NULL 가능성을 반드시 확인한다."
+      ]
+    }
+  ],
   "sql-window-functions": [
     {
       type: "section",

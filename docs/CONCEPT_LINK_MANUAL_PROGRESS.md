@@ -76,7 +76,10 @@ Avoid running the full audit script unless explicitly requested.
 - 2026-08-12 follow-up: audited subject 2 questions 1-30 with a narrow regression test.
 - Confirmed each related-concept button in this range lands on a concept article containing the topic keywords needed for the question.
 - Corrected subject 2 question 23 from the broad `sql-constraints` concept to `sql-ddl-constraints`, because the question is about defining constraints with `CREATE TABLE` / `ALTER TABLE`.
+- 2026-08-12 follow-up: audited subject 2 questions 31-60 with a narrow regression test.
+- Confirmed the range covers NULL/NVL, outer join counts, hierarchical queries, scalar subqueries, PIVOT, set operators, window functions, grouping, DML, date arithmetic, Top-N, CASE, and history joins.
+- Strengthened `sql-subquery` so scalar subquery and EXISTS/NOT EXISTS questions land on a concept page that actually explains the tested behavior.
 - Continue with the next manual batch only when needed:
-  - subject 2 questions 31-60
+  - subject 2 questions 61-90
   - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested

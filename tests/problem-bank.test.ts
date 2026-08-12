@@ -559,6 +559,54 @@ describe("SQLMate verified production problem bank", () => {
     }
   });
 
+  it("keeps subject-two questions 31 through 60 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { questionId: "prod-ext-sql-basic-031", conceptId: "sql-null", keywords: ["NVL", "NULL"] },
+      { questionId: "prod-ext-sql-basic-032", conceptId: "sql-standard-join", keywords: ["COUNT(*)", "OUTER JOIN"] },
+      { questionId: "prod-ext-sql-basic-033", conceptId: "sql-hierarchical-self-join", keywords: ["CONNECT BY", "PRIOR"] },
+      { questionId: "prod-ext-sql-basic-034", conceptId: "sql-subquery", keywords: ["스칼라", "서브쿼리"] },
+      { questionId: "prod-ext-sql-basic-035", conceptId: "sql-pivot-unpivot", keywords: ["PIVOT", "UNPIVOT"] },
+      { questionId: "prod-ext-sql-basic-036", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-037", conceptId: "sql-window-functions", keywords: ["RANK", "DENSE_RANK"] },
+      { questionId: "prod-ext-sql-basic-038", conceptId: "sql-group-functions", keywords: ["ROLLUP", "GROUPING"] },
+      { questionId: "prod-ext-sql-basic-039", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-040", conceptId: "sql-dml", keywords: ["MERGE", "UPDATE"] },
+      { questionId: "prod-ext-sql-basic-051", conceptId: "sql-date", keywords: ["DATE", "BETWEEN"] },
+      { questionId: "prod-ext-sql-basic-052", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-053", conceptId: "sql-standard-join", keywords: ["FULL OUTER JOIN", "RIGHT"] },
+      { questionId: "prod-ext-sql-basic-054", conceptId: "sql-set-operators", keywords: ["UNION ALL", "중복"] },
+      { questionId: "prod-ext-sql-basic-055", conceptId: "sql-group-having", keywords: ["HAVING", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-056", conceptId: "sql-window-functions", keywords: ["ROWS", "RANGE"] },
+      { questionId: "prod-ext-sql-basic-057", conceptId: "sql-window-functions", keywords: ["RANK", "DENSE_RANK"] },
+      { questionId: "prod-ext-sql-basic-058", conceptId: "sql-null", keywords: ["NOT IN", "NULL"] },
+      { questionId: "prod-ext-sql-basic-059", conceptId: "sql-subquery", keywords: ["스칼라", "서브쿼리"] },
+      { questionId: "prod-ext-sql-basic-060", conceptId: "sql-dml", keywords: ["MERGE", "INSERT"] },
+      { questionId: "prod-ext-sql-basic-061", conceptId: "sql-group-functions", keywords: ["ROLLUP", "GROUPING"] },
+      { questionId: "prod-ext-sql-basic-062", conceptId: "sql-hierarchical-self-join", keywords: ["CONNECT BY", "PRIOR"] },
+      { questionId: "prod-ext-sql-basic-063", conceptId: "sql-set-operators", keywords: ["INTERSECT", "MINUS"] },
+      { questionId: "prod-ext-sql-basic-064", conceptId: "sql-join", keywords: ["BETWEEN", "비등가"] },
+      { questionId: "prod-ext-sql-basic-066", conceptId: "sql-subquery", keywords: ["EXISTS", "NOT EXISTS"] },
+      { questionId: "prod-ext-sql-basic-067", conceptId: "sql-top-n", keywords: ["ROWNUM", "ORDER BY"] },
+      { questionId: "prod-ext-sql-basic-068", conceptId: "sql-null", keywords: ["COUNT(*)", "COUNT("] },
+      { questionId: "prod-ext-sql-basic-069", conceptId: "sql-functions", keywords: ["CASE", "DECODE"] },
+      { questionId: "prod-ext-sql-basic-070", conceptId: "sql-join", keywords: ["이력", "최신"] },
+      { questionId: "prod-ext-sql-basic-071", conceptId: "sql-window-functions", keywords: ["ROWS", "RANGE"] }
+    ];
+
+    for (const { questionId, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId, questionId).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `${questionId} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
   it("normalizes the second SQL-basic concept batch away from broad legacy concept aliases", () => {
     const expectedLinksBySource = new Map([
       ["pdf-v-2-group-having", "sql-group-having"],
