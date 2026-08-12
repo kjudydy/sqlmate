@@ -469,7 +469,7 @@ describe("SQLMate verified production problem bank", () => {
       ["prod-ext-sql-basic-020", "sql-select"],
       ["prod-ext-sql-basic-021", "sql-set-operators"],
       ["prod-ext-sql-basic-022", "sql-standard-join"],
-      ["prod-ext-sql-basic-023", "sql-constraints"],
+      ["prod-ext-sql-basic-023", "sql-ddl-constraints"],
       ["prod-ext-sql-basic-024", "sql-null"],
       ["prod-ext-sql-basic-025", "sql-window-functions"],
       ["prod-ext-sql-basic-026", "sql-group-functions"],
@@ -508,6 +508,54 @@ describe("SQLMate verified production problem bank", () => {
       const question = objectiveQuestions.find((item) => item.id === questionId);
       expect(question, questionId).toBeTruthy();
       expect(question?.relatedConceptId).toBe(conceptId);
+    }
+  });
+
+  it("keeps subject-two questions 1 through 30 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { questionId: "prod-sql-basic-001", conceptId: "sql-dcl", keywords: ["GRANT", "REVOKE"] },
+      { questionId: "prod-sql-basic-002", conceptId: "sql-ddl", keywords: ["CREATE", "ALTER", "DROP"] },
+      { questionId: "prod-sql-basic-003", conceptId: "sql-null", keywords: ["UNKNOWN", "NOT IN"] },
+      { questionId: "prod-sql-basic-004", conceptId: "sql-constraints", keywords: ["PRIMARY KEY", "FOREIGN KEY"] },
+      { questionId: "prod-sql-basic-005", conceptId: "sql-identifiers", keywords: ["Oracle", "SELECT"] },
+      { questionId: "prod-sql-basic-006", conceptId: "sql-null", keywords: ["COUNT(*)", "COUNT("] },
+      { questionId: "prod-sql-basic-007", conceptId: "sql-constraints", keywords: ["CHECK", "FOREIGN KEY"] },
+      { questionId: "prod-sql-basic-008", conceptId: "sql-identifiers", keywords: ["Oracle", "EMP"] },
+      { questionId: "prod-sql-basic-009", conceptId: "sql-join", keywords: ["INNER JOIN", "OUTER JOIN"] },
+      { questionId: "prod-sql-basic-010", conceptId: "sql-window-functions", keywords: ["ROW_NUMBER", "ORDER BY"] },
+      { questionId: "prod-ext-sql-basic-011", conceptId: "sql-tcl", keywords: ["COMMIT", "ROLLBACK"] },
+      { questionId: "prod-ext-sql-basic-012", conceptId: "sql-date", keywords: ["DATE", "ADD_MONTHS"] },
+      { questionId: "prod-ext-sql-basic-013", conceptId: "sql-null", keywords: ["NVL", "NULL"] },
+      { questionId: "prod-ext-sql-basic-014", conceptId: "sql-join", keywords: ["JOIN", "BETWEEN"] },
+      { questionId: "prod-ext-sql-basic-015", conceptId: "sql-group-functions", keywords: ["ROLLUP", "GROUPING_ID"] },
+      { questionId: "prod-ext-sql-basic-016", conceptId: "sql-group-functions", keywords: ["CUBE", "GROUPING SETS"] },
+      { questionId: "prod-ext-sql-basic-017", conceptId: "sql-window-functions", keywords: ["RANK", "DENSE_RANK"] },
+      { questionId: "prod-ext-sql-basic-018", conceptId: "sql-set-operators", keywords: ["UNION", "UNION ALL"] },
+      { questionId: "prod-ext-sql-basic-019", conceptId: "sql-dml", keywords: ["MERGE", "UPDATE"] },
+      { questionId: "prod-ext-sql-basic-020", conceptId: "sql-select", keywords: ["FROM", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-021", conceptId: "sql-set-operators", keywords: ["INTERSECT", "MINUS"] },
+      { questionId: "prod-ext-sql-basic-022", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "FULL OUTER JOIN"] },
+      { questionId: "prod-ext-sql-basic-023", conceptId: "sql-ddl-constraints", keywords: ["CREATE TABLE", "ALTER TABLE"] },
+      { questionId: "prod-ext-sql-basic-024", conceptId: "sql-null", keywords: ["OUTER JOIN", "NULL"] },
+      { questionId: "prod-ext-sql-basic-025", conceptId: "sql-window-functions", keywords: ["PARTITION BY", "ROW_NUMBER"] },
+      { questionId: "prod-ext-sql-basic-026", conceptId: "sql-group-functions", keywords: ["ROLLUP", "CUBE"] },
+      { questionId: "prod-ext-sql-basic-027", conceptId: "sql-dml", keywords: ["INSERT", "DELETE"] },
+      { questionId: "prod-ext-sql-basic-028", conceptId: "sql-top-n", keywords: ["ROWNUM", "FETCH FIRST"] },
+      { questionId: "prod-ext-sql-basic-029", conceptId: "sql-standard-join", keywords: ["OUTER JOIN", "WHERE"] },
+      { questionId: "prod-ext-sql-basic-030", conceptId: "sql-group-having", keywords: ["HAVING", "COUNT"] }
+    ];
+
+    for (const { questionId, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.id === questionId);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, questionId).toBeTruthy();
+      expect(question?.relatedConceptId, questionId).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `${questionId} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
     }
   });
 

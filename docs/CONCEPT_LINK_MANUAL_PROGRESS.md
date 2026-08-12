@@ -73,6 +73,10 @@ Avoid running the full audit script unless explicitly requested.
 
 ## Next Batch
 
+- 2026-08-12 follow-up: audited subject 2 questions 1-30 with a narrow regression test.
+- Confirmed each related-concept button in this range lands on a concept article containing the topic keywords needed for the question.
+- Corrected subject 2 question 23 from the broad `sql-constraints` concept to `sql-ddl-constraints`, because the question is about defining constraints with `CREATE TABLE` / `ALTER TABLE`.
 - Continue with the next manual batch only when needed:
-  - audit visible concept destinations from the app for several solved/wrong-note flows
+  - subject 2 questions 31-60
+  - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested

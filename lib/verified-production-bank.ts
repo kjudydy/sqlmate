@@ -5495,6 +5495,10 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "sql-identifiers" };
   }
 
+  if (question.id === "prod-ext-sql-basic-023") {
+    question = { ...question, relatedConceptId: "sql-ddl-constraints" };
+  }
+
   const windowFunctionLinkText = [
     question.middleTopic,
     question.topic,
