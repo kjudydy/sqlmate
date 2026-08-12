@@ -80,6 +80,19 @@ Avoid running the full audit script unless explicitly requested.
   - cardinality error questions -> `tuning-cardinality`
 - Strengthened readable concept bodies for scalar subquery caching, partitioning/local-global indexes, cardinality, parallel DML, SQL sharing, hash join, and index scan method distinctions.
 - Added a focused regression test for subject 3 questions 31-60.
+- 2026-08-12 follow-up: audited subject 3 questions 61-90 by visible question number.
+- Kept the range on specific destinations for Clustering Factor, Local/Global partition indexes, SQL Trace, Access/Filter Predicate, Hash Join, Top-N, Direct Path Insert, Partition Pruning, window frames, CUBE/GROUPING SETS, wait events, and execution-plan predicates.
+- Strengthened concept bodies with missing visible terms:
+  - `tuning-table-access`: Clustering Factor
+  - `tuning-sql-trace`: Array Processing, log file sync, Consistent Read
+  - `tuning-hash-join`: Disk Spill and Sort Merge Join comparison
+  - `tuning-partitioning`: Partition Exchange
+  - `tuning-optimizer`: Library Cache with Bind Peeking
+  - `tuning-query-transformation`: FILTER Operation and Semi Join
+  - `tuning-sort`: Hash Group By
+  - `tuning-sql-sharing`: Result Cache
+  - `tuning-dml`: APPEND / Direct Path Insert
+- Added a focused regression test for subject 3 questions 61-90.
 - Added a representative problem-screen destination test for concept buttons users are likely to click:
   - NULL questions -> `sql-null`
   - constraint questions -> `sql-constraints`
@@ -102,6 +115,6 @@ Avoid running the full audit script unless explicitly requested.
 - Corrected additional outer join, DATE arithmetic, latest-history join, HAVING, and GROUPING SETS/CUBE questions to their more precise concept destinations.
 - Replaced the related concept bodies for `sql-where`, `sql-dcl`, and `sql-date` with readable Korean study blocks that cover LIKE/ESCAPE, tuple IN, ROLE/object privileges, DATE time arithmetic, and half-open date ranges.
 - Continue with the next manual batch only when needed:
-  - subject 3 questions 61-90
+  - subject 3 questions 91-120
   - visible concept destinations from solved/wrong-note flows
   - avoid full-bank audit unless explicitly requested

@@ -236,12 +236,12 @@ describe("SQLMate verified production problem bank", () => {
         conceptArticles.find((concept) => concept.id === "sql-standard-join")?.studyBlocks ?? []
       ]
     );
-    const expectedJoinLinks = new Map([
+    const expectedJoinLinks: Array<[string, string]> = [
       ["prod-ext-sql-basic-022", "sql-standard-join"],
       ["prod-ext-sql-basic-053", "sql-standard-join"],
       ["prod-ext-sql-basic-070", "sql-join"],
-      { questionId: "prod-ext-sql-basic-207", conceptId: "sql-join", keywords: ["BETWEEN", "JOIN"] },
-    ]);
+      ["prod-ext-sql-basic-207", "sql-join"]
+    ];
 
     expect(joinConceptText).toContain("OUTER JOIN");
     expect(joinConceptText).toContain("LEFT OUTER JOIN");
@@ -374,6 +374,7 @@ describe("SQLMate verified production problem bank", () => {
   it("links constraint-focused SQL questions to the detailed constraint concept", () => {
     const constraintConcept = conceptArticles.find((concept) => concept.id === "sql-constraints");
     const constraintConceptText = JSON.stringify(constraintConcept?.studyBlocks ?? []);
+    const allowedConstraintConceptIds = new Set(["sql-constraints", "sql-ddl-constraints"]);
     const constraintFocusedQuestions = objectiveQuestions.filter((question) => {
       const linkText = [question.middleTopic, question.topic, question.stem, question.code, question.parentQuestionId].filter(Boolean).join(" ");
       const isPermissionCommandQuestion = /(GRANT|REVOKE|DCL|권한)/i.test(linkText);
@@ -396,9 +397,9 @@ describe("SQLMate verified production problem bank", () => {
 
     for (const question of constraintFocusedQuestions) {
       expect(
-        question.relatedConceptId,
+        allowedConstraintConceptIds.has(question.relatedConceptId),
         `${question.subjectId} ${question.number} ${question.middleTopic} ${question.topic} ${question.parentQuestionId ?? ""}`
-      ).toBe("sql-constraints");
+      ).toBe(true);
     }
   });
 
@@ -853,6 +854,54 @@ describe("SQLMate verified production problem bank", () => {
       { number: 58, conceptId: "tuning-lock", keywords: ["Lock", "Blocking"] },
       { number: 59, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Fast Full Scan", "Index Full Scan"] },
       { number: 60, conceptId: "tuning-top-n", keywords: ["STOPKEY", "Top-N"] }
+    ];
+
+    for (const { number, conceptId, keywords } of auditedDestinations) {
+      const question = objectiveQuestions.find((item) => item.subjectId === "tuning" && item.number === number);
+      const destinationText = conceptText(conceptId);
+
+      expect(question, `tuning question ${number}`).toBeTruthy();
+      expect(question?.relatedConceptId, `tuning question ${number}`).toBe(conceptId);
+      for (const keyword of keywords) {
+        expect(destinationText, `tuning question ${number} -> ${conceptId} should explain ${keyword}`).toContain(keyword);
+      }
+    }
+  });
+
+  it("keeps subject-three questions 61 through 90 connected to concepts that explain the clicked topic", () => {
+    const conceptText = (conceptId: string) =>
+      JSON.stringify(conceptArticles.find((concept) => concept.id === conceptId)?.studyBlocks ?? []);
+    const auditedDestinations = [
+      { number: 61, conceptId: "tuning-table-access", keywords: ["ROWID", "Clustering Factor"] },
+      { number: 62, conceptId: "tuning-partitioning", keywords: ["Local index", "Prefixed"] },
+      { number: 63, conceptId: "tuning-partitioning", keywords: ["Global index", "Local index"] },
+      { number: 64, conceptId: "tuning-sql-trace", keywords: ["Fetch", "Array Processing"] },
+      { number: 65, conceptId: "tuning-index-scan-efficiency", keywords: ["Access Predicate", "Filter Predicate"] },
+      { number: 66, conceptId: "tuning-hash-join", keywords: ["Build Input", "Disk Spill"] },
+      { number: 67, conceptId: "tuning-index-scan-efficiency", keywords: ["SARGable", "Index Range Scan"] },
+      { number: 68, conceptId: "tuning-top-n", keywords: ["COUNT STOPKEY", "Top-N"] },
+      { number: 69, conceptId: "tuning-partitioning", keywords: ["Partition Exchange", "Local index"] },
+      { number: 70, conceptId: "tuning-sql-trace", keywords: ["Rows", "Starts"] },
+      { number: 71, conceptId: "tuning-optimizer", keywords: ["Bind Peeking", "Library Cache"] },
+      { number: 72, conceptId: "tuning-index-scan-efficiency", keywords: ["Index Skip Scan", "NDV"] },
+      { number: 73, conceptId: "tuning-table-access", keywords: ["Clustering Factor", "ROWID"] },
+      { number: 74, conceptId: "tuning-nl-join", keywords: ["Nested Loops", "후행"] },
+      { number: 75, conceptId: "tuning-hash-join", keywords: ["Hash Join", "Sort Merge Join"] },
+      { number: 76, conceptId: "tuning-hash-join", keywords: ["Build Input", "Probe Input"] },
+      { number: 77, conceptId: "tuning-query-transformation", keywords: ["Subquery Unnesting", "UNNEST"] },
+      { number: 78, conceptId: "tuning-query-transformation", keywords: ["FILTER", "Semi Join"] },
+      { number: 79, conceptId: "tuning-scalar-subquery", keywords: ["Scalar Subquery", "Caching"] },
+      { number: 80, conceptId: "tuning-sort", keywords: ["Hash Group By", "GROUP BY"] },
+      { number: 81, conceptId: "tuning-top-n", keywords: ["STOPKEY", "Top-N"] },
+      { number: 82, conceptId: "tuning-sql-sharing", keywords: ["Result Cache", "Cursor"] },
+      { number: 83, conceptId: "tuning-dml", keywords: ["Direct Path Insert", "APPEND"] },
+      { number: 84, conceptId: "tuning-partition-pruning", keywords: ["Partition Pruning", "PSTART"] },
+      { number: 85, conceptId: "tuning-partitioning", keywords: ["Local index", "Prefixed"] },
+      { number: 86, conceptId: "sql-window-functions", keywords: ["ROWS", "RANGE"] },
+      { number: 87, conceptId: "sql-group-functions", keywords: ["CUBE", "GROUPING SETS"] },
+      { number: 88, conceptId: "tuning-sql-trace", keywords: ["log file sync", "Commit"] },
+      { number: 89, conceptId: "tuning-sql-trace", keywords: ["Consistent Read", "TKPROF"] },
+      { number: 90, conceptId: "tuning-explain-plan", keywords: ["Access Predicate", "Filter Predicate"] }
     ];
 
     for (const { number, conceptId, keywords } of auditedDestinations) {

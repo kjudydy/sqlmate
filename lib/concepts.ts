@@ -807,6 +807,7 @@ Object.assign(conceptStudyBlockOverrides, {
       type: "section",
       title: "Bind Peeking, Histogram, Adaptive Cursor Sharing",
       paragraphs: [
+        "Library Cache에는 파싱된 SQL 커서와 실행계획이 저장된다. 같은 SQL을 공유하면 Hard Parse 비용을 줄일 수 있지만, Bind 값 분포가 크게 다르면 공유된 실행계획이 항상 최적이라는 보장은 없다.",
         "Bind Peeking은 최초 Hard Parse 시점의 Bind 값을 보고 실행계획을 만든다. 값 분포가 치우친 컬럼에서는 최초 Bind 값에 따라 이후 실행계획이 부적절해질 수 있다.",
         "Histogram은 컬럼 값 분포가 균등하지 않을 때 선택도 추정을 보정하는 통계정보다. 인기 값과 비인기 값의 선택도가 크게 다르면 Histogram 유무가 실행계획에 영향을 준다.",
         "Adaptive Cursor Sharing은 Bind 값에 따라 성능 차이가 큰 SQL에 대해 여러 실행계획을 사용할 수 있게 하는 Oracle 기능이다."
@@ -889,7 +890,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "Hash Join(해시 조인)은 한쪽 입력으로 해시 테이블을 만들고 다른 입력으로 탐색해 조인하는 방식이다. 대량 등가 조인에서 NL Join보다 랜덤 액세스가 적어 유리할 수 있다.",
         "Build Input은 해시 테이블을 만드는 입력이고, Probe Input은 만들어진 해시 테이블을 탐색하는 입력이다. 보통 필터 후 더 작은 집합이 Build Input이 되는 것이 유리하다.",
-        "메모리가 부족하면 해시 영역이 디스크로 spill되어 TEMP I/O가 발생할 수 있다."
+        "메모리가 부족하면 해시 영역이 디스크로 spill되는 Disk Spill이 발생해 TEMP I/O가 커질 수 있다."
       ]
     },
     {
@@ -898,6 +899,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "조인 컬럼에 적절한 인덱스가 없거나 대량 집합을 조인해야 하면 Hash Join이 후보가 된다.",
         "작은 테이블이 항상 Build Input이라고 단정하지 않는다. 조건 적용 후 예상 카디널리티와 통계정보 기준으로 판단한다.",
+        "Sort Merge Join은 양쪽 입력을 조인 키 순서로 정렬한 뒤 병합하는 방식이고, Hash Join은 해시 테이블을 만들어 탐색한다. 이미 정렬된 입력이나 비등가 조건 여부, 메모리와 TEMP 부담을 함께 비교한다.",
         "실기 답안에서는 USE_HASH, LEADING, SWAP_JOIN_INPUTS 같은 힌트와 함께 어떤 집합을 Build Input으로 둘지 설명해야 한다."
       ]
     }
@@ -909,6 +911,7 @@ Object.assign(conceptStudyBlockOverrides, {
       paragraphs: [
         "Sort 튜닝은 ORDER BY, GROUP BY, DISTINCT, UNION, 윈도우 함수에서 발생하는 정렬 비용을 줄이는 것이다.",
         "정렬 대상 행 수와 행 크기가 클수록 PGA 작업 메모리를 많이 사용한다. 메모리가 부족하면 TEMP 영역을 사용하면서 응답 시간이 급격히 늘 수 있다.",
+        "GROUP BY는 실행계획에서 Sort Group By 또는 Hash Group By로 처리될 수 있다. Hash Group By는 해시 영역을 사용해 그룹을 만들고, 메모리가 부족하면 TEMP I/O가 커질 수 있다.",
         "인덱스 순서를 활용하면 SORT ORDER BY를 생략할 수 있고, 불필요한 DISTINCT나 UNION은 정렬 또는 해시 중복 제거 비용을 만든다."
       ]
     },
@@ -980,6 +983,15 @@ Object.assign(conceptStudyBlockOverrides, {
         "Global index는 전체 테이블 데이터를 하나의 인덱스 구조로 관리하거나, 테이블 파티션과 다른 기준으로 파티션될 수 있다. 전역 검색에는 유리하지만 파티션 유지보수 영향이 커질 수 있다.",
         "Local Prefixed index는 인덱스 선두 컬럼이 파티션 키를 포함하는 Local index다. Local Nonprefixed index는 Local index지만 인덱스 선두 컬럼이 파티션 키가 아닌 경우다."
       ]
+    },
+    {
+      type: "section",
+      title: "Partition Exchange",
+      paragraphs: [
+        "Partition Exchange는 스테이징 테이블과 특정 파티션을 메타데이터 중심으로 교체해 대량 적재나 배치 전환을 빠르게 처리하는 기법이다.",
+        "교체 대상 테이블의 컬럼 구조, 제약조건, 인덱스 상태가 맞아야 하며 Local index는 파티션 단위 유지보수와 함께 검토한다.",
+        "SQLP 실기에서는 INSERT로 대량 데이터를 밀어 넣는 방식과 Partition Exchange 방식의 redo/undo, lock, 가용성 차이를 비교해서 묻는 경우가 많다."
+      ]
     }
   ],
   "tuning-cardinality": [
@@ -1039,6 +1051,15 @@ Object.assign(conceptStudyBlockOverrides, {
         "Bind Peeking은 최초 Hard Parse 시점의 Bind 값을 보고 실행계획을 선택하는 동작이다. 데이터 분포가 치우친 컬럼에서는 최초 값에 따라 이후 실행계획이 부적절할 수 있다.",
         "Adaptive Cursor Sharing은 Bind 값의 선택도 차이가 큰 SQL에 대해 여러 커서와 실행계획을 사용할 수 있게 하는 기능이다.",
         "시험에서는 바인드 변수가 공유에는 유리하지만 값별 데이터 분포가 크게 다르면 실행계획 안정성 문제가 생길 수 있다는 점을 구분한다."
+      ]
+    },
+    {
+      type: "section",
+      title: "Result Cache",
+      paragraphs: [
+        "Result Cache는 동일 입력에 대한 쿼리 또는 함수 결과를 재사용해 반복 계산과 반복 I/O를 줄이는 기능이다.",
+        "자주 변경되는 테이블, 세션별로 결과가 달라지는 표현식, 비결정적 함수가 포함된 경우에는 캐시 효과가 작거나 부적절할 수 있다.",
+        "커서 공유와 Result Cache는 모두 재사용을 다루지만, 커서 공유는 실행계획 재사용이고 Result Cache는 결과 자체의 재사용이라는 차이가 있다."
       ]
     }
   ]
@@ -2141,7 +2162,7 @@ const conceptSeeds: ConceptSeed[] = [
       "예상 실행계획은 옵티마이저가 선택할 것으로 예상한 접근 경로와 조인 방법을 보여준다. 실제 수행 통계와 다를 수 있다는 점이 중요하다.",
     keyPoints: [
       "실행계획은 위에서 아래로만 읽지 않고, 들여쓰기와 자식 연산 관계를 보며 로우 소스 흐름을 해석한다.",
-      "ACCESS PREDICATE는 인덱스 탐색 조건, FILTER PREDICATE는 읽은 뒤 걸러내는 조건으로 이해한다.",
+      "ACCESS PREDICATE(Access Predicate)는 인덱스 탐색 조건, FILTER PREDICATE(Filter Predicate)는 읽은 뒤 걸러내는 조건으로 이해한다.",
       "Rows, Cost, Bytes는 통계 기반 추정치이므로 실제 건수와 차이가 날 수 있다.",
       "인덱스 스캔, 테이블 액세스, 조인 방식, 정렬 작업 유무를 우선 확인한다.",
       "예상 실행계획만으로는 실제 병목을 확정할 수 없고 실행 통계가 필요하다."
@@ -2166,7 +2187,7 @@ const conceptSeeds: ConceptSeed[] = [
         paragraphs: [
           "예상 실행계획은 옵티마이저의 예측이고, SQL Trace/TKPROF는 실제 수행 중 어느 call에서 CPU, elapsed time, logical read, physical read가 발생했는지 보여준다. SQLP 실습형에서는 실행계획 모양만 보고 답하지 말고 실제 통계와 함께 병목을 말해야 한다.",
           "TKPROF의 call 표는 Parse, Execute, Fetch로 나뉜다. SELECT는 Fetch 단계에 읽기 비용이 몰리는 경우가 많고, DML은 Execute 단계가 커질 수 있다. parse count가 작다고 전체 SQL이 빠르다는 뜻은 아니다.",
-          "query는 consistent get, current는 current get, disk는 physical read로 이해한다. rows 대비 query가 과도하면 인덱스 스캔 효율, 조인 반복, 테이블 랜덤 액세스, fetch call 크기를 의심한다."
+        "query는 consistent get, current는 current get, disk는 physical read로 이해한다. rows 대비 query가 과도하면 인덱스 스캔 효율, 조인 반복, 테이블 랜덤 액세스, fetch call 크기와 Array Processing 효율을 의심한다."
         ]
       },
       {
@@ -2187,26 +2208,35 @@ const conceptSeeds: ConceptSeed[] = [
         rows: [
           ["Execute당 평균 Rows", "Rows / Execute Count", "루프 안에서 같은 SQL이 반복 수행될 때 1회 실행당 실제 처리 행 수를 본다."],
           ["평균 Block", "(Query + Current) / Fetch Count", "Fetch 한 번마다 읽은 논리 블록 수를 계산해 배열 Fetch 크기와 I/O 효율을 함께 판단한다."],
-          ["Array Size", "Fetch Rows / Fetch Count", "반환 행 수 대비 Fetch Call이 지나치게 많으면 애플리케이션 Fetch 크기나 네트워크 왕복을 의심한다."],
+        ["Array Size", "Fetch Rows / Fetch Count", "Array Processing 관점에서 반환 행 수 대비 Fetch Call이 지나치게 많으면 애플리케이션 Fetch 크기나 네트워크 왕복을 의심한다."],
           ["논리적 I/O", "Query + Current", "consistent get과 current get을 합쳐 Buffer Cache 접근량으로 해석한다."],
           ["물리적 I/O", "Disk", "디스크에서 실제 읽은 블록으로, 캐시 적중률과 Full Scan/Temp Spill 여부를 함께 본다."],
           ["Application Cursor Caching", "Execute Count > Parse Count", "같은 커서가 애플리케이션에서 재사용되고 있는지 판단하는 단서가 된다."],
           ["Soft Parse 100%", "Parse count misses in library cache = 0", "라이브러리 캐시 미스가 없으면 하드 파싱 없이 소프트 파싱으로 재사용된 것이다."]
         ]
       },
-      {
-        type: "table",
-        title: "Trace 수치 해석 예",
-        headers: ["패턴", "가능한 원인", "확인할 계획"],
-        rows: [
-          ["rows는 적은데 query가 매우 큼", "많이 읽고 테이블에서 대부분 버림", "INDEX RANGE SCAN Rows와 TABLE ACCESS Buffers"],
-          ["fetch count가 rows와 비슷하게 큼", "배열 fetch 크기 작음 또는 한 건씩 반복", "애플리케이션 fetch size, DB Call 최소화"],
-          ["disk가 높고 query도 높음", "버퍼 캐시 미적중 또는 대량 읽기", "Full Scan, 파티션 pruning, TEMP spill"],
-          ["execute count가 매우 큼", "루프 안 반복 SQL 또는 row-by-row DML", "집합 처리, bulk bind, MERGE/CTAS 대안"]
-        ]
-      },
-      {
-        type: "checklist",
+    {
+      type: "table",
+      title: "Trace 수치 해석 예",
+      headers: ["패턴", "가능한 원인", "확인할 계획"],
+      rows: [
+        ["rows는 적은데 query가 매우 큼", "많이 읽고 테이블에서 대부분 버림", "INDEX RANGE SCAN Rows와 TABLE ACCESS Buffers"],
+        ["fetch count가 rows와 비슷하게 큼", "배열 fetch 크기 작음 또는 한 건씩 반복", "애플리케이션 fetch size, DB Call 최소화"],
+        ["disk가 높고 query도 높음", "버퍼 캐시 미적중 또는 대량 읽기", "Full Scan, 파티션 pruning, TEMP spill"],
+        ["execute count가 매우 큼", "루프 안 반복 SQL 또는 row-by-row DML", "집합 처리, bulk bind, MERGE/CTAS 대안"]
+      ]
+    },
+    {
+      type: "section",
+      title: "Wait Event와 Consistent Read",
+      paragraphs: [
+        "log file sync는 Commit 요청 후 LGWR가 redo를 기록하기를 기다리는 대표적인 대기 이벤트다. Commit이 지나치게 잦거나 redo 쓰기 지연이 있으면 응답 시간이 늘 수 있다.",
+        "Consistent Read는 쿼리가 읽기 일관성을 맞추기 위해 필요한 버전의 블록을 읽는 과정이다. TKPROF의 query 수치가 크면 논리적 읽기와 CR 부담을 함께 본다.",
+        "SQL Trace 문제에서는 CPU/elapsed만 보지 말고 wait event, query/current/disk, rows, starts를 함께 묶어 병목 원인을 판단한다."
+      ]
+    },
+    {
+      type: "checklist",
         title: "실전 해설에 반드시 쓸 말",
         items: [
           "어느 call(Parse/Execute/Fetch)에 시간이 몰렸는지 먼저 적는다.",
@@ -2275,12 +2305,12 @@ const conceptSeeds: ConceptSeed[] = [
     majorTopic: "인덱스 튜닝",
     detailTopic: "테이블 엑세스 최소화",
     summary:
-      "인덱스를 타도 테이블 랜덤 액세스가 많으면 느릴 수 있다. SQLP에서는 인덱스 컬럼 구성과 커버링, 클러스터링 팩터로 테이블 액세스를 줄이는 전략이 중요하다.",
+      "인덱스를 타도 테이블 랜덤 액세스가 많으면 느릴 수 있다. SQLP에서는 인덱스 컬럼 구성과 커버링, 클러스터링 팩터(Clustering Factor)로 테이블 액세스를 줄이는 전략이 중요하다.",
     keyPoints: [
       "인덱스에서 찾은 ROWID로 테이블 블록을 반복 방문하는 작업이 랜덤 I/O를 만든다.",
       "조회 컬럼을 인덱스에 포함하면 테이블 액세스를 줄일 수 있지만 인덱스 크기와 DML 비용이 증가한다.",
       "필터 조건이 인덱스에 포함되지 않으면 많은 ROWID를 찾아놓고 테이블에서 버릴 수 있다.",
-      "클러스터링 팩터가 좋으면 인덱스 순서대로 읽을 때 테이블 블록 재방문이 줄어든다.",
+      "클러스터링 팩터(Clustering Factor)가 좋으면 인덱스 순서대로 읽을 때 테이블 블록 재방문이 줄어든다.",
       "부분 범위 처리와 Top-N에서는 정렬된 인덱스를 이용해 초기에 중단하는 전략이 유리하다."
     ],
     examTrap:
@@ -2552,7 +2582,7 @@ const conceptSeeds: ConceptSeed[] = [
         paragraphs: [
           "쿼리 변환은 SQL 문장을 개발자가 쓴 모양 그대로 실행하지 않고, 결과가 같다고 판단되는 다른 형태로 바꾸어 최적화 기회를 넓히는 과정이다. SQLP에서는 변환이 일어나야 빠른 경우와, 변환을 막아야 목표 실행계획이 유지되는 경우를 모두 묻는다.",
           "View Merging은 인라인 뷰를 바깥 쿼리와 합쳐 조인 순서와 predicate 이동 가능성을 넓힌다. 그러나 집계, Top-N, rownum, distinct처럼 뷰 내부 처리 순서가 의미를 갖는 경우에는 병합이 결과나 성능 의도를 바꿀 수 있다.",
-          "Subquery Unnesting은 서브쿼리를 세미 조인, 안티 조인, 일반 조인 등으로 변환한다. NOT IN과 NULL, OUTER JOIN 보존 관계처럼 결과 보존 조건이 흔들리는 경우는 함정이 된다."
+        "Subquery Unnesting은 서브쿼리를 Semi Join(세미 조인), Anti Join(안티 조인), 일반 조인 등으로 변환한다. 변환되지 않으면 실행계획에 FILTER Operation으로 남아 바깥 행마다 서브쿼리를 평가할 수 있다. NOT IN과 NULL, OUTER JOIN 보존 관계처럼 결과 보존 조건이 흔들리는 경우는 함정이 된다."
         ]
       },
       {
@@ -2643,7 +2673,7 @@ const conceptSeeds: ConceptSeed[] = [
     summary:
       "DML 튜닝은 INSERT, UPDATE, DELETE, MERGE의 대량 처리 성능을 개선하는 영역이다. 인덱스, 제약조건, 트리거, redo/undo 비용이 중요하다.",
     keyPoints: [
-      "대량 INSERT에서는 direct path insert, 병렬 처리, NOLOGGING 가능성을 검토할 수 있다.",
+      "대량 INSERT에서는 APPEND 힌트로 유도하는 Direct Path Insert, 병렬 처리, NOLOGGING 가능성을 검토할 수 있다.",
       "UPDATE/DELETE는 대상 행을 찾는 조건 인덱스와 변경 대상 인덱스 유지 비용을 함께 본다.",
       "인덱스가 많으면 DML마다 인덱스 갱신 비용이 증가한다.",
       "트리거와 외래키 제약은 DML 성능에 영향을 줄 수 있다.",
@@ -2652,7 +2682,7 @@ const conceptSeeds: ConceptSeed[] = [
     examTrap:
       "대량 DELETE를 무조건 한 문장으로 끝내는 것이 정답은 아니다. 업무 일관성, undo, lock, 배치 시간 창을 고려한다.",
     oracleAngle:
-      "Oracle에서는 array processing, bulk bind, direct path, partition exchange 같은 기법이 대량 DML 튜닝의 핵심이다."
+      "Oracle에서는 array processing, bulk bind, Direct Path Insert, partition exchange 같은 기법이 대량 DML 튜닝의 핵심이다."
   },
   {
     id: "tuning-call-minimize",
