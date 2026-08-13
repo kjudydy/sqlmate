@@ -5585,6 +5585,33 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
     question = { ...question, relatedConceptId: "tuning-explain-plan" };
   }
 
+  if (question.subjectId === "sql-basic" && question.parentQuestionId === "pdf-o-2-set-operator-count") {
+    question = {
+      ...question,
+      table: undefined,
+      tables: [
+        {
+          title: "T1(A, B, C)",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["A3", "B2", "C3"],
+            ["A1", "B1", "C1"],
+            ["A2", "B1", "C2"]
+          ]
+        },
+        {
+          title: "T2(A, B, C)",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["A1", "B1", "C1"],
+            ["A3", "B2", "C3"]
+          ]
+        }
+      ],
+      duplicationCheck: `${question.duplicationCheck ?? ""}; manual layout fix: T1 and T2 source rows are rendered as separate tables`
+    };
+  }
+
   if (question.subjectId === "sql-basic") {
     if (question.relatedConceptId === "sql-hierarchical") {
       question = { ...question, relatedConceptId: "sql-hierarchical-self-join" };

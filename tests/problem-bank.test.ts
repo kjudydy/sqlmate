@@ -1243,8 +1243,22 @@ describe("SQLMate verified production problem bank", () => {
   });
 
   it("keeps multi-table objective materials separated for join-count questions", () => {
+    const setOperatorQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 21);
     const duplicateKeyQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 22);
     const basicQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 43);
+
+    expect(setOperatorQuestion).toBeTruthy();
+    expect(setOperatorQuestion?.table).toBeUndefined();
+    expect(setOperatorQuestion?.tables?.map((table) => table.title)).toEqual(["T1(A, B, C)", "T2(A, B, C)"]);
+    expect(setOperatorQuestion?.tables?.[0]?.rows).toEqual([
+      ["A3", "B2", "C3"],
+      ["A1", "B1", "C1"],
+      ["A2", "B1", "C2"]
+    ]);
+    expect(setOperatorQuestion?.tables?.[1]?.rows).toEqual([
+      ["A1", "B1", "C1"],
+      ["A3", "B2", "C3"]
+    ]);
 
     expect(duplicateKeyQuestion).toBeTruthy();
     expect(duplicateKeyQuestion?.table).toBeUndefined();
