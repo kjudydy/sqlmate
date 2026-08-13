@@ -1242,8 +1242,18 @@ describe("SQLMate verified production problem bank", () => {
     expect(new Set(objectiveQuestions.map((question) => question.questionType)).size).toBeGreaterThanOrEqual(3);
   });
 
-  it("keeps multi-table objective materials separated for join-count questions", () => {
+  it("keeps multi-table objective materials separated", () => {
     const setOperatorQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 21);
+    const referentialActionQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 23);
+    const originalSetOperatorQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "sql-basic" && item.parentQuestionId === "pdf-o-2-set-operator"
+    );
+    const unionCountQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "sql-basic" && item.parentQuestionId === "pdf-o-2-union-count"
+    );
+    const setRowCountQuestion = objectiveQuestions.find(
+      (item) => item.subjectId === "sql-basic" && item.parentQuestionId === "sql-set-row-count"
+    );
     const duplicateKeyQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 22);
     const basicQuestion = objectiveQuestions.find((item) => item.subjectId === "sql-basic" && item.number === 43);
 
@@ -1256,6 +1266,50 @@ describe("SQLMate verified production problem bank", () => {
       ["A2", "B1", "C2"]
     ]);
     expect(setOperatorQuestion?.tables?.[1]?.rows).toEqual([
+      ["A1", "B1", "C1"],
+      ["A3", "B2", "C3"]
+    ]);
+
+    expect(referentialActionQuestion).toBeTruthy();
+    expect(referentialActionQuestion?.table).toBeUndefined();
+    expect(referentialActionQuestion?.tables?.map((table) => table.title)).toEqual(["T(C, D)", "S(B, C)", "R(A, B)"]);
+    expect(referentialActionQuestion?.tables?.[0]?.rows).toEqual([
+      ["1", "1"],
+      ["2", "2"]
+    ]);
+    expect(referentialActionQuestion?.tables?.[1]?.rows).toEqual([
+      ["1", "1"],
+      ["2", "1"]
+    ]);
+    expect(referentialActionQuestion?.tables?.[2]?.rows).toEqual([
+      ["1", "1"],
+      ["2", "2"]
+    ]);
+    expect(referentialActionQuestion?.relatedConceptId).toBe("sql-ddl-constraints");
+
+    for (const question of [originalSetOperatorQuestion, unionCountQuestion]) {
+      expect(question).toBeTruthy();
+      expect(question?.table).toBeUndefined();
+      expect(question?.tables?.map((table) => table.title)).toEqual(["R1(A, B, C)", "R2(A, B, C)"]);
+      expect(question?.tables?.[0]?.rows).toEqual([
+        ["A3", "B2", "C3"],
+        ["A1", "B1", "C1"],
+        ["A2", "B1", "C2"]
+      ]);
+      expect(question?.tables?.[1]?.rows).toEqual([
+        ["A1", "B1", "C1"],
+        ["A3", "B2", "C3"]
+      ]);
+    }
+
+    expect(setRowCountQuestion).toBeTruthy();
+    expect(setRowCountQuestion?.table).toBeUndefined();
+    expect(setRowCountQuestion?.tables?.map((table) => table.title)).toEqual(["R1(A, B, C)", "R2(A, B, C)"]);
+    expect(setRowCountQuestion?.tables?.[0]?.rows).toEqual([
+      ["A1", "B1", "C1"],
+      ["A2", "B1", "C2"]
+    ]);
+    expect(setRowCountQuestion?.tables?.[1]?.rows).toEqual([
       ["A1", "B1", "C1"],
       ["A3", "B2", "C3"]
     ]);

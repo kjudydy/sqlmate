@@ -5496,7 +5496,38 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
   }
 
   if (question.id === "prod-ext-sql-basic-023") {
-    question = { ...question, relatedConceptId: "sql-ddl-constraints" };
+    question = {
+      ...question,
+      table: undefined,
+      tables: [
+        {
+          title: "T(C, D)",
+          headers: ["C", "D"],
+          rows: [
+            ["1", "1"],
+            ["2", "2"]
+          ]
+        },
+        {
+          title: "S(B, C)",
+          headers: ["B", "C"],
+          rows: [
+            ["1", "1"],
+            ["2", "1"]
+          ]
+        },
+        {
+          title: "R(A, B)",
+          headers: ["A", "B"],
+          rows: [
+            ["1", "1"],
+            ["2", "2"]
+          ]
+        }
+      ],
+      relatedConceptId: "sql-ddl-constraints",
+      duplicationCheck: `${question.duplicationCheck ?? ""}; manual layout fix: T, S and R source rows are rendered as separate tables`
+    };
   }
 
   if (
@@ -5609,6 +5640,62 @@ function patchKnownObjectiveQuestionIssues(question: ObjectiveQuestion): Objecti
         }
       ],
       duplicationCheck: `${question.duplicationCheck ?? ""}; manual layout fix: T1 and T2 source rows are rendered as separate tables`
+    };
+  }
+
+  if (
+    question.subjectId === "sql-basic" &&
+    (question.parentQuestionId === "pdf-o-2-set-operator" || question.parentQuestionId === "pdf-o-2-union-count")
+  ) {
+    question = {
+      ...question,
+      table: undefined,
+      tables: [
+        {
+          title: "R1(A, B, C)",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["A3", "B2", "C3"],
+            ["A1", "B1", "C1"],
+            ["A2", "B1", "C2"]
+          ]
+        },
+        {
+          title: "R2(A, B, C)",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["A1", "B1", "C1"],
+            ["A3", "B2", "C3"]
+          ]
+        }
+      ],
+      duplicationCheck: `${question.duplicationCheck ?? ""}; manual layout fix: R1 and R2 source rows are rendered as separate tables`
+    };
+  }
+
+  if (question.subjectId === "sql-basic" && question.parentQuestionId === "sql-set-row-count") {
+    question = {
+      ...question,
+      table: undefined,
+      tables: [
+        {
+          title: "R1(A, B, C)",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["A1", "B1", "C1"],
+            ["A2", "B1", "C2"]
+          ]
+        },
+        {
+          title: "R2(A, B, C)",
+          headers: ["A", "B", "C"],
+          rows: [
+            ["A1", "B1", "C1"],
+            ["A3", "B2", "C3"]
+          ]
+        }
+      ],
+      duplicationCheck: `${question.duplicationCheck ?? ""}; manual layout fix: R1 and R2 source rows are rendered as separate tables`
     };
   }
 
