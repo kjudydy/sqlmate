@@ -49,4 +49,14 @@ describe("related concept navigation", () => {
     expect(resolveRelatedConceptNavigation("missing-concept-id", conceptArticles)).toBeNull();
     expect(resolveRelatedConceptNavigation(undefined, conceptArticles)).toBeNull();
   });
+
+  it("keeps visual example tables in confusing concept pages", () => {
+    const normalization = conceptArticles.find((concept) => concept.id === "modeling-normalization");
+    const groupFunctions = conceptArticles.find((concept) => concept.id === "sql-group-functions");
+
+    expect(normalization?.studyBlocks?.some((block) => block.type === "table" && block.title === "1NF, 2NF, 3NF 판단 기준")).toBe(true);
+    expect(normalization?.studyBlocks?.some((block) => block.type === "table" && block.title === "정규화 예시: 수강내역")).toBe(true);
+    expect(groupFunctions?.studyBlocks?.some((block) => block.type === "table" && block.title === "ROLLUP(지역, 상품) 결과")).toBe(true);
+    expect(groupFunctions?.studyBlocks?.some((block) => block.type === "table" && block.title === "ROLLUP, CUBE, GROUPING SETS 차이")).toBe(true);
+  });
 });
