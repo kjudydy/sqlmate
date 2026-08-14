@@ -55,7 +55,10 @@ describe("related concept navigation", () => {
     const groupFunctions = conceptArticles.find((concept) => concept.id === "sql-group-functions");
 
     expect(normalization?.studyBlocks?.some((block) => block.type === "table" && block.title === "1NF, 2NF, 3NF 판단 기준")).toBe(true);
-    expect(normalization?.studyBlocks?.some((block) => block.type === "table" && block.title === "정규화 예시: 수강내역")).toBe(true);
+    expect(normalization?.studyBlocks?.some((block) => block.type === "table" && block.title === "제2정규형 예시: 분해 전 수강강좌")).toBe(true);
+    expect(normalization?.studyBlocks?.some((block) => block.type === "flow" && block.title === "부분 함수 종속 흐름")).toBe(true);
+    expect(normalization?.studyBlocks?.some((block) => block.type === "table" && block.title === "제3정규형 예시: 분해 전 결제내역")).toBe(true);
+    expect(normalization?.studyBlocks?.some((block) => block.type === "flow" && block.title === "이행 함수 종속 흐름")).toBe(true);
     expect(groupFunctions?.studyBlocks?.some((block) => block.type === "table" && block.title === "ROLLUP(지역, 상품) 결과")).toBe(true);
     expect(groupFunctions?.studyBlocks?.some((block) => block.type === "table" && block.title === "ROLLUP, CUBE, GROUPING SETS 차이")).toBe(true);
   });
